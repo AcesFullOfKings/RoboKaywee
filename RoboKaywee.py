@@ -1,14 +1,14 @@
-﻿import random
+import random
 import requests
 
 from threading     import Thread
-from time          import sleep, time, gmtime
+from time          import sleep, time, localtime
 from fortunes      import fortunes
 from datetime      import date
 from os            import path
 
 from chatbot       import ChatBot
-from credentials   import bot_name, password, channel_name
+from credentials   import bot_name, password, channel_name, tof_name, tof_password
 from API_functions import get_subscribers
 
 
@@ -17,22 +17,24 @@ mods = {'valkia', 'a_wild_scabdog', 'rabbitsblinkity', 'zenzuwu', 'fareeha', 'th
 		'marciodasb', 'littlehummingbird', 'itswh1sp3r', 'samitofps', 'robokaywee', 'gothmom_', 'uhohisharted', 'flasgod', 
 		'jabool', "kaywee"}
 
+currencies = {'CAD', 'HKD', 'ISK', 'PHP', 'DKK', 'HUF', 'CZK', 'GBP', 'RON', 'SEK', 'IDR', 'INR', 'BRL', 'RUB', 'HRK', 'JPY', 'THB', 'CHF', 'EUR', 'MYR', 'BGN', 'TRY', 'CNY', 'NOK', 'NZD', 'ZAR', 'USD', 'MXN', 'SGD', 'AUD', 'ILS', 'KRW', 'PLN'}
+
 modwall_size      = 15
 supermodwall_size = 30
 ultramodwall_size = 50
 hypermodwall_size = 100
 
 # Create subscribers object from disk if available:
-if path.exists("subscribers.txt"):
-	with open("subscribers.txt", "r", encoding="utf-8") as f:
-		try:
-			raw = f.read()
-			d = eval(raw)
-			subscribers = dict(d)
-		except:
-			subscribers = dict()
-else:
-	subscribers = dict()
+#if path.exists("subscribers.txt"):
+#	with open("subscribers.txt", "r", encoding="utf-8") as f:
+#		try:
+#			raw = f.read()
+#			d = eval(raw)
+#			subscribers = dict(d)
+#		except:
+#			subscribers = dict()
+#else:
+#	subscribers = dict()
 
 def get_subs():
 	global subscribers
@@ -43,14 +45,14 @@ def get_subs():
 			f.write(out)
 		sleep(10*60) # update every 10 mins
 
-subs_thread = Thread(target=get_subs)
-subs_thread.start()
+#subs_thread = Thread(target=get_subs)
+#subs_thread.start()
 
 def log(s):
     """
     Takes a string, s, and logs it to a log file on disk with a timestamp. Also prints the string to console.
     """
-    current_time = gmtime()
+    current_time = localtime()
     year   = str(current_time.tm_year)
     month  = str(current_time.tm_mon).zfill(2)
     day    = str(current_time.tm_mday).zfill(2)
@@ -133,8 +135,8 @@ def respond_message(user, message):
 				num = 3
 			
 			if emote != "":
-				if num > 4:
-					num = 4
+				if num > 12:
+					num = 12
 		
 				counts = list(range(1,num+1)) + list(range(1,num)[::-1])
 				for count in counts:
@@ -176,6 +178,10 @@ def respond_message(user, message):
 
 			unit = ""
 
+			if input == "monopoly":
+				bot.send_message("FeelsBadMan")
+				return
+
 			while input[-1] not in "0123456789": 
 				if input[-1] != " ":
 					unit = input[-1] + unit  # e.g. cm or kg
@@ -185,7 +191,7 @@ def respond_message(user, message):
 					return
 
 			try:
-				quantity = int(input)
+				quantity = float(input)
 			except (ValueError):
 				bot.send_message("That... doesn't look like a number to me. Try a number followed by 'cm' or 'c'.")
 				return
@@ -204,6 +210,10 @@ def respond_message(user, message):
 
 			unit = ""
 
+			if input == "monopoly":
+				bot.send_message("Jebaited")
+				return
+
 			while input[-1] not in "0123456789": 
 				if input[-1] != " ":
 					unit = input[-1] + unit  # e.g. cm or kg
@@ -213,7 +223,7 @@ def respond_message(user, message):
 					return
 
 			try:
-				quantity = int(input)
+				quantity = float(input)
 			except (ValueError):
 				bot.send_message("That... doesn't look like a number to me. Try a number followed by 'cm' or 'c'.")
 				return
@@ -224,7 +234,7 @@ def respond_message(user, message):
 				bot.send_message("I don't recognise that imperial unit. Sorry :(")
 
 			bot.send_message(f"/me {quantity}{unit} in units which actualy make sense is {sensible_quantity}{sensible_unit}.")
-		elif command == "whogifted":
+		elif False and command == "whogifted":
 			try:
 				target = message.split(" ")[1]
 			except IndexError: # no target specified
@@ -250,33 +260,7 @@ def respond_message(user, message):
 					return
 			else:
 				bot.send_message("/me @{target} is not a subscriber. FeelsBadMan".format(target=target))
-
-		elif command == "subgoal":
-			return
-			if len(subscribers) == 0: 
-				return # subs haven't been initialised yet or there's some problem
-
-			goal = get_data("subgoal")
-
-			try:
-				int(goal)
-			except:
-				bot.send_message("No sub goal is set.")
-				log("No sub goal set, in response to user {u}.".format(u=user))
-				return
-
-			subs = len(subscribers)
-			subs_remaining = goal-subs
-
-			if subs_remaining < 0:
-				bot.send_message("/me The sub goal has been reached! ({s}/{g})".format(s=f'{subs:,}', g=f'{goal:,}'))
-				log("Sent sub goal reached, in response to user {u}.".format(u=user))
-				return
-			else:
-				bot.send_message("/me There are only {s} subscribers left until we hit our sub goal of {goal} subscribers! Use !sub or !prime to help us get there kaywee1AYAYA".format(s=f'{subs_remaining:,}', goal=f'{goal:,}'))
-				log("Sent subgoal (goal={g}, subs left={s}) in response to user {u}.".format(u=user, s=subs_remaining, g=goal))
-				return
-		elif command == "howmanygifts":
+		elif False and command == "howmanygifts":
 			try:
 				target = message.split(" ")[1]
 			except IndexError: # no target specified
@@ -305,7 +289,7 @@ def respond_message(user, message):
 					message = "/me {t} has gifted subscriptions to {c} of the current subscribers! Thanks for the support <3 kaywee1AYAYA".format(c=count, t=target)
 				bot.send_message(message)
 				log(f"Sent {target} has {count} gifted subs, in response to {user}.")
-		elif command in ["newseason", "season23"]:
+		elif False and command in ["newseason", "season23"]:
 
 			try:
 				target = message.split(" ")[1]
@@ -334,25 +318,62 @@ def respond_message(user, message):
 					bot.send_message(f"/me @{target} Overwatch Season 23 will start in {mins}{ms} and {secs}{ss}!")
 
 				log(f"Sent season 23 start time to {user}, targeting {target}, showing {hours}{hs}, {mins}{ms} and {secs}{ss}")
-		elif user in mods and command == "addpoints":
-			try:
-				target = message.split(" ")[1]
-				points = int(message.split(" ")[2])
-			except(ValueError, IndexError):
-				return
+		elif user in mods:
+			if command == "addpoints":
+				try:
+					target = message.split(" ")[1]
+					points = int(message.split(" ")[2])
+				except(ValueError, IndexError):
+					return
 
-			bot.send_message(f"/me {user} has gifted {points} points to {target}!")
+				bot.send_message(f"/me {user} has gifted {points} points to {target}!")
+				return
+			elif command in ["setcolour", "setcolor"]:
+				try:
+					colour = message.split(" ")[1]
+				except(ValueError, IndexError):
+					colour = "default"
+
+				if colour.lower() in ["default", "blue","blueviolet","cadetblue","chocolate","coral","dodgerblue","firebrick","goldenrod","green","hotpink","orangered","red","seagreen","springgreen","yellowgreen"]:
+					valid = True
+				else:
+					valid = False
+
+				# ONLY WORKS WITH TWITCH PRIME:
+				#if colour[0] == "#": 
+				#	if len(colour) == 7:
+				#		for c in colour[1:].lower():
+				#			if c not in "0123456789abcdef":
+				#				valid = False
+				#				break
+				#		else:
+				#			valid=True
+
+				if valid:
+					if colour == "default":
+						bot.send_message("/color HotPink")
+					else:
+						bot.send_message("/color " + colour)
+					sleep(2)
+					bot.send_message("Colour updated! kaywee1AYAYA")
+				else:
+					bot.send_message("That colour isn't right.")
 
 
 	elif message.lower() in ["ayy", "ayyy", "ayyyy", "ayyyyy"]:
 		bot.send_message("lmao")
 		log(f"Sent lmao to {user}")
 
+	elif "@robokaywee" in message.lower():
+		bot.send_message("I'm a bot, so I can't help you. Maybe you can try talking to one of the helpful human mods instead.")
+
 	else: #not a command (so message[0] != "!")
 		words = message.split(" ")
 		if len(words) == 2 and words[0].lower() == "i'm":
 			bot.send_message("/me Hi {word}, I'm Dad! kaywee1AYAYA".format(word=words[1]))
 			log(f"Sent Dad to {user}")
+
+
 
 def get_data(name):
 	try:
@@ -385,7 +406,9 @@ def set_data(name, value):
 		f.write(str(data))
 
 def tofreedom(unit, quantity):
-	"Intentionally doesn't handle errors"
+	"""Intentionally doesn't handle errors"""
+
+	unit = unit.lower()
 
 	if unit == "c":
 		far = round((quantity * (9/5)) + 32, 1) # F = (C × 9/5) + 32
@@ -402,10 +425,17 @@ def tofreedom(unit, quantity):
 	elif unit == "km":
 		mi = round(quantity / 1.60934, 2)
 		return ("mi", mi)
+	elif unit.upper() in currencies:
+		dlr = round(quantity * get_currencies(base=unit, convert_to="USD"), 3)
+		return ("USD", dlr)
+
 
 	return -1
 
 def unfreedom(unit, quantity):
+
+	unit = unit.upper()
+
 	if unit == "f":
 		cel = round((quantity-32) * (5/9), 1) #C = (F − 32) × 5/9
 		return ("c", cel)
@@ -421,23 +451,33 @@ def unfreedom(unit, quantity):
 	elif unit == "mi":
 		km = round(quantity * 1.60934, 2)
 		return ("km", km)
+	elif unit == "usd":
+		result = round(quantity * get_currencies(base="USD", convert_to="GBP"), 3)
+		return ("GBP", result)
 
 	return -1
 
+def get_currencies(base="USD", convert_to="GBP"):
+	base = base.upper()
+	result = requests.get(f"https://api.exchangeratesapi.io/latest?base={base}").json()
+	rates = result["rates"]
+	if convert_to.upper() in rates:
+		return rates[convert_to]
+
 if __name__ == "__main__":
 	log("Starting bot..")
-	bot = ChatBot(bot_name, password, channel_name)
+	bot = ChatBot(bot_name, password, channel_name, debug=False)
+	#tofbot = ChatBot(tof_name, tof_password, channel_name)
 
-	#respond_message("theonefoster", "!howmanygifts @AdemusXP7 ")
+	#respond_message("theonefoster", "!unfreedom 90USD")
 
 	msg_count = 0
-	modwall = 0
+	modwall = 51
 	modwall_mods = set()
 	gothwall = 0
 
 	while True:
 		messages = bot.get_messages()
-
 		for user, message in messages:
 			if user not in ["robokaywee", "streamelements"]: #ignore bots
 				if message != "" and user != "": #idk why they would be blank but defensive programming I guess
@@ -459,11 +499,11 @@ if __name__ == "__main__":
 							if modwall == modwall_size:
 								bot.send_message("#modwall ! kaywee1AYAYA")
 							elif modwall == supermodwall_size:
-								bot.send_message("/me #MEGAmodwall! kaywee1Wut ")
+								bot.send_message("/me #MEGAmodwall! SeemsGood kaywee1Wut ")
 							elif modwall == ultramodwall_size:
-								bot.send_message("/me #U L T R A MODWALL PogChamp TwitchLit  kaywee1AYAYA kaywee1Wut")
+								bot.send_message("/me #U L T R A MODWALL TwitchLit kaywee1AYAYA kaywee1Wut")
 							elif modwall == hypermodwall_size:
-								bot.send_message("/me #H Y P E R M O D W A L L gachiHYPER Kreygasm CurseLit FootGoal SeemsGood kaywee1AYAYA kaywee1Wut")
+								bot.send_message("/me #H Y P E R M O D W A L L gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1AYAYA kaywee1Wut")
 						else:
 							if modwall not in [modwall_size-1, supermodwall_size-1, ultramodwall_size-1]: #don't increase it to a modwall number
 								modwall += 1
@@ -482,11 +522,16 @@ if __name__ == "__main__":
 					gothwall += 1
 					print(gothwall)
 				else:
-					gothwall = 0
+					if user not in ["robokaywee", "streamelements"]:
+						gothwall = 0
 
 				if gothwall == 6:
 					bot.send_message("/me #GothWall!")
 					log("gothwall! :)")
 				elif gothwall == 12:
 					bot.send_message("/me #MEGAgothwall! kaywee1Wut ")
+				elif gothwall == 20:
+					bot.send_message("/me #H Y P E R G O T H W A L L!! gachiHYPER ")
+
+				
 				
