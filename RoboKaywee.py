@@ -434,7 +434,7 @@ def tofreedom(unit, quantity):
 
 def unfreedom(unit, quantity):
 
-	unit = unit.upper()
+	unit = unit.lower()
 
 	if unit == "f":
 		cel = round((quantity-32) * (5/9), 1) #C = (F − 32) × 5/9
@@ -472,7 +472,7 @@ if __name__ == "__main__":
 	#respond_message("theonefoster", "!unfreedom 90USD")
 
 	msg_count = 0
-	modwall = 51
+	modwall = 0
 	modwall_mods = set()
 	gothwall = 0
 
@@ -520,10 +520,9 @@ if __name__ == "__main__":
 
 				if user == "gothmom_":
 					gothwall += 1
-					print(gothwall)
-				else:
-					if user not in ["robokaywee", "streamelements"]:
-						gothwall = 0
+					#print(gothwall)
+				elif user not in ["robokaywee", "streamelements"]:
+					gothwall = 0
 
 				if gothwall == 6:
 					bot.send_message("/me #GothWall!")
@@ -531,7 +530,6 @@ if __name__ == "__main__":
 				elif gothwall == 12:
 					bot.send_message("/me #MEGAgothwall! kaywee1Wut ")
 				elif gothwall == 20:
-					bot.send_message("/me #H Y P E R G O T H W A L L!! gachiHYPER ")
-
-				
-				
+					bot.send_message("/me #H Y P E R GOTHWALL!! gachiHYPER ")
+				elif gothwall == 40:
+					bot.send_message("/me #H Y P E R G O T H W A L L!! PogChamp gachiHYPER CurseLit ")
