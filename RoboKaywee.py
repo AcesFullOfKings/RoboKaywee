@@ -17,12 +17,19 @@ mods = {'valkia', 'a_wild_scabdog', 'rabbitsblinkity', 'zenzuwu', 'fareeha', 'th
 		'marciodasb', 'littlehummingbird', 'itswh1sp3r', 'samitofps', 'robokaywee', 'gothmom_', 'uhohisharted', 'flasgod', 
 		'jabool', "kaywee"}
 
+vips = {"raijin__ow", "cavemanpwr", "kizunaow", "cupcake_ow", "hello_anna", "moirasdamageorb", "imspacemanspiff", "drtinman7"}
+
 currencies = {'CAD', 'HKD', 'ISK', 'PHP', 'DKK', 'HUF', 'CZK', 'GBP', 'RON', 'SEK', 'IDR', 'INR', 'BRL', 'RUB', 'HRK', 'JPY', 'THB', 'CHF', 'EUR', 'MYR', 'BGN', 'TRY', 'CNY', 'NOK', 'NZD', 'ZAR', 'USD', 'MXN', 'SGD', 'AUD', 'ILS', 'KRW', 'PLN'}
 
 modwall_size      = 15
 supermodwall_size = 30
 ultramodwall_size = 50
 hypermodwall_size = 100
+
+toxic_poll = False
+toxic_votes = 0
+nottoxic_votes = 0
+voters = set()
 
 # Create subscribers object from disk if available:
 #if path.exists("subscribers.txt"):
@@ -35,6 +42,47 @@ hypermodwall_size = 100
 #			subscribers = dict()
 #else:
 #	subscribers = dict()
+
+def start_toxic_poll():
+	global toxic_poll
+	global toxic_votes
+	global nottoxic_votes
+	global voters
+	global bot
+		
+	bot.send_message("/me Poll starting! Type !votetoxic or !votenice to vote on whether the previous game was toxic or nice (one vote per person). Results show in 60 seconds.")
+	toxic_poll = True
+	sleep(60)
+	toxic_poll = False
+	if nottoxic_votes > 0 and toxic_votes > 0:
+		toxic_percent =       toxic_votes / (toxic_votes + nottoxic_votes)
+		nottoxic_percent = nottoxic_votes / (toxic_votes + nottoxic_votes)
+	else:
+		if toxic_votes > 0:
+			toxic_percent = 1
+			nottoxic_percent = 0
+		else:
+			toxic_percent = 0
+			nottoxic_percent = 1
+
+	toxic_percent = round(100*toxic_percent)
+	nottoxic_percent = round(100*nottoxic_percent)
+
+	bot.send_message(f"/me There were {toxic_votes} votes for Toxic ({toxic_percent}%) and {nottoxic_votes} votes for Not Toxic ({nottoxic_percent}%)")
+	
+	if nottoxic_votes > toxic_votes:
+		bot.send_message("/me Chat votes that the game was NOT toxic! FeelsGoodMan ")
+		bot.send_message("!untoxic")
+
+	elif toxic_votes > nottoxic_votes:
+		bot.send_message("/me Chat votes that the game was toxic! FeelsBadMan ")
+		bot.send_message("!toxic")
+	else:
+		bot.send_message("/me Poll was a draw! Chat can't make up its mind! kaywee1Wut ")
+
+	voters = set()
+	toxic_votes = 0
+	nottoxic_votes = 0
 
 def get_subs():
 	global subscribers
@@ -67,6 +115,11 @@ def log(s):
         f.write(log_time + " - " + s + "\n")
 
 def respond_message(user, message):
+
+	global toxic_poll
+	global toxic_votes
+	global nottoxic_votes
+	global voters
 
 	if any(phrase in message for phrase in ["faggot", "retard"]):
 		bot.send_message(f"/timeout {user} 600")
@@ -174,7 +227,7 @@ def respond_message(user, message):
 			try:
 				input = message.split(" ")[1]
 			except (ValueError, IndexError):
-				bot.send_message("/me You have to tell me what you want me to convert..!")
+				bot.send_message("/me You have to provide something to convert..!")
 
 			unit = ""
 
@@ -187,13 +240,13 @@ def respond_message(user, message):
 					unit = input[-1] + unit  # e.g. cm or kg
 				input = input[:-1]
 				if len(input) == 0:
-					bot.send_message("You have to give me a quantity to convert.")
+					bot.send_message("You have to provide a quantity to convert.")
 					return
 
 			try:
 				quantity = float(input)
 			except (ValueError):
-				bot.send_message("That... doesn't look like a number to me. Try a number followed by 'cm' or 'c'.")
+				bot.send_message("That... doesn't look like a number. Try a number followed by e.g. 'cm' or 'ft'.")
 				return
 
 			try:
@@ -201,12 +254,15 @@ def respond_message(user, message):
 			except (ValueError, TypeError):
 				bot.send_message("I don't recognise that metric unit. Sorry :(")
 
+			if free_quantity == int(free_quantity): #if the float is a whole number
+				free_quantity = int(free_quantity) #convert it to an int (i.e. remove the .0)
+
 			bot.send_message(f"/me {quantity}{unit} in incomprehensible Freedom Units is {free_quantity}{free_unit}.")
 		elif command == "unfreedom":
 			try:
 				input = message.split(" ")[1]
 			except (ValueError, IndexError):
-				bot.send_message("/me You have to tell me what you want me to convert..!")
+				bot.send_message("/me You have to provide something to convert..!")
 
 			unit = ""
 
@@ -219,19 +275,22 @@ def respond_message(user, message):
 					unit = input[-1] + unit  # e.g. cm or kg
 				input = input[:-1]
 				if len(input) == 0:
-					bot.send_message("You have to give me a quantity to convert.")
+					bot.send_message("You have to provide a quantity to convert.")
 					return
 
 			try:
 				quantity = float(input)
 			except (ValueError):
-				bot.send_message("That... doesn't look like a number to me. Try a number followed by 'cm' or 'c'.")
+				bot.send_message("That... doesn't look like a number. Try a number followed by e.g. 'cm' or 'ft'.")
 				return
 
 			try:
 				sensible_unit, sensible_quantity = unfreedom(unit, quantity)
 			except (ValueError, TypeError):
 				bot.send_message("I don't recognise that imperial unit. Sorry :(")
+
+			if sensible_quantity == int(sensible_quantity): #if the float is a whole number
+				sensible_quantity = int(sensible_quantity) #convert it to an int (i.e. remove the .0)
 
 			bot.send_message(f"/me {quantity}{unit} in units which actualy make sense is {sensible_quantity}{sensible_unit}.")
 		elif False and command == "whogifted":
@@ -318,17 +377,17 @@ def respond_message(user, message):
 					bot.send_message(f"/me @{target} Overwatch Season 23 will start in {mins}{ms} and {secs}{ss}!")
 
 				log(f"Sent season 23 start time to {user}, targeting {target}, showing {hours}{hs}, {mins}{ms} and {secs}{ss}")
+		elif toxic_poll and user not in voters:
+			if command == "votetoxic":
+				toxic_votes += 1
+				voters.add(user)
+				print(f"Toxic vote from {user}!")
+			elif command == "votenice":
+				nottoxic_votes += 1
+				voters.add(user)
+				print(f"NOTtoxic vote from {user}!")
 		elif user in mods:
-			if command == "addpoints":
-				try:
-					target = message.split(" ")[1]
-					points = int(message.split(" ")[2])
-				except(ValueError, IndexError):
-					return
-
-				bot.send_message(f"/me {user} has gifted {points} points to {target}!")
-				return
-			elif command in ["setcolour", "setcolor"]:
+			if command in ["setcolour", "setcolor"]:
 				try:
 					colour = message.split(" ")[1]
 				except(ValueError, IndexError):
@@ -358,22 +417,22 @@ def respond_message(user, message):
 					bot.send_message("Colour updated! kaywee1AYAYA")
 				else:
 					bot.send_message("That colour isn't right.")
-
+			elif command == "toxicpoll" and not toxic_poll:
+				poll_thread = Thread(target=start_toxic_poll)
+				poll_thread.start()
 
 	elif message.lower() in ["ayy", "ayyy", "ayyyy", "ayyyyy"]:
 		bot.send_message("lmao")
 		log(f"Sent lmao to {user}")
 
 	elif "@robokaywee" in message.lower():
-		bot.send_message("I'm a bot, so I can't help you. Maybe you can try talking to one of the helpful human mods instead.")
+		bot.send_message("I'm a bot, so I can't reply. Maybe you can try talking to one of the helpful human mods instead.")
 
 	else: #not a command (so message[0] != "!")
 		words = message.split(" ")
 		if len(words) == 2 and words[0].lower() == "i'm":
 			bot.send_message("/me Hi {word}, I'm Dad! kaywee1AYAYA".format(word=words[1]))
 			log(f"Sent Dad to {user}")
-
-
 
 def get_data(name):
 	try:
@@ -429,7 +488,6 @@ def tofreedom(unit, quantity):
 		dlr = round(quantity * get_currencies(base=unit, convert_to="USD"), 3)
 		return ("USD", dlr)
 
-
 	return -1
 
 def unfreedom(unit, quantity):
@@ -475,6 +533,7 @@ if __name__ == "__main__":
 	modwall = 0
 	modwall_mods = set()
 	gothwall = 0
+	vipwall = 0
 
 	while True:
 		messages = bot.get_messages()
@@ -508,12 +567,13 @@ if __name__ == "__main__":
 							if modwall not in [modwall_size-1, supermodwall_size-1, ultramodwall_size-1]: #don't increase it to a modwall number
 								modwall += 1
 				else:
-					if modwall > hypermodwall_size:
-						bot.send_message(f"/me Hypermodwall has been broken by {user}! :( FeelsBadMan NotLikeThis")
-					elif modwall > ultramodwall_size:
-						bot.send_message(f"/me Ultramodwall has been broken by {user}! :( FeelsBadMan NotLikeThis")
-					elif modwall > supermodwall_size:
-						bot.send_message(f"/me Megamodwall has been brokenby {user}! :( FeelsBadMan")
+					if modwall > supermodwall_size:
+						if modwall > hypermodwall_size:
+							bot.send_message(f"/me Hypermodwall has been broken by {user}! :( FeelsBadMan NotLikeThis")
+						elif modwall > ultramodwall_size:
+							bot.send_message(f"/me Ultramodwall has been broken by {user}! :( FeelsBadMan NotLikeThis")
+						else: # must be >supermodwall
+							bot.send_message(f"/me Megamodwall has been broken by {user}! :( FeelsBadMan")
 
 					modwall = 0
 					modwall_mods = set()
@@ -532,4 +592,4 @@ if __name__ == "__main__":
 				elif gothwall == 20:
 					bot.send_message("/me #H Y P E R GOTHWALL!! gachiHYPER ")
 				elif gothwall == 40:
-					bot.send_message("/me #H Y P E R G O T H W A L L!! PogChamp gachiHYPER CurseLit ")
+					bot.send_message("/me #U L T R A G O T H W A L L!! PogChamp gachiHYPER CurseLit ")
