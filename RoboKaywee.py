@@ -55,7 +55,7 @@ def start_toxic_poll():
 	sleep(60)
 	toxic_poll = False
 	if nottoxic_votes > 0 and toxic_votes > 0:
-		toxic_percent =       toxic_votes / (toxic_votes + nottoxic_votes)
+		toxic_percent    =    toxic_votes / (toxic_votes + nottoxic_votes)
 		nottoxic_percent = nottoxic_votes / (toxic_votes + nottoxic_votes)
 	else:
 		if toxic_votes > 0:
@@ -68,17 +68,20 @@ def start_toxic_poll():
 	toxic_percent = round(100*toxic_percent)
 	nottoxic_percent = round(100*nottoxic_percent)
 
-	bot.send_message(f"/me There were {toxic_votes} votes for Toxic ({toxic_percent}%) and {nottoxic_votes} votes for Not Toxic ({nottoxic_percent}%)")
+	message = f"/me Results are in! Toxic: {toxic_votes} votes ({toxic_percent}%) - Nice: {nottoxic_votes} votes ({nottoxic_percent}%)"
 	
 	if nottoxic_votes > toxic_votes:
-		bot.send_message("/me Chat votes that the game was NOT toxic! FeelsGoodMan ")
+		bot.send_message(message + " Chat votes that the game was NOT toxic! FeelsGoodMan ")
 		bot.send_message("!untoxic")
+		log(f"Poll result: not toxic. Toxic: {toxic_votes} votes ({toxic_percent}%) - Nice: {nottoxic_votes} votes ({nottoxic_percent}%")
 
 	elif toxic_votes > nottoxic_votes:
-		bot.send_message("/me Chat votes that the game was toxic! FeelsBadMan ")
+		bot.send_message(message + " Chat votes that the game was TOXIC! FeelsBadMan ")
 		bot.send_message("!toxic")
+		log(f"Poll result: TOXIC. Toxic: {toxic_votes} votes ({toxic_percent}%) - Nice: {nottoxic_votes} votes ({nottoxic_percent}%")
 	else:
-		bot.send_message("/me Poll was a draw! Chat can't make up its mind! kaywee1Wut ")
+		bot.send_message(message + " Poll was a draw! Chat can't make up its mind! kaywee1Wut ")
+		log(f"Poll result: undecided. Toxic: {toxic_votes} votes ({toxic_percent}%) - Nice: {nottoxic_votes} votes ({nottoxic_percent}%")
 
 	voters = set()
 	toxic_votes = 0
@@ -427,6 +430,12 @@ def respond_message(user, message):
 
 	elif "@robokaywee" in message.lower():
 		bot.send_message("I'm a bot, so I can't reply. Maybe you can try talking to one of the helpful human mods instead.")
+		log(f"Sent \"I'm a bot\" to {user}")
+	#elif "foster" in message.lower():
+	#	bot.send_message("/me Foster is currently AFK searching for nipple pics in the discord. Please leave a message after the beep..")
+	#	log(f"Sent Foster is AFK to {user}")
+	#	sleep(5)
+	#	bot.send_message("/me beep")
 
 	else: #not a command (so message[0] != "!")
 		words = message.split(" ")
@@ -485,7 +494,7 @@ def tofreedom(unit, quantity):
 		mi = round(quantity / 1.60934, 2)
 		return ("mi", mi)
 	elif unit.upper() in currencies:
-		dlr = round(quantity * get_currencies(base=unit, convert_to="USD"), 3)
+		dlr = round(quantity * get_currencies(base=unit, convert_to="USD"), 2)
 		return ("USD", dlr)
 
 	return -1
@@ -510,7 +519,7 @@ def unfreedom(unit, quantity):
 		km = round(quantity * 1.60934, 2)
 		return ("km", km)
 	elif unit == "usd":
-		result = round(quantity * get_currencies(base="USD", convert_to="GBP"), 3)
+		result = round(quantity * get_currencies(base="USD", convert_to="GBP"), 2)
 		return ("GBP", result)
 
 	return -1
