@@ -73,15 +73,15 @@ def start_toxic_poll():
 	if nottoxic_votes > toxic_votes:
 		bot.send_message(message + " Chat votes that the game was NOT toxic! FeelsGoodMan ")
 		bot.send_message("!untoxic")
-		log(f"Poll result: not toxic. Toxic: {toxic_votes} votes ({toxic_percent}%) - Nice: {nottoxic_votes} votes ({nottoxic_percent}%")
+		log(f"Poll result: not toxic. Toxic: {toxic_votes} votes ({toxic_percent}%) - Nice: {nottoxic_votes} votes ({nottoxic_percent}%)")
 
 	elif toxic_votes > nottoxic_votes:
 		bot.send_message(message + " Chat votes that the game was TOXIC! FeelsBadMan ")
 		bot.send_message("!toxic")
-		log(f"Poll result: TOXIC. Toxic: {toxic_votes} votes ({toxic_percent}%) - Nice: {nottoxic_votes} votes ({nottoxic_percent}%")
+		log(f"Poll result: TOXIC. Toxic: {toxic_votes} votes ({toxic_percent}%) - Nice: {nottoxic_votes} votes ({nottoxic_percent}%)")
 	else:
 		bot.send_message(message + " Poll was a draw! Chat can't make up its mind! kaywee1Wut ")
-		log(f"Poll result: undecided. Toxic: {toxic_votes} votes ({toxic_percent}%) - Nice: {nottoxic_votes} votes ({nottoxic_percent}%")
+		log(f"Poll result: undecided. Toxic: {toxic_votes} votes ({toxic_percent}%) - Nice: {nottoxic_votes} votes ({nottoxic_percent}%)")
 
 	voters = set()
 	toxic_votes = 0
@@ -129,7 +129,7 @@ def respond_message(user, message):
 		bot.send_message("We don't say that word here.")
 		return
 
-	if message in ["hello", "hi", "hey"]:
+	if message.lower() in ["hello", "hi", "hey"]:
 		message = "!hello"
 		
 	if message[0] == "!":
@@ -215,6 +215,8 @@ def respond_message(user, message):
 				else:
 					bot.send_message("/me The follower goal of {g} has been met! We now have {f} followers! kaywee1AYAYA".format(f=f'{followers:,}',g=f'{goal:,}'))
 					log(f"Sent followergoal has been met to {user}")
+					set_data("followgoal", goal+100)
+					log(f"Increased followgoal to {goal+100}")
 			except (ValueError, KeyError) as ex:
 				print("Error in followgoal command: " + ex)
 		elif command == "squid":
@@ -381,13 +383,15 @@ def respond_message(user, message):
 
 				log(f"Sent season 23 start time to {user}, targeting {target}, showing {hours}{hs}, {mins}{ms} and {secs}{ss}")
 		elif toxic_poll and user not in voters:
-			if command == "votetoxic":
+			if command in ["votetoxic", "toxicvote"]:
 				toxic_votes += 1
 				voters.add(user)
+				bot.send_message(f"{user} voted toxic.")
 				print(f"Toxic vote from {user}!")
-			elif command == "votenice":
+			elif command in ["votenice", "nicevote", "nottoxic", "toxicnot", "nottoxicvote", "untoxicvote", "voteuntoxic"]:
 				nottoxic_votes += 1
 				voters.add(user)
+				bot.send_message(f"{user} voted NOT toxic.")
 				print(f"NOTtoxic vote from {user}!")
 		elif user in mods:
 			if command in ["setcolour", "setcolor"]:
@@ -437,9 +441,13 @@ def respond_message(user, message):
 	#	sleep(5)
 	#	bot.send_message("/me beep")
 
+	elif "bigfollows.com" in message.lower().replace(" ", ""):
+		bot.send_message(f"/ban {user}")
+		log(f"Banned {user} for linking to bigfollows")
+
 	else: #not a command (so message[0] != "!")
 		words = message.split(" ")
-		if len(words) == 2 and words[0].lower() == "i'm":
+		if len(words) == 2 and words[0].lower() in ["i'm", "i’m"]:
 			bot.send_message("/me Hi {word}, I'm Dad! kaywee1AYAYA".format(word=words[1]))
 			log(f"Sent Dad to {user}")
 
@@ -459,14 +467,15 @@ def get_data(name):
 		return None
 
 def set_data(name, value):
-	with suppress(FileNotFoundError, ValueError):
-		with open("config.txt", "r") as f:
-			file = f.read()
-			data = dict(eval(file))
-	#except FileNotFoundError as ex:
-	#	return None
-	#except ValueError as ex:
-	#	return None
+	with open("config.txt", "r") as f:
+		file = f.read()
+		data = dict(eval(file))
+	except FileNotFoundError as ex:
+		log(f"Failed to set data of {name} to {value} - File Not Found.")
+		return None
+	except ValueError as ex:
+		log(f"Failed to set data of {name} to {value} - Value Error (corrupt file??)")
+		return None
 
 	data[name] = value
 
@@ -590,7 +599,7 @@ if __name__ == "__main__":
 				if user == "gothmom_":
 					gothwall += 1
 					#print(gothwall)
-				elif user not in ["robokaywee", "streamelements"]:
+				else:
 					gothwall = 0
 
 				if gothwall == 6:
