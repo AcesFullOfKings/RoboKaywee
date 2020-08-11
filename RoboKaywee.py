@@ -1,14 +1,16 @@
 import random
+import random
 import requests
 
-from threading     import Thread
-from time          import sleep, time, localtime
-from fortunes      import fortunes
-from datetime      import date
-from os            import path
+from threading import Thread
+from time      import sleep, time, localtime
+from fortunes  import fortunes
+from datetime  import date
+from os        import path
+from enum      import IntEnum
 
 from chatbot       import ChatBot
-from credentials   import bot_name, password, channel_name, tof_name, tof_password
+from credentials   import bot_name, password, channel_name, tof_name, tof_password, kaywee_channel_id, bearer_token
 from API_functions import get_subscribers
 
 
@@ -20,6 +22,14 @@ mods = {'valkia', 'a_wild_scabdog', 'rabbitsblinkity', 'zenzuwu', 'fareeha', 'th
 vips = {"raijin__ow", "cavemanpwr", "kizunaow", "cupcake_ow", "hello_anna", "moirasdamageorb", "imspacemanspiff", "drtinman7"}
 
 currencies = {'CAD', 'HKD', 'ISK', 'PHP', 'DKK', 'HUF', 'CZK', 'GBP', 'RON', 'SEK', 'IDR', 'INR', 'BRL', 'RUB', 'HRK', 'JPY', 'THB', 'CHF', 'EUR', 'MYR', 'BGN', 'TRY', 'CNY', 'NOK', 'NZD', 'ZAR', 'USD', 'MXN', 'SGD', 'AUD', 'ILS', 'KRW', 'PLN'}
+
+class permissions(IntEnum):
+	Broadcaster = 10
+	Mod         = 8
+	VIP         = 6
+	Subscriber  = 4
+	Follower    = 2
+	Pleb        = 0
 
 modwall_size      = 15
 supermodwall_size = 30
@@ -117,23 +127,29 @@ def log(s):
     with open("log.txt", "a", encoding="utf-8") as f:
         f.write(log_time + " - " + s + "\n")
 
-def respond_message(user, message):
+def respond_message(user, message, permission):
 
 	global toxic_poll
 	global toxic_votes
 	global nottoxic_votes
 	global voters
 
+	message_lower = message.lower()
+
 	if any(phrase in message for phrase in ["faggot", "retard"]):
 		bot.send_message(f"/timeout {user} 600")
 		bot.send_message("We don't say that word here.")
 		return
 
-	if message.lower() in ["hello", "hi", "hey"]:
+	if message_lower in ["hello", "hi", "hey"]:
 		message = "!hello"
 		
 	if message[0] == "!":
 		command = message[1:].split(" ")[0].lower()
+
+		
+		if command == "permission":
+			bot.send_message(f"Your maximum permission is: {permission.name}")
 
 		if command == "hello":
 			try:
@@ -175,7 +191,7 @@ def respond_message(user, message):
 			fortune = random.choice(fortunes)
 			bot.send_message(user + ", your fortune is: " + fortune)
 			log(f"Sent fortune to {user}")
-		elif command == "triangle" and user in mods:
+		elif command == "triangle" and permission > permissions.Mod:
 			try:
 				emote = message.split(" ")[1]
 			except:
@@ -191,20 +207,20 @@ def respond_message(user, message):
 				num = 3
 			
 			if emote != "":
-				if num > 12:
-					num = 12
+				if num > 5:
+					num = 5
 		
 				counts = list(range(1,num+1)) + list(range(1,num)[::-1])
 				for count in counts:
 					bot.send_message((emote + " ") * count)
-				log(f"Send triangle of {emote} of size {num} to {user}")
+				log(f"Sent triangle of {emote} of size {num} to {user}")
 
 		elif command in {"followgoal", "followergoal"}:
 			goal = get_data("followgoal")
 		
-			url = "https://api.twitch.tv/helix/users/follows?to_id=136108665"
+			url = "https://api.twitch.tv/helix/users/follows?to_id=" + kaywee_channel_id
 			robovalkia_client_id_2 = "q6batx0epp608isickayubi39itsckt" 
-			authorisation_header = {"Client-ID": robovalkia_client_id_2, "Authorization":"Bearer o5mqm459duhiodt1s7vyd27zfgq2ys"}
+			authorisation_header = {"Client-ID": robovalkia_client_id_2, "Authorization":"Bearer " + bearer_token}
 			try:
 				data = requests.get(url, headers=authorisation_header).json()
 				followers = data["total"]
@@ -393,7 +409,7 @@ def respond_message(user, message):
 				voters.add(user)
 				bot.send_message(f"{user} voted NOT toxic.")
 				print(f"NOTtoxic vote from {user}!")
-		elif user in mods:
+		elif permission > permissions.Mod:
 			if command in ["setcolour", "setcolor"]:
 				try:
 					colour = message.split(" ")[1]
@@ -428,20 +444,19 @@ def respond_message(user, message):
 				poll_thread = Thread(target=start_toxic_poll)
 				poll_thread.start()
 
-	elif message.lower() in ["ayy", "ayyy", "ayyyy", "ayyyyy"]:
+	elif message_lower in ["ayy", "ayyy", "ayyyy", "ayyyyy"]:
 		bot.send_message("lmao")
 		log(f"Sent lmao to {user}")
 
-	elif "@robokaywee" in message.lower():
+	elif message == "KEKW":
+		bot.send_message("KEKWHD Jebaited")
+		log(f"Sent KEKW to {user}")
+
+	elif "@robokaywee" in message_lower:
 		bot.send_message("I'm a bot, so I can't reply. Maybe you can try talking to one of the helpful human mods instead.")
 		log(f"Sent \"I'm a bot\" to {user}")
-	#elif "foster" in message.lower():
-	#	bot.send_message("/me Foster is currently AFK searching for nipple pics in the discord. Please leave a message after the beep..")
-	#	log(f"Sent Foster is AFK to {user}")
-	#	sleep(5)
-	#	bot.send_message("/me beep")
 
-	elif "bigfollows.com" in message.lower().replace(" ", ""):
+	elif "bigfollows.com" in message_lower.replace(" ", ""):
 		bot.send_message(f"/ban {user}")
 		log(f"Banned {user} for linking to bigfollows")
 
@@ -457,8 +472,10 @@ def get_data(name):
 			file = f.read()
 			data = dict(eval(file))
 	except FileNotFoundError as ex:
+		log(f"Failed to get data called {name} - File Not Found.")
 		return None
 	except ValueError as ex:
+		log(f"Failed to get data called {name} - Value Error (corrupt file??)")
 		return None
 
 	if name in data:
@@ -467,9 +484,10 @@ def get_data(name):
 		return None
 
 def set_data(name, value):
-	with open("config.txt", "r") as f:
-		file = f.read()
-		data = dict(eval(file))
+	try:
+		with open("config.txt", "r") as f:
+			file = f.read()
+			data = dict(eval(file))
 	except FileNotFoundError as ex:
 		log(f"Failed to set data of {name} to {value} - File Not Found.")
 		return None
@@ -505,6 +523,9 @@ def tofreedom(unit, quantity):
 	elif unit.upper() in currencies:
 		dlr = round(quantity * get_currencies(base=unit, convert_to="USD"), 2)
 		return ("USD", dlr)
+	elif unit == "ml":
+		result = round(quantity / 568.261, 3)
+		return("pints", result)
 
 	return -1
 
@@ -530,6 +551,9 @@ def unfreedom(unit, quantity):
 	elif unit == "usd":
 		result = round(quantity * get_currencies(base="USD", convert_to="GBP"), 2)
 		return ("GBP", result)
+	elif unit == "pt":
+		result = round(quantity * 568.261, 1)
+		return("ml", result)
 
 	return -1
 
@@ -542,72 +566,107 @@ def get_currencies(base="USD", convert_to="GBP"):
 
 if __name__ == "__main__":
 	log("Starting bot..")
-	bot = ChatBot(bot_name, password, channel_name, debug=False)
+	bot = ChatBot(bot_name, password, channel_name, debug=False, capabilities=["tags", "commands"])
 	#tofbot = ChatBot(tof_name, tof_password, channel_name)
 
 	#respond_message("theonefoster", "!unfreedom 90USD")
 
-	msg_count = 0
 	modwall = 0
 	modwall_mods = set()
 	gothwall = 0
-	vipwall = 0
+
+	bot_names = {"robokaywee", "streamelements", "nightbot"}
 
 	while True:
 		messages = bot.get_messages()
-		for user, message in messages:
-			if user not in ["robokaywee", "streamelements"]: #ignore bots
-				if message != "" and user != "": #idk why they would be blank but defensive programming I guess
-					try:
-						respond_message(user, message)
-					except Exception as ex:
-						log("Exception in Respond_Message - " + str(ex) + f". Message was {message} from {user}.")
-					msg_count+=1
+		for message_dict in messages:
+			if message_dict["message_type"] == "privmsg":
+				user    = message_dict["display-name"].lower()
+				message = message_dict["message"]
+				permission = permissions.Pleb # unless assigned otherwise below:
 
-				if user in mods:
-					modwall_mods.add(user)
+				if "badges" in message_dict:
+					if "broadcaster" in message_dict["badges"]:
+						permission = permissions.Broadcaster
+					elif "moderator" in message_dict["badges"]:
+						permission = permissions.Mod
+					elif "vip/1" in message_dict["badges"]:
+						permission = permissions.VIP
+					elif "subscriber" in message_dict["badges"]:
+						permission = permissions.Subscriber
 
-					if (    modwall <  (modwall_size-1) # few messages
-						or (modwall >= (modwall_size-1) and len(modwall_mods) >= 3) #lots of messages and at least 3 mods
-					   ):
+				if user not in bot_names: #ignore bots
+					if message != "" and user != "": #idk why they would be blank but defensive programming I guess
+						try:
+							respond_message(user, message, permission)
+						except Exception as ex:
+							log("Exception in Respond_Message - " + str(ex) + f". Message was {message} from {user}.")
+
+					if permission >= permissions.Mod:
+						modwall_mods.add(user)
+
+						if (    modwall <  (modwall_size-1) # few messages
+							or (modwall >= (modwall_size-1) and len(modwall_mods) >= 3) #lots of messages and at least 3 mods
+						   ):
 						
-						if user != "robokaywee":
-							modwall += 1
-							if modwall == modwall_size:
-								bot.send_message("#modwall ! kaywee1AYAYA")
-							elif modwall == supermodwall_size:
-								bot.send_message("/me #MEGAmodwall! SeemsGood kaywee1Wut ")
-							elif modwall == ultramodwall_size:
-								bot.send_message("/me #U L T R A MODWALL TwitchLit kaywee1AYAYA kaywee1Wut")
-							elif modwall == hypermodwall_size:
-								bot.send_message("/me #H Y P E R M O D W A L L gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1AYAYA kaywee1Wut")
-						else:
-							if modwall not in [modwall_size-1, supermodwall_size-1, ultramodwall_size-1]: #don't increase it to a modwall number
+							if user != "robokaywee":
 								modwall += 1
-				else:
-					if modwall > supermodwall_size:
-						if modwall > hypermodwall_size:
-							bot.send_message(f"/me Hypermodwall has been broken by {user}! :( FeelsBadMan NotLikeThis")
-						elif modwall > ultramodwall_size:
-							bot.send_message(f"/me Ultramodwall has been broken by {user}! :( FeelsBadMan NotLikeThis")
-						else: # must be >supermodwall
-							bot.send_message(f"/me Megamodwall has been broken by {user}! :( FeelsBadMan")
+								if modwall == modwall_size:
+									bot.send_message("#modwall ! kaywee1AYAYA")
+								elif modwall == supermodwall_size:
+									bot.send_message("/me #MEGAmodwall! SeemsGood kaywee1Wut ")
+								elif modwall == ultramodwall_size:
+									bot.send_message("/me #U L T R A MODWALL TwitchLit kaywee1AYAYA kaywee1Wut")
+								elif modwall == hypermodwall_size:
+									bot.send_message("/me #H Y P E R M O D W A L L gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1AYAYA kaywee1Wut")
+							else:
+								if modwall not in [modwall_size-1, supermodwall_size-1, ultramodwall_size-1]: #don't increase it to a modwall number
+									modwall += 1
+					else:
+						if modwall > supermodwall_size:
+							if modwall > hypermodwall_size:
+								bot.send_message(f"/me Hypermodwall has been broken by {user}! :( FeelsBadMan NotLikeThis")
+							elif modwall > ultramodwall_size:
+								bot.send_message(f"/me Ultramodwall has been broken by {user}! :( FeelsBadMan NotLikeThis")
+							else: # must be >supermodwall
+								bot.send_message(f"/me Megamodwall has been broken by {user}! :( FeelsBadMan")
 
-					modwall = 0
-					modwall_mods = set()
+						modwall = 0
+						modwall_mods = set()
 
-				if user == "gothmom_":
-					gothwall += 1
-					#print(gothwall)
-				else:
-					gothwall = 0
+					if user == "gothmom_":
+						gothwall += 1
 
-				if gothwall == 6:
-					bot.send_message("/me #GothWall!")
-					log("gothwall! :)")
-				elif gothwall == 12:
-					bot.send_message("/me #MEGAgothwall! kaywee1Wut ")
-				elif gothwall == 20:
-					bot.send_message("/me #H Y P E R GOTHWALL!! gachiHYPER ")
-				elif gothwall == 40:
-					bot.send_message("/me #U L T R A G O T H W A L L!! PogChamp gachiHYPER CurseLit ")
+						#print(gothwall)
+					else:
+						if gothwall > 6:
+							log(f"Gothwall size was {gothwall}")
+						gothwall = 0
+
+
+					if gothwall == 6:
+						bot.send_message("/me #GothWall!")
+						log("gothwall! :)")
+					elif gothwall == 12:
+						bot.send_message("/me #MEGAgothwall! kaywee1Wut ")
+					elif gothwall == 20:
+						bot.send_message("/me #H Y P E R GOTHWALL!! gachiHYPER ")
+					elif gothwall == 40:
+						bot.send_message("/me #U L T R A G O T H W A L L!! PogChamp gachiHYPER CurseLit ")
+
+				with open("chatlog.txt", "a", encoding="utf-8") as f:
+					f.write(f"{user}: {message}\n")
+
+			elif message_dict["message_type"] == "notice":
+				id = message_dict["msg_id"]
+				message = message_dict["message"]
+				log(f"NOTICE: {id}: {message}")
+				with open("chatlog.txt", "a", encoding="utf-8") as f:
+					f.write(f"NOTICE: {id}: {message}\n")
+
+			elif message_dict["message_type"] == "usernotice":
+				if "msg-id" in message_dict and message_dict["msg-id"] == "subgift": # GIFTED SUBSCRIPTION
+					gifter = message_dict["display-name"].lower()
+					recipient = message_dict["msg-param-recipient-display-name"].lower()
+					with open("chatlog.txt", "a", encoding="utf-8") as f:
+						f.write(f"NOTICE: {gifter} has gifted as subscription to {recipient}\n")
