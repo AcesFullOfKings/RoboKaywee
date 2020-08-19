@@ -41,17 +41,27 @@ toxic_votes = 0
 nottoxic_votes = 0
 voters = set()
 
-# Create subscribers object from disk if available:
-#if path.exists("subscribers.txt"):
-#	with open("subscribers.txt", "r", encoding="utf-8") as f:
-#		try:
-#			raw = f.read()
-#			d = eval(raw)
-#			subscribers = dict(d)
-#		except:
-#			subscribers = dict()
-#else:
-#	subscribers = dict()
+with open("subscribers.txt", "r", encoding="utf-8") as f:
+	try:
+		subscribers = dict(eval(f.read()))
+	except Exception as ex:
+		log("Exception creating subscriber dictionary: " + str(ex))
+		subscribers = dict()
+
+def commit_subscribers():
+	with open("subscribers.txt", "w", encoding="utf-8") as f:
+		f.write(str(subscribers))
+
+def update_subs():
+	while True:
+		for sub in list(subscribers):
+			if subscribers[sub]["subscribe_time"] < time() - 60*60*24*30:
+				del subscribers[sub]
+		commit_subscribers()
+		sleep(30*60)
+
+sub_thread = Thread(target=update_subs)
+sub_thread.start()
 
 def start_toxic_poll():
 	global toxic_poll
@@ -226,10 +236,10 @@ def respond_message(user, message, permission):
 				followers = data["total"]
 				followers_left = goal - followers
 				if followers_left > 0:
-					bot.send_message("/me There are only {f} followers to go until we hit our follow goal of {g}! kaywee1AYAYA".format(f=f'{followers_left:,}', g=f'{goal:,}'))
+					bot.send_message("/me There are only {followers_left:,} followers to go until we hit our follow goal of {goal:,}! kaywee1AYAYA")
 					log(f"Sent followergoal of {followers_left} to {user}")
 				else:
-					bot.send_message("/me The follower goal of {g} has been met! We now have {f} followers! kaywee1AYAYA".format(f=f'{followers:,}',g=f'{goal:,}'))
+					bot.send_message(f"/me The follower goal of {goal:,} has been met! We now have {followers:,} followers! kaywee1AYAYA")
 					log(f"Sent followergoal has been met to {user}")
 					set_data("followgoal", goal+100)
 					log(f"Increased followgoal to {goal+100}")
@@ -308,13 +318,13 @@ def respond_message(user, message, permission):
 			try:
 				sensible_unit, sensible_quantity = unfreedom(unit, quantity)
 			except (ValueError, TypeError):
-				bot.send_message("I don't recognise that imperial unit. Sorry :(")
+				bot.send_message("I don't recognise that imperial unit. Sorry! :( PepeHands")
 
 			if sensible_quantity == int(sensible_quantity): #if the float is a whole number
 				sensible_quantity = int(sensible_quantity) #convert it to an int (i.e. remove the .0)
 
 			bot.send_message(f"/me {quantity}{unit} in units which actualy make sense is {sensible_quantity}{sensible_unit}.")
-		elif False and command == "whogifted":
+		elif command == "whogifted":
 			try:
 				target = message.split(" ")[1]
 			except IndexError: # no target specified
@@ -331,15 +341,16 @@ def respond_message(user, message, permission):
 						gifter = subscribers[target]["gifter_name"]
 					except KeyError:
 						return
-					bot.send_message("/me @{target}'s current subscriprion was gifted to them by @{gifter}! Thank you! kaywee1AYAYA ".format(target=target, gifter=gifter))
-					log("Sent whogifted (target={t}, gifter={g}) in response to user {u}.".format(t=target, g=gifter, u=user))
+					bot.send_message(f"/me @{target}'s current subscriprion was gifted to them by @{gifter}! Thank you! kaywee1AYAYA ")
+					log(f"Sent whogifted (target={target}, gifter={gifter}) in response to user {user}.")
 					return
 				else:
-					bot.send_message("/me @{target} subscribed on their own this time. Thank you! kaywee1AYAYA ".format(target=target))
-					log("Sent whogifted (target {t} subbed on their own) in response to user {u}.".format(u=user, t=target))
+					bot.send_message(f"/me @{target} subscribed on their own this time. Thank you! kaywee1AYAYA ")
+					log(f"Sent whogifted ({target} subbed on their own) in response to user {user}.")
 					return
 			else:
-				bot.send_message("/me @{target} is not a subscriber. FeelsBadMan".format(target=target))
+				bot.send_message(f"/me @{target} is not a subscriber. FeelsBadMan")
+
 		elif False and command == "howmanygifts":
 			try:
 				target = message.split(" ")[1]
@@ -354,21 +365,21 @@ def respond_message(user, message, permission):
 			recipients = ""
 		
 			for sub in subscribers:
-				gifter = subscribers[sub]["gifter_name"].lower()
-				if gifter == target:
+				if subscribers[sub]["gifter_name"].lower() == target:
 					recipients += sub + ", "
 					count += 1
 		
 			if count == 0:
-				bot.send_message("None of the current subscribers were gifted by {t}.".format(t=target))
+				bot.send_message(f"None of the current subscribers were gifted by {target}.")
 				log(f"Sent {target} has no gifted subs, in response to {user}.")
 			else:
 				recipients = recipients[:-2]
-				message = "/me {t} has gifted subscriptions to: {recipients}. That's {c} gifts! Thanks for the support <3 kaywee1AYAYA".format(c=count, t=target, recipients=recipients)
+				message = f"/me {target} has gifted {count} of the current subscriptions to: {recipients}. Thanks for the support <3 kaywee1AYAYA"
 				if len(message) > 510: #twitch max length
-					message = "/me {t} has gifted subscriptions to {c} of the current subscribers! Thanks for the support <3 kaywee1AYAYA".format(c=count, t=target)
+					message = f"/me {target} has gifted {count} of the current subscriptions! Thanks for the support <3 kaywee1AYAYA"
 				bot.send_message(message)
 				log(f"Sent {target} has {count} gifted subs, in response to {user}.")
+
 		elif False and command in ["newseason", "season23"]:
 
 			try:
@@ -463,7 +474,7 @@ def respond_message(user, message, permission):
 	else: #not a command (so message[0] != "!")
 		words = message.split(" ")
 		if len(words) == 2 and words[0].lower() in ["i'm", "i’m"]:
-			bot.send_message("/me Hi {word}, I'm Dad! kaywee1AYAYA".format(word=words[1]))
+			bot.send_message(f"/me Hi {words[1]}, I'm Dad! kaywee1AYAYA")
 			log(f"Sent Dad to {user}")
 
 def get_data(name):
@@ -526,6 +537,7 @@ def tofreedom(unit, quantity):
 	elif unit == "ml":
 		result = round(quantity / 568.261, 3)
 		return("pints", result)
+
 
 	return -1
 
@@ -682,27 +694,42 @@ if __name__ == "__main__":
 
 				elif message_dict["message_type"] == "usernotice":
 					if "msg-id" in message_dict:
+						"""
+						{'sofiara': {'gifter_name': 'freddykalas18', 'is_gift': True, 'tier': '1000', 'user_id': '173548094'}
+						"""
 						if message_dict["msg-id"] == "subgift": # GIFTED SUBSCRIPTION
 							# WORKS! :D
 							gifter = message_dict["display-name"].lower()
 							recipient = message_dict["msg-param-recipient-display-name"].lower()
 							with open("chatlog.txt", "a", encoding="utf-8") as f:
 								f.write(f"USERNOTICE: {gifter} has gifted as subscription to {recipient}\n")
+							subscribers[recipient] = {"gifter_name":gifter, "is_gift":True, "subscribe_time":time()}
+							commit_subscribers()
+
 						elif message_dict["msg-id"] == "sub": # USER SUBSCRIPTION
 							# WORKS! :D
 							user = message_dict["display-name"].lower()
 							with open("chatlog.txt", "a", encoding="utf-8") as f:
 								f.write(f"USERNOTICE: {user} has subscribed!\n")
+							subscribers[user] = {"gifter_name":"", "is_gift":False, "subscribe_time":time()}
+							commit_subscribers()
+
 						elif message_dict["msg-id"] == "resub": # USER RESUBSCRIPTION
 							# WORKS! :D
 							user = message_dict["display-name"].lower()
 							with open("chatlog.txt", "a", encoding="utf-8") as f:
 								f.write(f"USERNOTICE: {user} has resubscribed!\n")
+							subscribers[user] = {"gifter_name":"", "is_gift":False, "subscribe_time":time()}
+							commit_subscribers()
+
 						elif message_dict["msg-id"] == "anonsubgift": # ANONYMOUS GIFTED SUBSCRIPTION
 							#comes through as a gifted sub from AnAnonymousGifter ? So might not need this
 							recipient = message_dict["msg-param-recipient-display-name"].lower()
 							with open("chatlog.txt", "a", encoding="utf-8") as f:
 								f.write(f"USERNOTICE: Anon has gifted as subscription to {recipient}!\n")
+							subscribers[recipient] = {"gifter_name":"AnAnonymousGifter", "is_gift":True, "subscribe_time":time()}
+							commit_subscribers()
+
 						elif message_dict["msg-id"] == "raid": # RAID
 							# WORKS! :D
 							raider = message_dict["msg-param-displayName"]
@@ -710,6 +737,7 @@ if __name__ == "__main__":
 							with open("chatlog.txt", "a", encoding="utf-8") as f:
 								f.write(f"USERNOTICE: {raider} is raiding with {viewers} viewers!\n")
 							bot.send_message(f"/me Wow! {raider} is raiding us with {viewers} new friends! Thank you! kaywee1AYAYA")
+
 						elif message_dict["msg-id"] == "submysterygift":
 							gifter = message_dict["login"] # comes as lowercase
 							gifts = message_dict["msg-param-mass-gift-count"]
