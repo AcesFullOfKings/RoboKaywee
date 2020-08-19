@@ -236,13 +236,18 @@ def respond_message(user, message, permission):
 				followers = data["total"]
 				followers_left = goal - followers
 				if followers_left > 0:
-					bot.send_message("/me There are only {followers_left:,} followers to go until we hit our follow goal of {goal:,}! kaywee1AYAYA")
+					bot.send_message(f"/me There are only {followers_left:,} followers to go until we hit our follow goal of {goal:,}! kaywee1AYAYA")
 					log(f"Sent followergoal of {followers_left} to {user}")
 				else:
 					bot.send_message(f"/me The follower goal of {goal:,} has been met! We now have {followers:,} followers! kaywee1AYAYA")
 					log(f"Sent followergoal has been met to {user}")
-					set_data("followgoal", goal+100)
-					log(f"Increased followgoal to {goal+100}")
+
+					goal += 100
+					set_data("followgoal", goal)
+					log(f"Increased followgoal to {goal}")
+					
+					followers_left = goal - followers
+					bot.send_message(f"/me There are only {followers_left:,} followers to go until we hit our follow goal of {goal:,}! kaywee1AYAYA")
 			except (ValueError, KeyError) as ex:
 				print("Error in followgoal command: " + ex)
 		elif command == "squid":
@@ -703,7 +708,7 @@ if __name__ == "__main__":
 							recipient = message_dict["msg-param-recipient-display-name"].lower()
 							with open("chatlog.txt", "a", encoding="utf-8") as f:
 								f.write(f"USERNOTICE: {gifter} has gifted as subscription to {recipient}\n")
-							subscribers[recipient] = {"gifter_name":gifter, "is_gift":True, "subscribe_time":time()}
+							subscribers[recipient] = {"gifter_name":gifter, "is_gift":True, "subscribe_time":int(time())}
 							commit_subscribers()
 
 						elif message_dict["msg-id"] == "sub": # USER SUBSCRIPTION
@@ -711,7 +716,7 @@ if __name__ == "__main__":
 							user = message_dict["display-name"].lower()
 							with open("chatlog.txt", "a", encoding="utf-8") as f:
 								f.write(f"USERNOTICE: {user} has subscribed!\n")
-							subscribers[user] = {"gifter_name":"", "is_gift":False, "subscribe_time":time()}
+							subscribers[user] = {"gifter_name":"", "is_gift":False, "subscribe_time":int(time())}
 							commit_subscribers()
 
 						elif message_dict["msg-id"] == "resub": # USER RESUBSCRIPTION
@@ -719,7 +724,7 @@ if __name__ == "__main__":
 							user = message_dict["display-name"].lower()
 							with open("chatlog.txt", "a", encoding="utf-8") as f:
 								f.write(f"USERNOTICE: {user} has resubscribed!\n")
-							subscribers[user] = {"gifter_name":"", "is_gift":False, "subscribe_time":time()}
+							subscribers[user] = {"gifter_name":"", "is_gift":False, "subscribe_time":int(time())}
 							commit_subscribers()
 
 						elif message_dict["msg-id"] == "anonsubgift": # ANONYMOUS GIFTED SUBSCRIPTION
@@ -727,7 +732,7 @@ if __name__ == "__main__":
 							recipient = message_dict["msg-param-recipient-display-name"].lower()
 							with open("chatlog.txt", "a", encoding="utf-8") as f:
 								f.write(f"USERNOTICE: Anon has gifted as subscription to {recipient}!\n")
-							subscribers[recipient] = {"gifter_name":"AnAnonymousGifter", "is_gift":True, "subscribe_time":time()}
+							subscribers[recipient] = {"gifter_name":"AnAnonymousGifter", "is_gift":True, "subscribe_time":int(time())}
 							commit_subscribers()
 
 						elif message_dict["msg-id"] == "raid": # RAID
