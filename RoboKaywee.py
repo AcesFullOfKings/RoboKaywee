@@ -96,7 +96,7 @@ def timer(user, time_in, reminder):
 	mins = 0
 	secs = 0 #defaults
 
-	time_str = time_in
+	time_str = time_in[:]
 
 	if "h" in time_str:
 		try:
@@ -131,6 +131,8 @@ def timer(user, time_in, reminder):
 	if timer_time < 30:
 		bot.send_message("/me The timer must be for at least 30 seconds.")
 		return
+	else:
+		bot.send_message(f"/me @{user} - your {time_in} timer has started!")
 
 	sleep(timer_time)
 
@@ -556,9 +558,9 @@ def respond_message(user, message, permission, emotes=dict()):
 				except:
 					reminder = ""
 
-				timer_thread = Thread(target=timer, args=(user,time,reminder))
+				timer_thread = Thread(target=timer, args=(user,time_str,reminder))
 				timer_thread.start()
-				bot.send_message(f"/me @{user} - your {time_str} timer has started!")
+				
 				log(f"Started {time_str} timer for {user}.")
 
 	#not a command (so message[0] != "!")
