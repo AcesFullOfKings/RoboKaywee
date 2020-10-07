@@ -1,30 +1,42 @@
 import random
-import random
 import requests
 
-from threading import Thread
-from time      import sleep, time, localtime
-from fortunes  import fortunes
-from datetime  import date
-from os        import path
-from enum      import IntEnum
+import schedule
+
+from threading   import Thread
+from time        import time, sleep, localtime
+from fortunes    import fortunes
+from datetime    import date
+from os          import path
+from enum        import IntEnum
+from googletrans import Translator
+from datetime    import date
 
 from chatbot       import ChatBot
 from credentials   import bot_name, password, channel_name, tof_name, tof_password, kaywee_channel_id, bearer_token, robovalkia_client_id_2
 from API_functions import get_subscribers
 
-
+"""
 mods = {'valkia', 'a_wild_scabdog', 'rabbitsblinkity', 'zenzuwu', 'fareeha', 'theonefoster', 'owgrandma', 'kittehod', 
 		'w00dtier', 'theheadspace', 'itspinot', 'dearicarus', 'ademusxp7', 'maggiphi', 'lazalu', 'streamlabs', 'icanpark', 
 		'marciodasb', 'littlehummingbird', 'itswh1sp3r', 'samitofps', 'robokaywee', 'gothmom_', 'uhohisharted', 'flasgod', 
 		'jabool', "kaywee"}
 
 vips = {"raijin__ow", "cavemanpwr", "kizunaow", "cupcake_ow", "hello_anna", "moirasdamageorb", "imspacemanspiff", "drtinman7"}
+"""
 
 currencies = {'CAD', 'HKD', 'ISK', 'PHP', 'DKK', 'HUF', 'CZK', 'GBP', 'RON', 'SEK', 'IDR', 'INR', 'BRL', 'RUB', 'HRK', 'JPY', 'THB', 'CHF', 'EUR', 'MYR', 'BGN', 'TRY', 'CNY', 'NOK', 'NZD', 'ZAR', 'USD', 'MXN', 'SGD', 'AUD', 'ILS', 'KRW', 'PLN'}
-
 bttv_global = {'PedoBear', 'RebeccaBlack', ':tf:', 'CiGrip', 'DatSauce', 'ForeverAlone', 'GabeN', 'HailHelix', 'HerbPerve', 'iDog', 'rStrike', 'ShoopDaWhoop', 'SwedSwag', 'M&Mjc', 'bttvNice', 'TopHam', 'TwaT', 'WatChuSay', 'SavageJerky', 'Zappa', 'tehPoleCat', 'AngelThump', 'HHydro', 'TaxiBro', 'BroBalt', 'ButterSauce', 'BaconEffect', 'SuchFraud', 'CandianRage', "She'llBeRight", 'D:', 'VisLaud', 'KaRappa', 'YetiZ', 'miniJulia', 'FishMoley', 'Hhhehehe', 'KKona', 'PoleDoge', 'sosGame', 'CruW', 'RarePepe', 'iamsocal', 'haHAA', 'FeelsBirthdayMan', 'RonSmug', 'KappaCool', 'FeelsBadMan', 'BasedGod', 'bUrself', 'ConcernDoge', 'FeelsGoodMan', 'FireSpeed', 'NaM', 'SourPls', 'LuL', 'SaltyCorn', 'FCreep', 'monkaS', 'VapeNation', 'ariW', 'notsquishY', 'FeelsAmazingMan', 'DuckerZ', 'SqShy', 'Wowee', 'WubTF', 'cvR', 'cvL', 'cvHazmat', 'cvMask'}
-bttv_local = {'PepeHands', 'monkaS', 'POGGERS', 'PepoDance', 'HYPERS', 'BongoCat', 'RareParrot', 'BIGWOW', '5Head', 'WeirdChamp', 'PepeJam', 'KEKWHD', 'widepeepoHappyRightHeart', 'gachiHYPER', 'peepoNuggie', 'MonkaTOS', 'KKool', 'OMEGALUL', 'monkaSHAKE', 'PogUU', 'Clap', 'AYAYA', 'CuteDog', 'weSmart', 'DogePls', 'REEEE', 'BBoomer', 'HAhaa', 'FeelsLitMan', 'POGSLIDE', 'CCOGGERS', 'peepoPANTIES', 'PartyParrot', 'monkaX', 'widepeepoSadBrokenHeart', 'KoolDoge', 'TriDance', 'PepePls', 'gachiBASS', 'pepeLaugh', 'whatBlink', 'FeelsSadMan'}
+bttv_local = {'ppCircle', 'KayWeird', 'PepeHands', 'monkaS', 'POGGERS', 'PepoDance', 'HYPERS', 'BongoCat', 'RareParrot', 'BIGWOW', '5Head', 'WeirdChamp', 'PepeJam', 'KEKWHD', 'widepeepoHappyRightHeart', 'gachiHYPER', 'peepoNuggie', 'MonkaTOS', 'KKool', 'OMEGALUL', 'monkaSHAKE', 'PogUU', 'Clap', 'AYAYA', 'CuteDog', 'weSmart', 'DogePls', 'REEEE', 'BBoomer', 'HAhaa', 'FeelsLitMan', 'POGSLIDE', 'CCOGGERS', 'peepoPANTIES', 'PartyParrot', 'monkaX', 'widepeepoSadBrokenHeart', 'KoolDoge', 'TriDance', 'PepePls', 'gachiBASS', 'pepeLaugh', 'whatBlink', 'FeelsSadMan'}
+
+with open("emotes.txt", "r", encoding="utf-8") as f:
+	emote_list = set(f.read().split("\n"))
+
+all_emotes = emote_list | bttv_local | bttv_global
+
+translator = Translator()
+
+last_message = dict()
 
 def log(s):
     """
@@ -81,15 +93,27 @@ def update_subs():
 		commit_subscribers()
 		sleep(30*60)
 
-sub_thread = Thread(target=update_subs)
-sub_thread.start()
+def set_random_colour():
+	lastday = get_data("lastday")
+	days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+	today_name = days[date.today().weekday()]
 
-def send_message(message):
+	if lastday is None or lastday != today_name:
+		set_data("lastday", today_name)
+		if today_name == "Wednesday":
+			respond_message("Timed Event", "!setcolour HotPink", permissions.Mod)
+		else:
+			respond_message("Timed Event", "!setcolour random", permissions.Mod)
+
+	sleep(60*60)
+
+def send_message(message, add_to_chatlog=True):
 	global bot
 
 	bot.send_message(message)
-	with open("chatlog.txt", "a", encoding="utf-8") as f:
-		f.write("robokaywee: " + message + "\n")
+	if add_to_chatlog:
+		with open("chatlog.txt", "a", encoding="utf-8") as f:
+			f.write("robokaywee: " + message + "\n")
 
 def timer(user, time_in, reminder):
 	hours = 0
@@ -141,7 +165,7 @@ def timer(user, time_in, reminder):
 
 	bot.send_message(f"/me @{user} your {time_in} timer{reminder} is up! kaywee1AYAYA")
 
-	log(f"{user}'s {time} timer expired.")
+	log(f"{user}'s {timer_time} timer expired.")
 
 def start_toxic_poll():
 	global toxic_poll
@@ -150,7 +174,7 @@ def start_toxic_poll():
 	global voters
 	global bot
 		
-	send_message("/me Poll starting! Type !votetoxic or !votenice to vote on whether the previous game was toxic or nice (one vote per person). Results show in 60 seconds.")
+	send_message("/me Poll starting! Type !votetoxic or !votenice to vote on whether the previous game was toxic or nice. Results in 60 seconds.")
 	toxic_poll = True
 	sleep(60)
 	toxic_poll = False
@@ -163,7 +187,7 @@ def start_toxic_poll():
 			nottoxic_percent = 0
 		else:
 			toxic_percent = 0
-			nottoxic_percent = 1
+			nottoxic_percent = 0
 
 	toxic_percent = round(100*toxic_percent)
 	nottoxic_percent = round(100*nottoxic_percent)
@@ -171,16 +195,16 @@ def start_toxic_poll():
 	message = f"/me Results are in! Toxic: {toxic_votes} votes ({toxic_percent}%) - Nice: {nottoxic_votes} votes ({nottoxic_percent}%)"
 	
 	if nottoxic_votes > toxic_votes:
-		send_message(message + " Chat votes that the game was NOT toxic! FeelsGoodMan ")
+		send_message(message + ". Chat votes that the game was NOT toxic! FeelsGoodMan ")
 		send_message("!untoxic")
 		log(f"Poll result: not toxic. Toxic: {toxic_votes} votes ({toxic_percent}%) - Nice: {nottoxic_votes} votes ({nottoxic_percent}%)")
 
 	elif toxic_votes > nottoxic_votes:
-		send_message(message + " Chat votes that the game was TOXIC! FeelsBadMan ")
+		send_message(message + ". Chat votes that the game was TOXIC! FeelsBadMan ")
 		send_message("!toxic")
 		log(f"Poll result: TOXIC. Toxic: {toxic_votes} votes ({toxic_percent}%) - Nice: {nottoxic_votes} votes ({nottoxic_percent}%)")
 	else:
-		send_message(message + " Poll was a draw! Chat can't make up its mind! kaywee1Wut ")
+		send_message(message + ". Poll was a draw! Chat can't make up its mind! kaywee1Wut ")
 		log(f"Poll result: undecided. Toxic: {toxic_votes} votes ({toxic_percent}%) - Nice: {nottoxic_votes} votes ({nottoxic_percent}%)")
 
 	voters = set()
@@ -264,13 +288,12 @@ def respond_message(user, message, permission, emotes=dict()):
 			send_message("/me @" + user + ", your fortune is: " + fortune)
 			log(f"Sent fortune to {user}")
 		elif command == "triangle" and permission >= permissions.VIP:
-
 			try:
 				emote = message.split(" ")[1]
 			except:
 				return
 
-			if emote in bttv_global or emote in bttv_local:
+			if emote in all_emotes:
 				pass
 			else:
 				if not emotes:
@@ -433,7 +456,7 @@ def respond_message(user, message, permission, emotes=dict()):
 						gifter = subscribers[target]["gifter_name"]
 					except KeyError:
 						return
-					send_message(f"/me @{target}'s current subscriprion was gifted to them by @{gifter}! Thank you! kaywee1AYAYA ")
+					send_message(f"/me @{target}'s current subscription was gifted to them by @{gifter}! Thank you! kaywee1AYAYA ")
 					log(f"Sent whogifted (target={target}, gifter={gifter}) in response to user {user}.")
 					return
 				else:
@@ -443,7 +466,7 @@ def respond_message(user, message, permission, emotes=dict()):
 			else:
 				send_message(f"/me @{target} is not a subscriber. FeelsBadMan")
 
-		elif False and command == "howmanygifts":
+		elif command == "howmanygifts":
 			try:
 				target = message.split(" ")[1]
 			except IndexError: # no target specified
@@ -492,8 +515,8 @@ def respond_message(user, message, permission, emotes=dict()):
 				mins = int(time_left // 60)
 				secs = int(time_left % 60)
 				hs = "h" if hours == 1 else "h"
-				ms = "m" if mins == 1 else "m"
-				ss = "s" if secs == 1 else "s"
+				ms = "m" if mins  == 1 else "m"
+				ss = "s" if secs  == 1 else "s"
 				
 				if hours > 0:
 					send_message(f"/me @{target} Overwatch Season 23 will start in {hours}{hs}, {mins}{ms} and {secs}{ss}!")
@@ -505,13 +528,43 @@ def respond_message(user, message, permission, emotes=dict()):
 			if command in ["votetoxic", "toxicvote"]:
 				toxic_votes += 1
 				voters.add(user)
-				send_message(f"{user} voted toxic.")
+				send_message(f"/me {user} voted toxic.")
 				print(f"Toxic vote from {user}!")
 			elif command in ["votenice", "nicevote", "nottoxic", "toxicnot", "nottoxicvote", "untoxicvote", "voteuntoxic"]:
 				nottoxic_votes += 1
 				voters.add(user)
-				send_message(f"{user} voted NOT toxic.")
+				send_message(f"/me {user} voted NOT toxic.")
 				print(f"NOTtoxic vote from {user}!")
+		elif command == "toenglish":
+			#global translator
+			phrase = " ".join(message.split(" ")[1:])
+			if phrase[0] == "@" and len(phrase.split(" ")) == 1: #parameter is really a username
+				phrase = last_message[phrase[1:].lower()]
+
+			english = translator.translate(phrase, source="es", dest="en").text
+			send_message("/me " + english)
+			log(f"Translated \"{phrase}\" into English for {user}: it says \"{english}\"")
+		elif command == "tospanish":
+			#global translator
+			phrase = " ".join(message.split(" ")[1:])
+			spanish = translator.translate(phrase, source="en", dest="es").text
+			send_message("/me " + spanish)
+			log(f"Translated \"{phrase}\" into Spanish for {user}: it says \"{spanish}\"")
+		elif command == "translate":
+			source = message.split(" ")[1]
+			dest = message.split(" ")[2]
+			phrase = " ".join(message.split(" ")[3:])
+
+			if phrase[0] == "@" and len(phrase.split(" ")) == 1: #parameter is really a username
+				phrase = last_message[phrase[1:].lower()]
+			try:
+				output = translator.translate(phrase, source=source, dest=dest).text
+				send_message("/me " + output)
+				log(f"Translated \"{phrase}\" into {dest} for {user}: it says \"{output}\"")
+			except ValueError as ex:
+				if "language" in str(ex):
+					send_message("/me " + str(ex))
+
 		if permission >= permissions.Mod:
 			if command in ["setcolour", "setcolor"]:
 				try:
@@ -519,7 +572,7 @@ def respond_message(user, message, permission, emotes=dict()):
 				except(ValueError, IndexError):
 					colour = "default"
 
-				if colour.lower() in ["default", "blue","blueviolet","cadetblue","chocolate","coral","dodgerblue","firebrick","goldenrod","green","hotpink","orangered","red","seagreen","springgreen","yellowgreen"]:
+				if colour.lower() in ["random", "default", "blue","blueviolet","cadetblue","chocolate","coral","dodgerblue","firebrick","goldenrod","green","hotpink","orangered","red","seagreen","springgreen","yellowgreen"]:
 					valid = True
 				else:
 					valid = False
@@ -536,16 +589,50 @@ def respond_message(user, message, permission, emotes=dict()):
 
 				if valid:
 					if colour == "default":
-						send_message("/color HotPink")
+						send_message("/color HotPink", False)
+						sleep(0.75)
+						send_message("/me The Robocolour was updated to HotPink! kaywee1AYAYA")
+						set_data("current_colour", "HotPink")
+						log(f"Colour was updated to {colour} in response to {user}")
+					elif colour == "random":
+						colours = ["blue","blueviolet","cadetblue","chocolate","coral","dodgerblue","firebrick","goldenrod","green","hotpink","orangered","red","seagreen","springgreen","yellowgreen"]
+						new_colour = random.choice(colours)
+						send_message("/color " + new_colour, False)
+						sleep(0.75)
+						set_data("current_colour", new_colour)
+						if user != "Timed Event":
+							send_message(f"/me The Robocolour was randomly updated to {new_colour}! kaywee1AYAYA")
+						log(f"Colour was randomly updated to {new_colour} in response to {user}")
 					else:
-						send_message("/color " + colour)
-					sleep(2)
-					send_message("Colour updated! kaywee1AYAYA")
+						send_message("/color " + colour, False)
+						sleep(0.75)
+						set_data("current_colour", colour)
+						send_message(f"/me The Robocolour was updated to {colour}! kaywee1AYAYA")
+						log(f"Colour was updated to {colour} in response to {user}")
 				else:
-					send_message("That colour isn't right.")
+					send_message(f"/me @{user} That colour isn't right. Valid colours are: random, default, blue, blueviolet, cadetblue, chocolate, coral, dodgerblue, firebrick, goldenrod, green, hotpink, orangered, red, seagreen, springgreen, yellowgreen")
 			elif command == "toxicpoll" and not toxic_poll:
 				poll_thread = Thread(target=start_toxic_poll)
 				poll_thread.start()
+			elif command == "rainbow":
+				try:
+					word = message.split(" ")[1]
+				except IndexError:
+					return
+
+				if word == "":
+					return
+
+				for colour in ["red", "coral", "goldenrod", "green", "seagreen", "dodgerblue", "blue", "blueviolet", "hotpink"]:
+					send_message("/color " + colour, False)
+					sleep(0.1)
+					send_message(f"/me {word}", False)
+					sleep(0.1)
+
+				current_colour = get_data("current_colour")
+				sleep(1)
+				send_message(f"/color {current_colour}")
+
 		if permission >= permissions.Subscriber:
 			if command == "timer":
 				try:
@@ -573,7 +660,7 @@ def respond_message(user, message, permission, emotes=dict()):
 		log(f"Sent KEKW to {user}")
 
 	elif "@robokaywee" in message_lower:
-		send_message("I'm a bot, so I can't reply. Maybe you can try talking to one of the helpful human mods instead.")
+		send_message(f"/me @{user} I'm a bot, so I can't reply. Maybe you can try talking to one of the helpful human mods instead.")
 		log(f"Sent \"I'm a bot\" to {user}")
 
 	elif message[0] == "^":
@@ -581,15 +668,19 @@ def respond_message(user, message, permission, emotes=dict()):
 		log(f"Sent ^ to {user}")
 
 	elif permission < permissions.Subscriber:
-		if "bigfollows.com" in message_lower.replace(" ", ""):
+		msg_without_spaces = message_lower.replace(" ", "")
+		if any(x in message for x in ["bigfollows.com", "bigfollows*com", "bigfollowsdotcom"]):
 			send_message(f"/ban {user}")
 			log(f"Banned {user} for linking to bigfollows")
 
-	else: 
-		words = message.split(" ")
-		if len(words) == 2 and words[0].lower() in ["i'm", "i’m", "im"]:
-			send_message(f"/me Hi {words[1]}, I'm Dad! kaywee1AYAYA")
-			log(f"Sent Dad to {user}")
+	elif user=="kaywee" and any(message.startswith(x) for x in ["@translate", "@tospanish", "@toenglish"]):
+		send_message("/me @Kaywee don't @ me")
+		log("Send @ to kaywee")
+ 
+	#words = message.split(" ")
+	#if len(words) == 2 and words[0].lower() in ["i'm", "i’m", "im"]:
+	#	send_message(f"/me Hi {words[1]}, I'm Dad! kaywee1AYAYA")
+	#	log(f"Sent Dad to {user}")
 
 def get_data(name):
 	try:
@@ -602,7 +693,6 @@ def get_data(name):
 	except ValueError as ex:
 		log(f"Failed to get data called {name} - Value Error (corrupt file??)")
 		return None
-
 	if name in data:
 		return data[name]
 	else:
@@ -652,7 +742,6 @@ def tofreedom(unit, quantity):
 		pt = round(quantity / 568.261, 3)
 		return("pints", pt)
 
-
 	return -1
 
 def unfreedom(unit, quantity):
@@ -692,11 +781,17 @@ def get_currencies(base="USD", convert_to="GBP"):
 if __name__ == "__main__":
 	log("Starting bot..")
 	bot = ChatBot(bot_name, password, channel_name, debug=False, capabilities=["tags", "commands"])
-	#tofbot = ChatBot(tof_name, tof_password, channel_name)
+	#tofbot = ChatBot(tof_name, tof_password, channel_name
+
+	#timing tests reveal that starting a thread is almost instantaneous. There's not really a time cost on the main thread.
+	sub_thread = Thread(target=update_subs)
+	sub_thread.start()
+
+	randcolour_thread = Thread(target=set_random_colour)
+	randcolour_thread.start()
 
 	modwall = 0
 	modwall_mods = set()
-	gothwall = 0
 	vip_wall = 0
 	vipwall_vips = set()
 
@@ -709,6 +804,8 @@ if __name__ == "__main__":
 				if message_dict["message_type"] == "privmsg":
 					user    = message_dict["display-name"].lower()
 					message = message_dict["message"]
+
+					last_message[user] = message
 
 					with open("chatlog.txt", "a", encoding="utf-8") as f:
 						f.write(f"{user}: {message}\n")
@@ -779,25 +876,6 @@ if __name__ == "__main__":
 							modwall = 0
 							modwall_mods = set()
 
-						if user == "gothmom_":
-							gothwall += 1
-
-							#print(gothwall)
-						else:
-							if gothwall > 6:
-								log(f"Gothwall size was {gothwall}")
-							gothwall = 0
-
-						if gothwall == 6:
-							send_message("/me #GothWall!")
-							log("gothwall! :)")
-						elif gothwall == 14:
-							send_message("/me #MEGAgothwall! kaywee1Wut ")
-						elif gothwall == 30:
-							send_message("/me #H Y P E R GOTHWALL!! gachiHYPER ")
-						elif gothwall == 64:
-							send_message("/me #U L T R A G O T H W A L L!! PogChamp gachiHYPER CurseLit ")
-
 						if permission == permissions.VIP:
 							vip_wall += 1
 							vipwall_vips.add(user)
@@ -813,17 +891,23 @@ if __name__ == "__main__":
 							vipwall_vips = set()
 
 				elif message_dict["message_type"] == "notice":
-					if "msg-id" in message_dict:
-						id = message_dict["msg-id"]
+					
+					# yes.. it's msg_id here but msg-id everywhere else. Why? who knows. Why be consistent?
+					if "msg_id" in message_dict:
+						id = message_dict["msg_id"]
 						if "message" in message_dict:
 							message = message_dict["message"]
 							log(f"NOTICE: {id}: {message}")
 							with open("chatlog.txt", "a", encoding="utf-8") as f:
-								f.write(f"NOTICE: {id}: {message}\n")
+								f.write(f"NOTICE: (msg_id {id}): {message}\n")
+
+							if id == "color_changed":
+								pass
+								
 						else:
-							log(f"NOTICE with msg-id but no message: {str(message_dict)}")	
+							log(f"NOTICE with msg_id but no message: {str(message_dict)}")
 					else:
-						log(f"NOTICE with no msg-id: {str(message_dict)}")
+						log(f"NOTICE with no msg_id: {str(message_dict)}")
 
 				elif message_dict["message_type"] == "usernotice":
 					if "msg-id" in message_dict:
@@ -838,6 +922,7 @@ if __name__ == "__main__":
 								f.write(f"USERNOTICE: {gifter} has gifted a subscription to {recipient}\n")
 							subscribers[recipient] = {"gifter_name":gifter, "is_gift":True, "subscribe_time":int(time())}
 							commit_subscribers()
+							log(f"{gifter} has gifted a sub to {recipient}!")
 
 						elif message_dict["msg-id"] == "sub": # USER SUBSCRIPTION
 							# WORKS! :D
@@ -846,6 +931,7 @@ if __name__ == "__main__":
 								f.write(f"USERNOTICE: {user} has subscribed!\n")
 							subscribers[user] = {"gifter_name":"", "is_gift":False, "subscribe_time":int(time())}
 							commit_subscribers()
+							log(f"{user} has subscribed!")
 
 						elif message_dict["msg-id"] == "resub": # USER RESUBSCRIPTION
 							# WORKS! :D
@@ -854,6 +940,7 @@ if __name__ == "__main__":
 								f.write(f"USERNOTICE: {user} has resubscribed!\n")
 							subscribers[user] = {"gifter_name":"", "is_gift":False, "subscribe_time":int(time())}
 							commit_subscribers()
+							log(f"{user} has resubscribed!")
 
 						elif message_dict["msg-id"] == "anonsubgift": # ANONYMOUS GIFTED SUBSCRIPTION
 							#comes through as a gifted sub from AnAnonymousGifter ? So might not need this
@@ -870,6 +957,7 @@ if __name__ == "__main__":
 							with open("chatlog.txt", "a", encoding="utf-8") as f:
 								f.write(f"USERNOTICE: {raider} is raiding with {viewers} viewers!\n")
 							send_message(f"/me Wow! {raider} is raiding us with {viewers} new friends! Thank you! kaywee1AYAYA")
+							log(f"{raider} is raiding with {viewers} viewers.")
 
 						elif message_dict["msg-id"] == "submysterygift":
 							gifter = message_dict["login"] # comes as lowercase
