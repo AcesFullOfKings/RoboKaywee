@@ -17,6 +17,8 @@ from credentials   import bot_name, password, channel_name, tof_name, tof_passwo
 from API_functions import get_subscribers
 
 """
+these lists are superceded by api request but kept the lists here as a comment for info
+
 mods = {'valkia', 'a_wild_scabdog', 'rabbitsblinkity', 'zenzuwu', 'fareeha', 'theonefoster', 'owgrandma', 'kittehod', 
 		'w00dtier', 'theheadspace', 'itspinot', 'dearicarus', 'ademusxp7', 'maggiphi', 'lazalu', 'streamlabs', 'icanpark', 
 		'marciodasb', 'littlehummingbird', 'itswh1sp3r', 'samitofps', 'robokaywee', 'gothmom_', 'uhohisharted', 'flasgod', 
@@ -538,7 +540,7 @@ def respond_message(user, message, permission, emotes=dict()):
 		elif command == "toenglish":
 			#global translator
 			phrase = " ".join(message.split(" ")[1:])
-			if phrase[0] == "@" and len(phrase.split(" ")) == 1: #parameter is really a username
+			if phrase[0] == "@" and len(phrase.split(" ")) == 1 and phrase.lower() != "@robokaywee": #parameter is really a username
 				phrase = last_message[phrase[1:].lower()]
 
 			english = translator.translate(phrase, source="es", dest="en").text
@@ -547,6 +549,8 @@ def respond_message(user, message, permission, emotes=dict()):
 		elif command == "tospanish":
 			#global translator
 			phrase = " ".join(message.split(" ")[1:])
+			if phrase[0] == "@" and len(phrase.split(" ")) == 1 and phrase.lower() != "@robokaywee": #parameter is really a username
+				phrase = last_message[phrase[1:].lower()]
 			spanish = translator.translate(phrase, source="en", dest="es").text
 			send_message("/me " + spanish)
 			log(f"Translated \"{phrase}\" into Spanish for {user}: it says \"{spanish}\"")
@@ -555,7 +559,7 @@ def respond_message(user, message, permission, emotes=dict()):
 			dest = message.split(" ")[2]
 			phrase = " ".join(message.split(" ")[3:])
 
-			if phrase[0] == "@" and len(phrase.split(" ")) == 1: #parameter is really a username
+			if phrase[0] == "@" and len(phrase.split(" ")) == 1 and phrase.lower() != "@robokaywee": #parameter is really a username
 				phrase = last_message[phrase[1:].lower()]
 			try:
 				output = translator.translate(phrase, source=source, dest=dest).text
@@ -624,13 +628,22 @@ def respond_message(user, message, permission, emotes=dict()):
 					return
 
 				for colour in ["red", "coral", "goldenrod", "green", "seagreen", "dodgerblue", "blue", "blueviolet", "hotpink"]:
-					send_message("/color " + colour, False)
+					send_message(f"/color {colour}", False)
 					sleep(0.1)
 					send_message(f"/me {word}", False)
 					sleep(0.1)
 
 				current_colour = get_data("current_colour")
 				sleep(1)
+				send_message(f"/color {current_colour}")
+			elif command in ["allcolours", "allcolors"]:
+				for colour in ['blue', 'blueviolet', 'cadetblue', 'chocolate', 'coral', 'dodgerblue', 'firebrick', 'goldenrod', 'green', 'hotpink', 'orangered', 'red', 'seagreen', 'springgreen', 'yellowgreen']:
+					send_message(f"/color {colour}", False)
+					sleep(0.1)
+					send_message(f"/me This is {colour}", False)
+					sleep(0.1)
+
+				current_colour = get_data("current_colour")
 				send_message(f"/color {current_colour}")
 
 		if permission >= permissions.Subscriber:
