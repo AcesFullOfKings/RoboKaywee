@@ -833,7 +833,7 @@ if __name__ == "__main__":
 							try:
 								respond_message(user, message, permission, emotes)
 							except Exception as ex:
-								log("Exception in Respond_Message - " + str(ex) + f". Message was {message} from {user}.")
+								log("Exception in Respond_Message - " + str(ex) + f". Message was {message} from {user}.") # generic catch-all (literally) to make sure bot doesn't crash
 
 						if permission >= permissions.Mod:
 							modwall_mods.add(user)
@@ -883,18 +883,14 @@ if __name__ == "__main__":
 							vipwall_vips = set()
 
 				elif message_dict["message_type"] == "notice":
-					
-					# yes.. it's msg_id here but msg-id everywhere else. Why? who knows. Why be consistent?
-					if "msg_id" in message_dict:
+					if "msg_id" in message_dict: # yes.. it's msg_id here but msg-id everywhere else. Why? Who knows. Why be consistent?
 						id = message_dict["msg_id"]
 						if "message" in message_dict:
 							message = message_dict["message"]
 							log(f"NOTICE: {id}: {message}")
-							with open("chatlog.txt", "a", encoding="utf-8") as f:
-								f.write(f"NOTICE: (msg_id {id}): {message}\n")
-
-							if id == "color_changed":
-								pass
+							if id != "color_changed": #gets spammy with daily colour changes and rainbows etc
+								with open("chatlog.txt", "a", encoding="utf-8") as f:
+									f.write(f"NOTICE: (msg_id {id}): {message}\n")
 								
 						else:
 							log(f"NOTICE with msg_id but no message: {str(message_dict)}")
@@ -903,11 +899,7 @@ if __name__ == "__main__":
 
 				elif message_dict["message_type"] == "usernotice":
 					if "msg-id" in message_dict:
-						"""
-						{'sofiara': {'gifter_name': 'freddykalas18', 'is_gift': True, 'tier': '1000', 'user_id': '173548094'}
-						"""
 						if message_dict["msg-id"] == "subgift": # GIFTED SUBSCRIPTION
-							# WORKS! :D
 							gifter = message_dict["display-name"].lower()
 							recipient = message_dict["msg-param-recipient-display-name"].lower()
 							with open("chatlog.txt", "a", encoding="utf-8") as f:
@@ -917,7 +909,6 @@ if __name__ == "__main__":
 							log(f"{gifter} has gifted a sub to {recipient}!")
 
 						elif message_dict["msg-id"] == "sub": # USER SUBSCRIPTION
-							# WORKS! :D
 							user = message_dict["display-name"].lower()
 							with open("chatlog.txt", "a", encoding="utf-8") as f:
 								f.write(f"USERNOTICE: {user} has subscribed!\n")
@@ -926,7 +917,6 @@ if __name__ == "__main__":
 							log(f"{user} has subscribed!")
 
 						elif message_dict["msg-id"] == "resub": # USER RESUBSCRIPTION
-							# WORKS! :D
 							user = message_dict["display-name"].lower()
 							with open("chatlog.txt", "a", encoding="utf-8") as f:
 								f.write(f"USERNOTICE: {user} has resubscribed!\n")
@@ -943,7 +933,6 @@ if __name__ == "__main__":
 							commit_subscribers()
 
 						elif message_dict["msg-id"] == "raid": # RAID
-							# WORKS! :D
 							raider = message_dict["msg-param-displayName"]
 							viewers = message_dict["msg-param-viewerCount"]
 							with open("chatlog.txt", "a", encoding="utf-8") as f:
@@ -968,4 +957,4 @@ if __name__ == "__main__":
 					with open("verbose log.txt", "a", encoding="utf-8") as f:
 						f.write(str(message_dict) + "\n\n")
 		except Exception as ex:
-			log("Exception: " + str(ex))
+			log("Exception in main loop: " + str(ex)) # generic catch-all (literally) to make sure bot doesn't crash
