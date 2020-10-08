@@ -116,8 +116,8 @@ def send_message(message, add_to_chatlog=True):
 
 def timer(user, time_in, reminder):
 	hours = 0
-	mins = 0
-	secs = 0 #defaults
+	mins  = 0
+	secs  = 0 # defaults
 
 	time_str = time_in[:]
 
@@ -210,18 +210,6 @@ def start_toxic_poll():
 	toxic_votes = 0
 	nottoxic_votes = 0
 
-def get_subs():
-	global subscribers
-	while True:
-		subscribers = get_subscribers()
-		with open("subscribers.txt", "w", encoding="utf-8") as f:
-			out = str(subscribers)
-			f.write(out)
-		sleep(10*60) # update every 10 mins
-
-#subs_thread = Thread(target=get_subs)
-#subs_thread.start()
-
 def respond_message(user, message, permission, emotes=dict()):
 	global toxic_poll
 	global toxic_votes
@@ -240,7 +228,7 @@ def respond_message(user, message, permission, emotes=dict()):
 		
 	if message[0] == "!":
 		command = message[1:].split(" ")[0].lower()
-		
+
 		if command == "permission":
 			send_message(f"Your maximum permission is: {permission.name}")
 
@@ -830,19 +818,15 @@ if __name__ == "__main__":
 						elif "subscriber" in message_dict["badges"]:
 							permission = permissions.Subscriber
 
+					emotes = dict()
+
 					if "emotes" in message_dict:
 						emotes_str = message_dict["emotes"]
 						if emotes_str:
-							emotes = dict()
 							for emote in emotes_str.split("/"):
 								id = emote.split(":")[0]
 								positions = emote.split(":")[1]
-
 								emotes[id] = positions
-						else:
-							emotes = dict()
-					else:
-						emotes = dict()
 
 					if user not in bot_names: #ignore bots
 						if message != "" and user != "": #idk why they would be blank but defensive programming I guess
