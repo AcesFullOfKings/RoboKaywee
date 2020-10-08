@@ -3,23 +3,22 @@ import requests
 
 import schedule
 
-from threading   import Thread
-from time        import time, sleep, localtime
-from fortunes    import fortunes
-from datetime    import date
-from os          import path
-from enum        import IntEnum
-from googletrans import Translator
-from datetime    import date
+from threading     import Thread
+from time          import time, sleep, localtime
+from datetime      import date
+from os            import path
+from enum          import IntEnum
 
+from googletrans   import Translator
+from fortunes      import fortunes
 from chatbot       import ChatBot
 from credentials   import bot_name, password, channel_name, tof_name, tof_password, kaywee_channel_id, bearer_token, robovalkia_client_id_2
 from API_functions import get_subscribers
 
 """
-these lists are superceded by api request but kept the lists here as a comment for info
+these lists are superceded by badge permissions but I kept the lists here as a comment for info
 
-mods = {'valkia', 'a_wild_scabdog', 'rabbitsblinkity', 'zenzuwu', 'fareeha', 'theonefoster', 'owgrandma', 'kittehod', 
+mods = {'valkia', 'a_wild_scabdog', 'rabbitsblinkity', 'zenzuwu', 'fareeha', 'acesfullofkings_', 'owgrandma', 'kittehod', 
 		'w00dtier', 'theheadspace', 'itspinot', 'dearicarus', 'ademusxp7', 'maggiphi', 'lazalu', 'streamlabs', 'icanpark', 
 		'marciodasb', 'littlehummingbird', 'itswh1sp3r', 'samitofps', 'robokaywee', 'gothmom_', 'uhohisharted', 'flasgod', 
 		'jabool', "kaywee"}
