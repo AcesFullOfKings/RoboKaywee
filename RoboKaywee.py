@@ -34,9 +34,7 @@ with open("emotes.txt", "r", encoding="utf-8") as f:
 	emote_list = set(f.read().split("\n"))
 
 all_emotes = emote_list | bttv_local | bttv_global
-
 translator = Translator()
-
 last_message = dict()
 
 def log(s):
@@ -225,7 +223,6 @@ def get_subs():
 #subs_thread.start()
 
 def respond_message(user, message, permission, emotes=dict()):
-
 	global toxic_poll
 	global toxic_votes
 	global nottoxic_votes
@@ -235,7 +232,7 @@ def respond_message(user, message, permission, emotes=dict()):
 
 	if any(phrase in message for phrase in ["faggot", "retard"]):
 		send_message(f"/timeout {user} 600")
-		send_message("We don't say that word here.")
+		send_message("/me We don't say that word here.")
 		return
 
 	if message_lower in ["hello", "hi", "hey"]:
@@ -243,12 +240,11 @@ def respond_message(user, message, permission, emotes=dict()):
 		
 	if message[0] == "!":
 		command = message[1:].split(" ")[0].lower()
-
 		
 		if command == "permission":
 			send_message(f"Your maximum permission is: {permission.name}")
 
-		if command == "hello":
+		elif command == "hello":
 			try:
 				name = message.split(" ")[1]
 			except (ValueError, IndexError):
@@ -279,14 +275,14 @@ def respond_message(user, message, permission, emotes=dict()):
 				rolls.append(roll)
 
 			if num == 1:
-				send_message(user + " rolled a dice and got a " + str(sum))
+				send_message(f"/me {user} rolled a dice and got a {str(sum)}")
 				log(f"Sent one dice roll to {user} (they got a {sum})")
 			else:
 				send_message(user + f" rolled {num} dice and totalled " + str(sum) + " " + str(tuple(rolls)))
 				log(f"Sent {num} dice rolls to {name}, totalling {sum}")
 		elif command == "fortune":
 			fortune = random.choice(fortunes)
-			send_message("/me @" + user + ", your fortune is: " + fortune)
+			send_message(f"/me @{user}, your fortune is: " + fortune)
 			log(f"Sent fortune to {user}")
 		elif command == "triangle" and permission >= permissions.VIP:
 			try:
@@ -352,13 +348,13 @@ def respond_message(user, message, permission, emotes=dict()):
 				else:
 					send_message(f"/me The follower goal of {goal:,} has been met! We now have {followers:,} followers! kaywee1AYAYA")
 					log(f"Sent followergoal has been met to {user}")
-
-					goal += 100
+					while goal < followers:
+						goal += 100
 					set_data("followgoal", goal)
 					log(f"Increased followgoal to {goal}")
 
 					followers_left = goal - followers
-					send_message(f"/me There are only {followers_left:,} followers to go until we hit our follow goal of {goal:,}! kaywee1AYAYA")
+					send_message(f"/me Our new follow goal is {goal:,}! kaywee1AYAYA")
 			except (ValueError, KeyError) as ex:
 				print("Error in followgoal command: " + ex)
 		elif command == "squid":
