@@ -603,7 +603,7 @@ def respond_message(user, message, permission, emotes=dict()):
 				poll_thread.start()
 			elif command == "rainbow":
 				try:
-					word = message.split(" ")[1]
+					word = message.split(" ")[1][:12] # 12 chr limit
 				except IndexError:
 					return
 
@@ -806,29 +806,29 @@ if __name__ == "__main__":
 					with open("chatlog.txt", "a", encoding="utf-8") as f:
 						f.write(f"{user}: {message}\n")
 
-					permission = permissions.Pleb # unless assigned otherwise below:
-
-					if "badges" in message_dict:
-						if "broadcaster" in message_dict["badges"]:
-							permission = permissions.Broadcaster
-						elif "moderator" in message_dict["badges"]:
-							permission = permissions.Mod
-						elif "vip/1" in message_dict["badges"]:
-							permission = permissions.VIP
-						elif "subscriber" in message_dict["badges"]:
-							permission = permissions.Subscriber
-
-					emotes = dict()
-
-					if "emotes" in message_dict:
-						emotes_str = message_dict["emotes"]
-						if emotes_str:
-							for emote in emotes_str.split("/"):
-								id = emote.split(":")[0]
-								positions = emote.split(":")[1]
-								emotes[id] = positions
-
 					if user not in bot_names: #ignore bots
+						permission = permissions.Pleb # unless assigned otherwise below:
+
+						if "badges" in message_dict:
+							if "broadcaster" in message_dict["badges"]:
+								permission = permissions.Broadcaster
+							elif "moderator" in message_dict["badges"]:
+								permission = permissions.Mod
+							elif "vip/1" in message_dict["badges"]:
+								permission = permissions.VIP
+							elif "subscriber" in message_dict["badges"]:
+								permission = permissions.Subscriber
+
+						emotes = dict()
+
+						if "emotes" in message_dict:
+							emotes_str = message_dict["emotes"]
+							if emotes_str:
+								for emote in emotes_str.split("/"):
+									id = emote.split(":")[0]
+									positions = emote.split(":")[1]
+									emotes[id] = positions
+					
 						if message != "" and user != "": #idk why they would be blank but defensive programming I guess
 							try:
 								respond_message(user, message, permission, emotes)
@@ -843,19 +843,15 @@ if __name__ == "__main__":
 							   
 							   ): #sadface
 
-								if user != "robokaywee":
-									modwall += 1
-									if modwall == modwall_size:
-										send_message("#modwall ! kaywee1AYAYA")
-									elif modwall == supermodwall_size:
-										send_message("/me #MEGAmodwall! SeemsGood kaywee1Wut ")
-									elif modwall == ultramodwall_size:
-										send_message("/me #U L T R A MODWALL TwitchLit kaywee1AYAYA kaywee1Wut")
-									elif modwall == hypermodwall_size:
-										send_message("/me #H Y P E R M O D W A L L gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1AYAYA kaywee1Wut")
-								else:
-									if modwall not in [modwall_size-1, supermodwall_size-1, ultramodwall_size-1]: #don't increase it to a modwall number
-										modwall += 1
+								modwall += 1
+								if modwall == modwall_size:
+									send_message("#modwall ! kaywee1AYAYA")
+								elif modwall == supermodwall_size:
+									send_message("/me #MEGAmodwall! SeemsGood kaywee1Wut ")
+								elif modwall == ultramodwall_size:
+									send_message("/me #U L T R A MODWALL TwitchLit kaywee1AYAYA kaywee1Wut")
+								elif modwall == hypermodwall_size:
+									send_message("/me #H Y P E R M O D W A L L gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1AYAYA kaywee1Wut")
 						else:
 							if modwall > supermodwall_size:
 								if modwall > hypermodwall_size:
@@ -868,19 +864,19 @@ if __name__ == "__main__":
 							modwall = 0
 							modwall_mods = set()
 
-						if permission == permissions.VIP:
-							vip_wall += 1
-							vipwall_vips.add(user)
+							if permission == permissions.VIP:
+								vip_wall += 1
+								vipwall_vips.add(user)
 
-							if vip_wall == 10:
-								send_message("#VIPwall! kaywee1AYAYA")
-							elif vip_wall == 20:
-								send_message("#SUPER VIPwall! PogChamp")
-							elif vip_wall == 50:
-								send_message("#MEGA VIPwall! PogChamp Kreygasm CurseLit")
-						else:
-							vip_wall = 0
-							vipwall_vips = set()
+								if vip_wall == 10:
+									send_message("#VIPwall! kaywee1AYAYA")
+								elif vip_wall == 20:
+									send_message("#SUPER VIPwall! PogChamp")
+								elif vip_wall == 50:
+									send_message("#MEGA VIPwall! PogChamp Kreygasm CurseLit")
+							else:
+								vip_wall = 0
+								vipwall_vips = set()
 
 				elif message_dict["message_type"] == "notice":
 					if "msg_id" in message_dict: # yes.. it's msg_id here but msg-id everywhere else. Why? Who knows. Why be consistent?
