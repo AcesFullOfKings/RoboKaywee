@@ -5,7 +5,7 @@ import schedule
 
 from threading     import Thread
 from time          import time, sleep, localtime
-from datetime      import date
+from datetime      import date, datetime
 from os            import path
 from enum          import IntEnum
 
@@ -36,6 +36,7 @@ with open("emotes.txt", "r", encoding="utf-8") as f:
 all_emotes = emote_list | bttv_local | bttv_global
 translator = Translator()
 last_message = dict()
+pink_reminder_sent = False
 
 def log(s):
     """
@@ -106,6 +107,11 @@ def set_random_colour():
 
 	sleep(60*60)
 
+def it_is_wednesday_my_dudes():
+	sleep(20*60) # wait 20 mins into the stream
+	send_message("/me On Wednesdays we wear pink. If you want to sit with us type /color HotPink to update your username colour.")
+	log("Sent Pink reminder.")
+
 def send_message(message, add_to_chatlog=True):
 	global bot
 
@@ -154,9 +160,10 @@ def timer(user, time_in, reminder):
 	if timer_time < 30:
 		bot.send_message("/me The timer must be for at least 30 seconds.")
 		return
-	else:
-		bot.send_message(f"/me @{user} - your {time_in} timer has started!")
+	
+	bot.send_message(f"/me @{user} - your {time_in} timer has started!")
 
+	log(f"Started {time_str} timer for {user}.")
 	sleep(timer_time)
 
 	if reminder != "":
@@ -171,7 +178,7 @@ def start_toxic_poll():
 	global toxic_votes
 	global nottoxic_votes
 	global voters
-	global bot
+	#global bot
 		
 	send_message("/me Poll starting! Type !votetoxic or !votenice to vote on whether the previous game was toxic or nice. Results in 60 seconds.")
 	toxic_poll = True
@@ -302,7 +309,6 @@ def respond_message(user, message, permission, emotes=dict()):
 				if not valid_emote:
 					send_message("/me You can only triangle with an emote.")
 					return
-
 			num = 3
 		
 			try:
@@ -523,7 +529,9 @@ def respond_message(user, message, permission, emotes=dict()):
 		elif command == "toenglish":
 			#global translator
 			phrase = " ".join(message.split(" ")[1:])
-			if phrase[0] == "@" and len(phrase.split(" ")) == 1 and phrase.lower() != "@robokaywee": #parameter is really a username
+			if phrase.lower() in ["robokaywee", user, ""]:
+				return
+			if phrase[0] == "@" and len(phrase.split(" ")) == 1: #parameter is really a username
 				phrase = last_message[phrase[1:].lower()]
 
 			english = translator.translate(phrase, source="es", dest="en").text
@@ -532,7 +540,9 @@ def respond_message(user, message, permission, emotes=dict()):
 		elif command == "tospanish":
 			#global translator
 			phrase = " ".join(message.split(" ")[1:])
-			if phrase[0] == "@" and len(phrase.split(" ")) == 1 and phrase.lower() != "@robokaywee": #parameter is really a username
+			if phrase.lower() in ["robokaywee", user, ""]:
+				return
+			if phrase[0] == "@" and len(phrase.split(" ")) == 1: #parameter is really a username
 				phrase = last_message[phrase[1:].lower()]
 			spanish = translator.translate(phrase, source="en", dest="es").text
 			send_message("/me " + spanish)
@@ -541,8 +551,9 @@ def respond_message(user, message, permission, emotes=dict()):
 			source = message.split(" ")[1]
 			dest = message.split(" ")[2]
 			phrase = " ".join(message.split(" ")[3:])
-
-			if phrase[0] == "@" and len(phrase.split(" ")) == 1 and phrase.lower() != "@robokaywee": #parameter is really a username
+			if phrase.lower() in ["robokaywee", user, ""]:
+				return
+			if phrase[0] == "@" and len(phrase.split(" ")) == 1: #parameter is really a username
 				phrase = last_message[phrase[1:].lower()]
 			try:
 				output = translator.translate(phrase, source=source, dest=dest).text
@@ -551,6 +562,33 @@ def respond_message(user, message, permission, emotes=dict()):
 			except ValueError as ex:
 				if "language" in str(ex):
 					send_message("/me " + str(ex))
+		elif command == "lastraid":
+			raid_data = dict(eval(get_data("last_raid")))
+			name = raid_data["raider"]
+			viewers = raid_data["viewers"]
+			time = raid_data["time"]
+
+			date_num = datetime.utcfromtimestamp(time).strftime('%d')
+			if date_num in [1, 21, 31]:
+				suffix = "st"
+			elif date_num in [2, 22]:
+				suffix = "nd"
+			elif date_num in [3, 23]:
+				suffix = "rd"
+			else:
+				suffix = "th"
+
+			date_num = str(date_num).lstrip("0")
+
+			time_str = datetime.utcfromtimestamp(time).strftime("%A " + date_num + suffix + " of %B at %H:%M UTC")
+
+			if viewers == 1:
+				plural = ""
+			else:
+				plural = "s"
+
+			send_message(f"/me The latest raid was by {name}, who raided with {viewers} viewer{plural} on {time_str}!")
+
 
 		if permission >= permissions.Mod:
 			if command in ["setcolour", "setcolor"]:
@@ -643,8 +681,6 @@ def respond_message(user, message, permission, emotes=dict()):
 
 				timer_thread = Thread(target=timer, args=(user,time_str,reminder))
 				timer_thread.start()
-				
-				log(f"Started {time_str} timer for {user}.")
 
 	#not a command (so message[0] != "!")
 	elif message_lower in ["ayy", "ayyy", "ayyyy", "ayyyyy"]:
@@ -665,14 +701,14 @@ def respond_message(user, message, permission, emotes=dict()):
 
 	elif permission < permissions.Subscriber:
 		msg_without_spaces = message_lower.replace(" ", "")
-		if any(x in message for x in ["bigfollows.com", "bigfollows*com", "bigfollowsdotcom"]):
+		if any(x in msg_without_spaces for x in ["bigfollows.com", "bigfollows*com", "bigfollowsdotcom"]):
 			send_message(f"/ban {user}")
 			log(f"Banned {user} for linking to bigfollows")
 
 	elif user=="kaywee" and any(message.startswith(x) for x in ["@translate", "@tospanish", "@toenglish"]):
 		send_message("/me @Kaywee don't @ me")
 		log("Send @ to kaywee")
- 
+
 	#words = message.split(" ")
 	#if len(words) == 2 and words[0].lower() in ["i'm", "i’m", "im"]:
 	#	send_message(f"/me Hi {words[1]}, I'm Dad! kaywee1AYAYA")
@@ -789,7 +825,6 @@ if __name__ == "__main__":
 	modwall = 0
 	modwall_mods = set()
 	vip_wall = 0
-	vipwall_vips = set()
 
 	bot_names = {"robokaywee", "streamelements", "nightbot"}
 
@@ -853,30 +888,34 @@ if __name__ == "__main__":
 								elif modwall == hypermodwall_size:
 									send_message("/me #H Y P E R M O D W A L L gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1AYAYA kaywee1Wut")
 						else:
+							modwall = 0
+							modwall_mods = set()
 							if modwall > supermodwall_size:
 								if modwall > hypermodwall_size:
-									send_message(f"/me Hypermodwall has been broken by {user}! :( FeelsBadMan NotLikeThis")
+									send_message(f"/me Hypermodwall has been broken by {user}! :( FeelsBadMan NotLikeThis PepeHands")
 								elif modwall > ultramodwall_size:
 									send_message(f"/me Ultramodwall has been broken by {user}! :( FeelsBadMan NotLikeThis")
 								else: # must be >supermodwall
 									send_message(f"/me Megamodwall has been broken by {user}! :( FeelsBadMan")
 
-							modwall = 0
-							modwall_mods = set()
+						#future me: don't indent this
+						if permission == permissions.VIP:
+							vip_wall += 1
 
-							if permission == permissions.VIP:
-								vip_wall += 1
-								vipwall_vips.add(user)
-
-								if vip_wall == 10:
-									send_message("#VIPwall! kaywee1AYAYA")
-								elif vip_wall == 20:
-									send_message("#SUPER VIPwall! PogChamp")
-								elif vip_wall == 50:
-									send_message("#MEGA VIPwall! PogChamp Kreygasm CurseLit")
-							else:
-								vip_wall = 0
-								vipwall_vips = set()
+							if vip_wall == 10:
+								send_message("#VIPwall! kaywee1AYAYA")
+							elif vip_wall == 20:
+								send_message("#SUPER VIPwall! PogChamp")
+							elif vip_wall == 50:
+								send_message("#MEGA VIPwall! PogChamp Kreygasm CurseLit")
+						else:
+							vip_wall = 0
+							vipwall_vips = set()
+					elif user == "streamelements":
+						if date.today().weekday() == 2 and not pink_reminder_sent:
+							wednesday_thread = Thread(target=it_is_wednesday_my_dudes)
+							wednesday_thread.start()
+							pink_reminder_sent = True
 
 				elif message_dict["message_type"] == "notice":
 					if "msg_id" in message_dict: # yes.. it's msg_id here but msg-id everywhere else. Why? Who knows. Why be consistent?
@@ -935,6 +974,8 @@ if __name__ == "__main__":
 								f.write(f"USERNOTICE: {raider} is raiding with {viewers} viewers!\n")
 							send_message(f"/me Wow! {raider} is raiding us with {viewers} new friends! Thank you! kaywee1AYAYA")
 							log(f"{raider} is raiding with {viewers} viewers.")
+							raid_data = {"raider": raider, "viewers": viewers, "time": time()}
+							set_data("last_raid", raid_data)
 
 						elif message_dict["msg-id"] == "submysterygift":
 							gifter = message_dict["login"] # comes as lowercase
