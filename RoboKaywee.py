@@ -1,18 +1,16 @@
 import random
 import requests
-
 import schedule
 
-from threading     import Thread
-from time          import time, sleep, localtime
-from datetime      import date, datetime
 from os            import path
+from time          import time, sleep, localtime
 from enum          import IntEnum
-
-from googletrans   import Translator
-from fortunes      import fortunes
 from chatbot       import ChatBot
-from credentials   import bot_name, password, channel_name, tof_name, tof_password, kaywee_channel_id, bearer_token, robovalkia_client_id_2
+from datetime      import date, datetime
+from fortunes      import fortunes
+from threading     import Thread
+from googletrans   import Translator
+from credentials   import bot_name, password, channel_name, kaywee_channel_id, bearer_token, robovalkia_client_id_2
 from API_functions import get_subscribers
 
 """
@@ -113,6 +111,7 @@ def it_is_wednesday_my_dudes():
 	log("Sent Pink reminder.")
 
 def send_message(message, add_to_chatlog=True):
+	return
 	global bot
 
 	bot.send_message(message)
@@ -178,7 +177,6 @@ def start_toxic_poll():
 	global toxic_votes
 	global nottoxic_votes
 	global voters
-	#global bot
 		
 	send_message("/me Poll starting! Type !votetoxic or !votenice to vote on whether the previous game was toxic or nice. Results in 60 seconds.")
 	toxic_poll = True
@@ -284,7 +282,7 @@ def respond_message(user, message, permission, emotes=dict()):
 				emote = message.split(" ")[1]
 			except:
 				return
-
+			
 			if emote in all_emotes:
 				pass
 			else:
@@ -368,10 +366,6 @@ def respond_message(user, message, permission, emotes=dict()):
 
 			unit = ""
 
-			if input == "monopoly":
-				send_message("FeelsBadMan")
-				return
-
 			while input[-1] not in "0123456789": 
 				if input[-1] != " ":
 					unit = input[-1] + unit  # e.g. cm or kg
@@ -383,7 +377,7 @@ def respond_message(user, message, permission, emotes=dict()):
 			try:
 				quantity = float(input)
 			except (ValueError):
-				send_message("That... doesn't look like a number. Try a number followed by e.g. 'cm' or 'ft'.")
+				send_message("That doesn't look like a number. Try a number followed by e.g. 'cm' or 'ft'.")
 				return
 
 			try:
@@ -563,7 +557,7 @@ def respond_message(user, message, permission, emotes=dict()):
 				if "language" in str(ex):
 					send_message("/me " + str(ex))
 		elif command == "lastraid":
-			raid_data = dict(eval(get_data("last_raid")))
+			raid_data = get_data("last_raid")
 			name = raid_data["raider"]
 			viewers = raid_data["viewers"]
 			time = raid_data["time"]
@@ -704,10 +698,6 @@ def respond_message(user, message, permission, emotes=dict()):
 		if any(x in msg_without_spaces for x in ["bigfollows.com", "bigfollows*com", "bigfollowsdotcom"]):
 			send_message(f"/ban {user}")
 			log(f"Banned {user} for linking to bigfollows")
-
-	elif user=="kaywee" and any(message.startswith(x) for x in ["@translate", "@tospanish", "@toenglish"]):
-		send_message("/me @Kaywee don't @ me")
-		log("Send @ to kaywee")
 
 	#words = message.split(" ")
 	#if len(words) == 2 and words[0].lower() in ["i'm", "i’m", "im"]:
@@ -898,7 +888,7 @@ if __name__ == "__main__":
 								else: # must be >supermodwall
 									send_message(f"/me Megamodwall has been broken by {user}! :( FeelsBadMan")
 
-						#future me: don't indent this
+						#future me: don't indent this (otherwise mods can't interrupt vipwalls)
 						if permission == permissions.VIP:
 							vip_wall += 1
 
@@ -985,13 +975,43 @@ if __name__ == "__main__":
 								log(f"{gifter} has gifted {gifts} subscriptions to the community.")
 							else:
 								log(f"{gifter} has gifted a subscription to the community.")
-							#doesn't tell me who the recipient is
-						# other sub msg-ids: sub, resub, subgift, anonsubgift, submysterygift, giftpaidupgrade, rewardgift, anongiftpaidupgrade
+						elif message_dict["msg-id"] == "giftpaidupgrade":
+							subscriber = message_dict["msg-param-sender-login"] 
+
+							with open("chatlog.txt", "a", encoding="utf-8") as f:
+								f.write(f"USERNOTICE: {subscriber} has continued their gifted sub.\n")
+							log(f"{subscriber} has continued their gifted sub.")
+
+							subscribers[subscriber] = {"gifter_name":"", "is_gift":False, "subscribe_time":int(time())}
+							commit_subscribers()
+						else:
+							with open("verbose log.txt", "a", encoding="utf-8") as f:
+								f.write("(unknown msg-id?) - " + str(message_dict) + "\n\n")
+						 #other sub msg-ids: sub, resub, subgift, anonsubgift, submysterygift, giftpaidupgrade, rewardgift, anongiftpaidupgrade
 					else:
 						with open("verbose log.txt", "a", encoding="utf-8") as f:
 							f.write("(no msg-id?) - " + str(message_dict) + "\n\n")
+
+				#does hosttarget not work? why not?
+				elif message_dict["message_type"] == "hosttarget":
+					#OUTGOING HOST
+					host_name = message_dict["host_name"] # the user we're now hosting
+					viewers = message_dict["viewers"] # num viewers we've sent to them
+					with open("chatlog.txt", "a", encoding="utf-8") as f:
+						f.write(f"HOSTTARGET: now hosting {host_name} with {viewers} viewers.\n")
+					log(f"Now hosting {host_name} with {viewers} viewers.")
+					send_message(f"/me Now hosting {host_name} with {viewers} viewers.")
+					
+				elif message_dict["message_type"] == "reconnect":
+					send_message("/me Stream is back online!")
+					log(f"Stream is back online!")
+
+				elif message_dict["message_type"] == "userstate":
+					#Motly just for colour changes which I don't care about
+					pass
+
 				else:
 					with open("verbose log.txt", "a", encoding="utf-8") as f:
-						f.write(str(message_dict) + "\n\n")
+						f.write("unknown message type: " + str(message_dict) + "\n\n")
 		except Exception as ex:
 			log("Exception in main loop: " + str(ex)) # generic catch-all (literally) to make sure bot doesn't crash
