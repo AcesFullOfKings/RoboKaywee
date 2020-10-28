@@ -1,6 +1,7 @@
 #import sqlite3
 import requests
 import random
+import praw
 
 from time        import time, sleep, localtime
 from enum        import IntEnum
@@ -55,10 +56,57 @@ with open("subscribers.txt", "r", encoding="utf-8") as f:
 		log("Exception creating subscriber dictionary: " + str(ex))
 		subscribers = {}
 
-def write_command_data():
+last_wiki_update=0
+def update_commands_wiki(force_update=False):
+	global last_wiki_update
+
+	if force_update or last_wiki_update < time() - 900: # 15 mins update period, or allow forced updates
+
+		permissions = {0:"Pleb", 2:"Follower", 4:"Subscriber", 6:"VIP", 8:"Mod", 10:"Broadcaster"}
+
+		r = praw.Reddit("RoboKaywee")
+		subreddit = r.subreddit("RoboKaywee")
+
+		with open("commands.txt", "r", encoding="utf-8") as f:
+			commands = dict(eval(f.read()))
+
+		table = "**Command**|**Level**|**Response/Description**|**Uses**\n---|---|---|---\n"
+
+		for command in commands:
+			if "permission" in commands[command]:
+				try:
+					level = permissions[commands[command]["permission"]]
+				except KeyError:
+					level = "Pleb"
+			else:
+				level = "Pleb"
+
+			if "uses" in commands[command]:
+				uses = commands[command]["uses"]
+			else:
+				uses = "-"
+
+			if commands[command]["coded"]:
+				if "description" in commands[command]:
+					table += f"{command}|{level}|{commands[command]['description']}|{uses}\n"
+				else:
+					table += f"{command}|{level}|Coded command with no description.|{uses}\n"
+			else:
+				if "response" in commands[command]:
+					table += f"{command}|{level}|{commands[command]['response']}|{uses}\n"
+				else:
+					table += f"{command}|{level}|Text command with no response.|{uses}\n"
+
+		subreddit.wiki["commands"].edit(table)
+		last_wiki_update = time()
+
+def write_command_data(force_reddit_update=False):
 	global commands_dict
 	with open("commands.txt", "w", encoding="utf-8") as f:
 		f.write(str(commands_dict).replace("},", "},\n"))
+
+	update_thread = Thread(target=update_commands_wiki, args=(force_reddit_update,))
+	update_thread.start()
 
 def commit_subscribers():
 	with open("subscribers.txt", "w", encoding="utf-8") as f:
@@ -242,6 +290,7 @@ class permissions(IntEnum):
 
 def respond_message(user, message, permission):
 	#for random non-command responses/rules
+	global pink_reminder_sent
 	message_lower = message.lower()
 
 	if message_lower in ["ayy", "ayyy", "ayyyy", "ayyyyy"]:
@@ -278,20 +327,24 @@ def respond_message(user, message, permission):
 		set_data("pink_reminder_sent", True)
 
 #check for new commands and add to database:
-for obj in [o for o in dir(commands_file) if not(o.startswith("_") or o.endswith("_"))]:
+for command_name in [o for o in dir(commands_file) if not(o.startswith("_") or o.endswith("_"))]:
 	try:
-		if getattr(commands_file, obj).is_command:
-			if obj not in commands_dict:
-				commands_dict[obj] = {'permission': 0, 'global_cooldown': 1, 'user_cooldown': 5, 'coded': True, 'uses': 0}
+		if getattr(commands_file, command_name).is_command:
+			if command_name not in commands_dict:
+				commands_dict[command_name] = {'permission': 0, 'global_cooldown': 1, 'user_cooldown': 5, 'coded': True, 'uses': 0, "description": getattr(commands_file, command_name).description}
 				write_command_data()
+			else:
+				if commands_dict[command_name]["description"] != getattr(commands_file, command_name).description:
+					commands_dict[command_name]["description"] = getattr(commands_file, command_name).description # update description
+					write_command_data()
 	except AttributeError:
 		pass
-
-user_cooldowns = {}
 
 if __name__ == "__main__":
 	log("Starting bot..")
 	bot = ChatBot(bot_name, password, channel_name, debug=False, capabilities=["tags", "commands"])
+
+	user_cooldowns = {}
 
 	app_token_thread = Thread(target=update_app_access_token)
 	app_token_thread.start()
