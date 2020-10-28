@@ -5,7 +5,7 @@ import random
 from time        import time, sleep, localtime
 from enum        import IntEnum
 from math        import ceil
-from chatbot     import ChatBot
+from chatbot     import ChatBot # see https://github.com/theonefoster/pyTwitchChatBot
 from datetime    import date, datetime
 from threading   import Thread
 from credentials import bot_name, password, channel_name, kaywee_channel_id, bearer_token, robokaywee_client_id
@@ -17,18 +17,15 @@ import commands as commands_file
 """
 TODO:
 
-comands.py needs to access arbitrary data in robokaywee2.py:
-* can't translate @user's last message
-
 wednesday colour reminder (added but test)
 
 should be able to add counters and variables to text commands
 
 subscribers.txt was {}
 
-chatlog isn't logchatting
-
 """
+
+bots = {"robokaywee", "streamelements", "nightbot"}
 
 def log(s):
 	"""
@@ -72,15 +69,20 @@ def get_title():
 	authorisation_header = {"Client-ID": robokaywee_client_id, "Authorization":"Bearer " + get_data("app_access_token")}
 	
 	while True:
-		title = requests.get(url, headers=authorisation_header).json()["data"][0]["title"]
-	
-		with open("titles.txt", "r", encoding="utf-8") as f:
-			titles = f.read().split("\n")
+		try:
+			title = requests.get(url, headers=authorisation_header).json()["data"][0]["title"]
 
-		if title not in titles: # only unique titles
-			titles.append(title)
-			with open("titles.txt", "w", encoding="utf-8") as f:
-				f.write("\n".join(titles))
+		except IndexError: # streamer isn't live
+			pass
+		else:
+			with open("titles.txt", "r", encoding="utf-8") as f:
+				titles = f.read().split("\n")
+
+				if title not in titles: # only unique titles
+					titles.append(title)
+					with open("titles.txt", "w", encoding="utf-8") as f:
+						f.write("\n".join(titles))
+
 		sleep(60*1) # once per hour
 
 def set_random_colour():
@@ -178,6 +180,9 @@ def send_message(message, add_to_chatlog=False, suppress_colour=False):
 	Will also be accessible from the commands file.
 	"""
 	global bot
+	if False:
+		print("SEND_MESASGE FUNCTION IS DISABLED!")
+		return
 
 	if message.startswith("/") or suppress_colour:
 		bot.send_message(message)
@@ -229,11 +234,11 @@ def check_cooldown(command_name, user):
 
 class permissions(IntEnum):
 	Broadcaster = 10
-	Mod		 = 8
-	VIP		 = 6
+	Mod	        = 8
+	VIP	        = 6
 	Subscriber  = 4
-	Follower	= 2
-	Pleb		= 0
+	Follower    = 2
+	Pleb        = 0
 
 def respond_message(user, message, permission):
 	#for random non-command responses/rules
@@ -255,18 +260,29 @@ def respond_message(user, message, permission):
 		send_message("^", suppress_colour=True)
 		log(f"Sent ^ to {user}")
 
+	elif commands_file.nochat_on and "kaywee" in message_lower and user not in bots:
+		if "nochat" in commands_dict and "response" in commands_dict["nochat"]:
+			send_message(f"@{user} {commands_dict['nochat']['response']}")
+			log(f"Sent nochat to {user} in response to @kaywee during nochat mode.")
+
 	elif permission < permissions.Subscriber: #works in 2.0
 		msg_without_spaces = message_lower.replace(" ", "")
 		if any(x in msg_without_spaces for x in ["bigfollows.com", "bigfollows*com", "bigfollowsdotcom"]):
 			send_message(f"/ban {user}")
 			log(f"Banned {user} for linking to bigfollows")
 
+	if user == "streamelements" and not pink_reminder_sent and date.today().weekday() == 2:
+		wednesday_thread = Thread(target=it_is_wednesday_my_dudes)
+		wednesday_thread.start()
+		pink_reminder_sent = True
+		set_data("pink_reminder_sent", True)
+
 #check for new commands and add to database:
 for obj in [o for o in dir(commands_file) if not(o.startswith("_") or o.endswith("_"))]:
 	try:
 		if getattr(commands_file, obj).is_command:
 			if obj not in commands_dict:
-				commands_dict[obj] = {'permission': 0, 'global_cooldown': 1, 'user_cooldown': 5, 'coded': True}
+				commands_dict[obj] = {'permission': 0, 'global_cooldown': 1, 'user_cooldown': 5, 'coded': True, 'uses': 0}
 				write_command_data()
 	except AttributeError:
 		pass
@@ -289,6 +305,25 @@ if __name__ == "__main__":
 	titles_thread = Thread(target=get_title)
 	titles_thread.start()
 
+	modwall_mods      = set()
+	modwall           = 0
+	modwall_size      = 15
+	supermodwall_size = 30
+	ultramodwall_size = 50
+	hypermodwall_size = 100
+
+	if date.today().weekday() == 2: #if it's Wednesday (my dudes)
+		pink_reminder_sent = get_data("pink_reminder_sent")		
+	else: #if it's not wednesday
+		set_data("pink_reminder_sent", False)
+		pink_reminder_sent = False
+
+	vip_wall = 0
+	vipwall_vips = set()
+
+	last_message = {}
+	
+
 	#let commands file access key data:
 	commands_file.bot                = bot
 	commands_file.send_message       = send_message
@@ -297,19 +332,8 @@ if __name__ == "__main__":
 	commands_file.write_command_data = write_command_data
 	commands_file.get_data           = get_data
 	commands_file.set_data           = set_data
-
-	modwall_mods      = set()
-	modwall           = 0
-	modwall_size      = 15
-	supermodwall_size = 30
-	ultramodwall_size = 50
-	hypermodwall_size = 100
-
-	vip_wall = 0
-	vipwall_vips = set()
-
-	last_message = {}
-	pink_reminder_sent = False
+	commands_file.last_message       = last_message
+	commands_file.nochat_on          = False
 
 	while True:
 		try:
@@ -320,7 +344,10 @@ if __name__ == "__main__":
 					message = message_dict["message"]
 					message_lower = message.lower()
 
-					if message_lower in ["hello", "hi", "hey"]:
+					with open("chatlog.txt", "a", encoding="utf-8") as f:
+						f.write(f"{user}: {message}\n")
+
+					if message_lower in ["hello", "hi", "hey", "hola"]:
 						message = "!hello"
 
 					last_message[user] = message
@@ -338,7 +365,7 @@ if __name__ == "__main__":
 							user_permission = permissions.Subscriber
 
 					if message.startswith("!"):
-						command = message[1:].split(" ")[0]
+						command = message[1:].split(" ")[0].lower()
 						if command in commands_dict:
 							command_obj = commands_dict[command]
 
@@ -347,7 +374,13 @@ if __name__ == "__main__":
 									if command in dir(commands_file):
 										func = getattr(commands_file, command)
 										if func.is_command:
-											func(user, message)
+											if func(user, message) != False:
+												if "uses" in command_obj:
+													command_obj["uses"] += 1
+												else:
+													command_obj["uses"] = 1
+												write_command_data()
+												
 										else:
 											log(f"WARNING: tried to call non-command function: {command}")
 									else:
@@ -356,14 +389,16 @@ if __name__ == "__main__":
 									if "response" in command_obj:
 										send_message(command_obj["response"])
 										log(f"Sent {command} in response to {user}.")
+										if "uses" in command_obj:
+											command_obj["uses"] += 1
+										else:
+											command_obj["uses"] = 1
+										write_command_data()
 									else:
 										log(f"WARNING: Stored text command with no response: {command}")
 					else:
 						respond_message(user, message, user_permission)
-						if user == "streamelements" and not pink_reminder_sent and date.today().weekday() == 2:
-							wednesday_thread = Thread(target=it_is_wednesday_my_dudes)
-							wednesday_thread.start()
-							pink_reminder_sent = True
+
 					if user_permission >= permissions.Mod:
 						modwall_mods.add(user)
 
@@ -503,6 +538,10 @@ if __name__ == "__main__":
 				elif message_dict["message_type"] == "reconnect":
 					send_message("Stream is back online!")
 					log(f"Stream is back online!")
+
+				elif message_dict["message_type"] == "userstate":
+					#Motly just for colour changes which I don't care about
+					pass
 
 				else:
 					with open("verbose log.txt", "a", encoding="utf-8") as f:
