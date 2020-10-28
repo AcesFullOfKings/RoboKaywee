@@ -8,9 +8,10 @@ from threading     import Thread
 from credentials   import kaywee_channel_id, robokaywee_client_id
 from googletrans   import Translator
 
-def is_command():
-	def inner(func):
+def is_command(description=""):
+	def inner(func, description=description):
 		func.is_command = True
+		func.description = description
 		return func
 	return inner
 
@@ -44,7 +45,7 @@ with open("subscribers.txt", "r", encoding="utf-8") as f:
 		print("Exception creating subscriber dictionary: " + str(ex))
 		subscribers = dict()
 
-@is_command()
+@is_command("Allows mods to add and edit existing commands. All commands are sent with /me so including it is unnecessary. Syntax: !rcommand [add/edit/delete/options] <command name> (add/edit: <command text> // options: [cooldown/usercooldown/permission])")
 def rcommand(user, message):
 	"""
 	format:
@@ -74,8 +75,11 @@ def rcommand(user, message):
 		if command_name in command_dict:
 			if not command_dict[command_name]["coded"] and "response" in command_dict[command_name]:
 				command_dict[command_name]["response"] = " ".join(params[2:])
+				if response[:4] == "/me ":
+					response = response[4:] #include the space
+
 				send_message(f"Command {command_name} has been updated.")
-				write_command_data()
+				write_command_data(True)
 			else:
 				send_message(f"The command {command_name} is not updatable.")
 		else:
@@ -140,8 +144,10 @@ def rcommand(user, message):
 				send_message("Syntax error.")
 				return False
 			else:
+				if response[:4] == "/me ":
+					response = response[4:] #include the space
 				command_dict[command_name] = {'permission': 0, 'global_cooldown': 1, 'user_cooldown': 5, 'coded': False, 'uses':0, 'response': response}
-				write_command_data()
+				write_command_data(True)
 				send_message("Added command " + command_name)
 				log(f"{user} added command {command_name}")
 		else:
@@ -151,7 +157,7 @@ def rcommand(user, message):
 		if command_name in command_dict:
 			if command_dict[command_name]["coded"] == False:
 				del command_dict[command_name]
-				write_command_data()
+				write_command_data(True)
 				send_message("Deleted command " + command_name)
 				log(f"{user} deleted command {command_name}")
 			else:
@@ -179,7 +185,7 @@ def rcommand(user, message):
 	else:
 		send_message("Unrecognised action: must be add, remove, edit, options, view")
 
-@is_command()
+@is_command("Sends a triangle of emotes. Syntax: e.g. !triangle LUL")
 def triangle(user, message, emotes=""):
 	global all_emotes
 	params = message.split(" ")
@@ -231,12 +237,12 @@ def triangle(user, message, emotes=""):
 			send_message((emote + " ") * count)
 		log(f"Sent triangle of {emote} of size {num} to {user}")
 
-@is_command()
+@is_command("Begins a toxicpoll")
 def toxicpoll(user, message):
 	poll_thread = Thread(target=_start_toxic_poll)
 	poll_thread.start()
 
-@is_command()
+@is_command("Only allowed while a toxicpoll is active: votes toxic")
 def votetoxic(user, message):
 	global toxic_poll
 	global toxic_votes
@@ -250,7 +256,7 @@ def votetoxic(user, message):
 	else:
 		return False
 
-@is_command()
+@is_command("Only allowed while a toxicpoll is active: votes nice")
 def votenice(user, message):
 	global toxic_poll
 	global nottoxic_votes
@@ -307,12 +313,12 @@ def _start_toxic_poll():
 	toxic_votes = 0
 	nottoxic_votes = 0
 
-@is_command()
+@is_command("Lets a user view their current permission")
 def permission(user, message):
 	log(f"Sent permission to {user} - their permission is {user_permission.name}")
 	send_message(f"@{user}, your maximum permission is: {user_permission.name}")
 
-@is_command()
+@is_command("Say hello!")
 def hello(user, message):
 	try:
 		name = message.split(" ")[1]
@@ -322,7 +328,7 @@ def hello(user, message):
 	send_message(f"Hello, {name}! kaywee1AYAYA")
 	log(f"Sent Hello to {name} in response to {user}")
 
-@is_command()
+@is_command("Roll one or more dice. Syntax: !dice [<number>]")
 def dice(user, message):
 	try:
 		num = int(message.split(" ")[1])
@@ -347,13 +353,13 @@ def dice(user, message):
 		send_message(user + f" rolled {num} dice and totalled " + str(sum) + "! " + str(tuple(rolls)))
 		log(f"Sent {num} dice rolls to {name}, totalling {sum}")
 
-@is_command()
+@is_command("Pulls from the power of the cosmos to predict your fortune.")
 def fortune(user, message):
 	fortune = random.choice(fortunes)
 	send_message(f"@{user}, your fortune is: " + fortune)
 	log(f"Sent fortune to {user}")
 
-@is_command()
+@is_command("Shows the current followgoal.")
 def followgoal(user, message):
 	goal = get_data("followgoal")
 		
@@ -440,7 +446,7 @@ def _unfreedom(unit, quantity):
 
 	return -1
 
-@is_command()
+@is_command("Convert Metric units into Imperial. Syntax: !tofreedom <quantity><unit> e.g. !tofreedom 5kg")
 def tofreedom(user, message):
 	try:
 		input = message.split(" ")[1]
@@ -473,7 +479,7 @@ def tofreedom(user, message):
 
 	send_message(f"{quantity}{unit} in incomprehensible Freedom Units is {free_quantity}{free_unit}.")
 
-@is_command()
+@is_command("Convert Imperial units into Metric. Syntax: !unfreedom <quantity><unit> e.g. !tofreedom 5lb")
 def unfreedom(user, message):
 	try:
 		input = message.split(" ")[1]
@@ -507,7 +513,7 @@ def unfreedom(user, message):
 	send_message(f"{quantity}{unit} in units which actualy make sense is {sensible_quantity}{sensible_unit}.")
 
 
-@is_command()
+@is_command("Looks up who gifted the current subscription to the given user. Syntax: !whogifted [@]kaywee")
 def whogifted(user, message):
 	try:
 		target = message.split(" ")[1]
@@ -535,7 +541,7 @@ def whogifted(user, message):
 	else:
 		send_message(f"@{target} is not a subscriber. FeelsBadMan")
 
-@is_command()
+@is_command("Looks up how many of the currently-active subscriptions were gifted by the given user. Syntax: !howmanygifts [@]kaywee")
 def howmanygifts(user, message):
 	try:
 		target = message.split(" ")[1]
@@ -560,42 +566,12 @@ def howmanygifts(user, message):
 	else:
 		recipients = recipients[:-2]
 		message = f"{target} has gifted {count} of the current subscriptions to: {recipients}. Thanks for the support <3 kaywee1AYAYA"
-		if len(message) > 510: #twitch max length
+		if len(message) > 500: #twitch max length
 			message = f"{target} has gifted {count} of the current subscriptions! Thanks for the support <3 kaywee1AYAYA"
 		send_message(message)
 		log(f"Sent {target} has {count} gifted subs, in response to {user}.")
 
-@is_command()
-def countdown(user, message):
-	try:
-		target = message.split(" ")[1]
-	except IndexError: # no target specified
-		target = user
-
-	if target[0] == "@": # ignore @ tags
-		target = target[1:]
-
-	time_left = 1593712800 - time()
-	if time_left < 0:
-		send_message("Overwatch Season 23 has started!")
-		log(f"Sent season 23 start time to {user}, targeting {target}, showing that the season has started.")
-	else:
-		hours = int(time_left // 3600)
-		time_left = time_left % 3600
-		mins = int(time_left // 60)
-		secs = int(time_left % 60)
-		hs = "h" if hours == 1 else "h"
-		ms = "m" if mins  == 1 else "m"
-		ss = "s" if secs  == 1 else "s"
-				
-		if hours > 0:
-			send_message(f"@{target} Overwatch Season 23 will start in {hours}{hs}, {mins}{ms} and {secs}{ss}!")
-		else:
-			send_message(f"@{target} Overwatch Season 23 will start in {mins}{ms} and {secs}{ss}!")
-
-		log(f"Sent season 23 start time to {user}, targeting {target}, showing {hours}{hs}, {mins}{ms} and {secs}{ss}")
-
-@is_command()
+@is_command("Shows a timer until the username becomes available again.")
 def theonefoster(user, message):
 	time_left = 1607299200 - time()
 
@@ -616,7 +592,7 @@ def theonefoster(user, message):
 		else:
 			send_message(f"Foster can change his username back in {hours} {hs}!")
 
-@is_command()
+@is_command("Translates a Spanish mesasge into English. Syntax: !toenglish hola OR !toenglish @toniki")
 def toenglish(user, message):
 	phrase = " ".join(message.split(" ")[1:])
 	english = ""
@@ -634,7 +610,7 @@ def toenglish(user, message):
 	send_message(english)
 	log(f"Translated \"{phrase}\" into English for {user}: it says \"{english}\"")
 
-@is_command()
+@is_command("Translates an English mesasge into Spanish. Syntax: !tospanish hello OR !tospanish @kaywee")
 def tospanish(user, message):
 	phrase = " ".join(message.split(" ")[1:])
 	spanish = ""
@@ -652,7 +628,7 @@ def tospanish(user, message):
 	send_message(spanish)
 	log(f"Translated \"{phrase}\" into Spanish for {user}: it says \"{spanish}\"")
 
-@is_command()
+@is_command("Translates a message from one language to another, powered by Google Translate. Languages are specified as a two-letter code, e.g. en/es/nl/fr. Syntax: !translate <source_lang> <dest_lang> <message>")
 def translate(user, message):	
 	try:
 		source = message.split(" ")[1]
@@ -679,7 +655,7 @@ def translate(user, message):
 		if "language" in str(ex):
 			send_message(str(ex))
 
-@is_command()
+@is_command("Shows the user who most recently raided, and the time of the raid.")
 def lastraid(user, message):
 	raid_data = get_data("last_raid")
 	name = raid_data["raider"]
@@ -706,7 +682,7 @@ def lastraid(user, message):
 
 	send_message(f"The latest raid was by {name}, who raided with {viewers} viewer{plural} on {time_str}!")
 
-@is_command()
+@is_command("Changes the colour of the bot's username. Syntax: !setcolour HotPink")
 def setcolour(user, message):
 	try:
 		colour = message.split(" ")[1]
@@ -753,7 +729,7 @@ def setcolour(user, message):
 	else:
 		send_message(f"@{user} That colour isn't right. Valid colours are: random, default, blue, blueviolet, cadetblue, chocolate, coral, dodgerblue, firebrick, goldenrod, green, hotpink, orangered, red, seagreen, springgreen, yellowgreen")
 
-@is_command()
+@is_command("Rainbows the messages into the chat. Syntax: !rainbow hello")
 def rainbow(user, message):
 	try:
 		word = message.split(" ")[1][:12] # 12 chr limit
@@ -773,7 +749,7 @@ def rainbow(user, message):
 	sleep(1)
 	send_message(f"/color {current_colour}")
 
-@is_command()
+@is_command("Shows all of the possible username colours (for non-prime users) (big spam warning)")
 def allcolours(user, message):
 	for colour in ['blue', 'blueviolet', 'cadetblue', 'chocolate', 'coral', 'dodgerblue', 'firebrick', 'goldenrod', 'green', 'hotpink', 'orangered', 'red', 'seagreen', 'springgreen', 'yellowgreen']:
 		send_message(f"/color {colour}", False)
@@ -837,7 +813,7 @@ def start_timer(user, time_in, reminder):
 
 	log(f"{user}'s {timer_time} timer expired.")
 
-@is_command()
+@is_command("Starts a timer, after which the bot will send a reminder message in chat. Syntax: !timer 1h2m3s <message>")
 def timer(user, message):
 	try:
 		time_str = message.split(" ")[1]
@@ -852,7 +828,7 @@ def timer(user, message):
 	timer_thread = Thread(target=start_timer, args=(user,time_str,reminder))
 	timer_thread.start()
 
-@is_command()
+@is_command("Shows how many times a command has been used. Syntax: !uses translate")
 def uses(user, message):
 	command = message.split(" ")[1]
 	if command in command_dict:
@@ -870,16 +846,21 @@ def nochat_mode():
 	sleep(10*60)
 	nochat_on = False
 
-@is_command()
+@is_command("Turns on nochat mode - users who mention @kaywee will receive a notification that kaywee isn't looking at chat")
 def nochaton(user, message):
 	nochat_thread = Thread(target=nochat_mode)
 	nochat_thread.start()
 	send_message("Nochat mode is now on.")
 	log("Nochat mode is now on.")
 
-@is_command()
+@is_command("Turns off nochat mode")
 def nochatoff(user, message):
 	global nochat_on
 	nochat_on = False
 	send_message("Nochat mode is now off.")
 	log("Nochat mode is now off.")
+
+@is_command("View the current commands list.")
+def rcommands(user, message):
+	send_message("The RoboKaywee commands list is here: https://old.reddit.com/r/RoboKaywee/wiki/commands")
+	log(f"Sent commands list to {user}")
