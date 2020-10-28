@@ -45,7 +45,7 @@ with open("subscribers.txt", "r", encoding="utf-8") as f:
 		subscribers = dict()
 
 @is_command()
-def robo(user, message):
+def rcommand(user, message):
 	"""
 	format:
 	!robo <action> <command> [<params>]
@@ -65,19 +65,19 @@ def robo(user, message):
 	params = message.split(" ")[1:]
 	try:
 		action = params[0]
-		command_name = params[1]
+		command_name = params[1].lower()
 	except IndexError:
 		send_message("Syntax error.")
 		return
 
 	if action == "edit":
-		if command_name  in command_dict:
+		if command_name in command_dict:
 			if not command_dict[command_name]["coded"] and "response" in command_dict[command_name]:
 				command_dict[command_name]["response"] = " ".join(params[2:])
-				send_message("Command " + command_name + " has been updated.")
+				send_message(f"Command {command_name} has been updated.")
 				write_command_data()
 			else:
-				send_message("The command " + command_name + " is not updatable.")
+				send_message(f"The command {command_name} is not updatable.")
 		else:
 			send_message(f"No command exists with name {command_name}.")
 	elif action == "options":
@@ -116,7 +116,7 @@ def robo(user, message):
 		elif option == "permission":
 			try:
 				permission = int(params[3])
-				assert 0 <= permission <= 10
+				assert permission in [0,4,6,8,10]
 			except (ValueError, IndexError, AssertionError):
 				send_message("Permission must be provided as an integer: 0=All, 4=Subscriber, 6=VIP, 8=Moderator, 10=Broadcaster")
 				return
@@ -133,14 +133,17 @@ def robo(user, message):
 			send_message("Unrecognised option: must be permission, globalcooldown, or usercooldown")
 	elif action in ["add", "create"]:
 		if command_name not in command_dict:
-			response = " ".join(params[2:])
-			if response != "":
-				command_dict[command_name] = {'permission': 0, 'global_cooldown': 1, 'user_cooldown': 5, 'coded': False, 'response': response}
+			try:
+				response = " ".join(params[2:])
+				assert response != ""
+			except (IndexError, AssertionError):
+				send_message("Syntax error.")
+				return False
+			else:
+				command_dict[command_name] = {'permission': 0, 'global_cooldown': 1, 'user_cooldown': 5, 'coded': False, 'uses':0, 'response': response}
 				write_command_data()
 				send_message("Added command " + command_name)
 				log(f"{user} added command {command_name}")
-			else:
-				send_message("Syntax error.")
 		else:
 			send_message("Command " + command_name + " already exists.")
 
@@ -244,6 +247,8 @@ def votetoxic(user, message):
 		voters.add(user)
 		send_message(f"{user} voted toxic.")
 		print(f"Toxic vote from {user}!")
+	else:
+		return False
 
 @is_command()
 def votenice(user, message):
@@ -256,6 +261,8 @@ def votenice(user, message):
 		voters.add(user)
 		send_message(f"{user} voted NOT toxic.")
 		print(f"NOTtoxic vote from {user}!")
+	else:
+		return False
 
 def _start_toxic_poll():
 	global toxic_poll
@@ -359,8 +366,8 @@ def followgoal(user, message):
 		followers = data["total"]
 		followers_left = goal - followers
 		if followers_left > 0:
-			send_message(f"There are only {followers_left:,} followers to go until we hit our follow goal of {goal:,}! kaywee1AYAYA")
-			log(f"Sent followergoal of {followers_left} to {user}")
+			send_message(f"Kaywee has {followers} followers, meaning there are only {followers_left:,} more followers until we hit our goal of {goal:,}! kaywee1AYAYA")
+			log(f"Sent followergoal of {followers_left} to {user} ({followers:,} currently")
 		else:
 			send_message(f"The follower goal of {goal:,} has been met! We now have {followers:,} followers! kaywee1AYAYA")
 			log(f"Sent followergoal has been met to {user}")
@@ -400,6 +407,9 @@ def _tofreedom(unit, quantity):
 	elif unit == "ml":
 		pt = round(quantity / 568.261, 3)
 		return("pints", pt)
+	elif unit == "cl":
+		ml = cl * 10
+		return ("ml", ml)
 
 	return -1
 
@@ -586,43 +596,83 @@ def countdown(user, message):
 		log(f"Sent season 23 start time to {user}, targeting {target}, showing {hours}{hs}, {mins}{ms} and {secs}{ss}")
 
 @is_command()
+def theonefoster(user, message):
+	time_left = 1607299200 - time()
+
+	if time_left < 0:
+		send_message("Foster can now change his username back!")
+		log(f"Sent username time to {user}, targeting {target}, showing that the username can be changed.")
+	else:
+		days = int(time_left // 86400)
+		ds = "day" if days == 1 else "days"
+
+		time_left = time_left % 86400
+
+		hours = int(time_left // 3600)
+		hs = "hour" if hours == 1 else "hours"
+
+		if days > 0:
+			send_message(f"Foster can change his username back in {days} {ds} and {hours} {hs}! (Not that he's counting though)")
+		else:
+			send_message(f"Foster can change his username back in {hours} {hs}!")
+
+@is_command()
 def toenglish(user, message):
 	phrase = " ".join(message.split(" ")[1:])
-	if phrase.lower() in ["robokaywee", user, ""]:
+	english = ""
+	if phrase.lower() in ["robokaywee", user, "@" + user,""]:
 		return
 	if phrase[0] == "@" and len(phrase.split(" ")) == 1: #parameter is really a username
-		phrase = last_message[phrase[1:].lower()]
+		try:
+			target = phrase[1:].lower()
+			phrase = last_message[target]
+			english = target + ": "
+		except KeyError:
+			return False
 
-	english = translator.translate(phrase, source="es", dest="en").text
+	english += translator.translate(phrase, source="es", dest="en").text
 	send_message(english)
 	log(f"Translated \"{phrase}\" into English for {user}: it says \"{english}\"")
 
 @is_command()
 def tospanish(user, message):
 	phrase = " ".join(message.split(" ")[1:])
-	if phrase.lower() in ["robokaywee", user, ""]:
+	spanish = ""
+	if phrase.lower() in ["robokaywee", user, "@" + user, ""]:
 		return
 	if phrase[0] == "@" and len(phrase.split(" ")) == 1: #parameter is really a username
-		phrase = last_message[phrase[1:].lower()]
-	spanish = translator.translate(phrase, source="en", dest="es").text
+		try:
+			target = phrase[1:].lower()
+			phrase = last_message[target]
+			spanish = target + ": "
+		except KeyError:
+			return False
+
+	spanish += translator.translate(phrase, source="en", dest="es").text
 	send_message(spanish)
 	log(f"Translated \"{phrase}\" into Spanish for {user}: it says \"{spanish}\"")
 
 @is_command()
-def translate(user, message):
+def translate(user, message):	
 	try:
 		source = message.split(" ")[1]
 		dest = message.split(" ")[2]
 		phrase = " ".join(message.split(" ")[3:])
 	except IndexError:
 		send_message("Syntax Error. Usage: !translate <sourc_lang> <dest_lang> <text>")
-
-	if phrase.lower() in ["robokaywee", user, ""]:
+	
+	output = ""
+	if phrase.lower() in ["robokaywee", user, "@" + user,""]:
 		return
 	if phrase[0] == "@" and len(phrase.split(" ")) == 1: #parameter is really a username
-		phrase = last_message[phrase[1:].lower()]
+		try:
+			target = phrase[1:].lower()
+			phrase = last_message[target]
+			output = target + ": "
+		except KeyError:
+			return False
 	try:
-		output = translator.translate(phrase, source=source, dest=dest).text
+		output += translator.translate(phrase, source=source, dest=dest).text
 		send_message(" " + output)
 		log(f"Translated \"{phrase}\" into {dest} for {user}: it says \"{output}\"")
 	except ValueError as ex:
@@ -801,3 +851,35 @@ def timer(user, message):
 
 	timer_thread = Thread(target=start_timer, args=(user,time_str,reminder))
 	timer_thread.start()
+
+@is_command()
+def uses(user, message):
+	command = message.split(" ")[1]
+	if command in command_dict:
+		times_used = command_dict[command].get("uses", 0)
+		if times_used > 1:
+			send_message(f"The {command} command has been used {times_used} times.")
+		else:
+			send_message(f"The {command} command has been used {times_used} time.")
+	else:
+		send_message("Command not recognised.")
+
+def nochat_mode():
+	global nochat_on
+	nochat_on = True
+	sleep(10*60)
+	nochat_on = False
+
+@is_command()
+def nochaton(user, message):
+	nochat_thread = Thread(target=nochat_mode)
+	nochat_thread.start()
+	send_message("Nochat mode is now on.")
+	log("Nochat mode is now on.")
+
+@is_command()
+def nochatoff(user, message):
+	global nochat_on
+	nochat_on = False
+	send_message("Nochat mode is now off.")
+	log("Nochat mode is now off.")
