@@ -56,56 +56,53 @@ with open("subscribers.txt", "r", encoding="utf-8") as f:
 		log("Exception creating subscriber dictionary: " + str(ex))
 		subscribers = {}
 
-last_wiki_update=0
-def update_commands_wiki(force_update=False):
+def update_commands_wiki():
 	global last_wiki_update
 
-	if force_update or last_wiki_update < time() - 900: # 15 mins update period, or allow forced updates
+	permissions = {0:"Pleb", 2:"Follower", 4:"Subscriber", 6:"VIP", 8:"Mod", 10:"Broadcaster"}
 
-		permissions = {0:"Pleb", 2:"Follower", 4:"Subscriber", 6:"VIP", 8:"Mod", 10:"Broadcaster"}
+	r = praw.Reddit("RoboKaywee")
+	subreddit = r.subreddit("RoboKaywee")
 
-		r = praw.Reddit("RoboKaywee")
-		subreddit = r.subreddit("RoboKaywee")
+	with open("commands.txt", "r", encoding="utf-8") as f:
+		commands = dict(eval(f.read()))
 
-		with open("commands.txt", "r", encoding="utf-8") as f:
-			commands = dict(eval(f.read()))
+	table = "Note: all commands are now sent with /me so will display in the bot's colour.\n\n\n**Command**|**Level**|**Response/Description**|**Uses**\n---|---|---|---\n"
 
-		table = "**Command**|**Level**|**Response/Description**|**Uses**\n---|---|---|---\n"
-
-		for command in commands:
-			if "permission" in commands[command]:
-				try:
-					level = permissions[commands[command]["permission"]]
-				except KeyError:
-					level = "Pleb"
-			else:
+	for command in commands:
+		if "permission" in commands[command]:
+			try:
+				level = permissions[commands[command]["permission"]]
+			except KeyError:
 				level = "Pleb"
+		else:
+			level = "Pleb"
 
-			if "uses" in commands[command]:
-				uses = commands[command]["uses"]
+		if "uses" in commands[command]:
+			uses = commands[command]["uses"]
+		else:
+			uses = "-"
+
+		if commands[command]["coded"]:
+			if "description" in commands[command]:
+				table += f"{command}|{level}|Coded: {commands[command]['description']}|{uses}\n"
 			else:
-				uses = "-"
-
-			if commands[command]["coded"]:
-				if "description" in commands[command]:
-					table += f"{command}|{level}|{commands[command]['description']}|{uses}\n"
-				else:
-					table += f"{command}|{level}|Coded command with no description.|{uses}\n"
+				table += f"{command}|{level}|Coded command with no description.|{uses}\n"
+		else:
+			if "response" in commands[command]:
+				table += f"{command}|{level}|Response: {commands[command]['response']}|{uses}\n"
 			else:
-				if "response" in commands[command]:
-					table += f"{command}|{level}|{commands[command]['response']}|{uses}\n"
-				else:
-					table += f"{command}|{level}|Text command with no response.|{uses}\n"
+				table += f"{command}|{level}|Text command with no response.|{uses}\n"
 
-		subreddit.wiki["commands"].edit(table)
-		last_wiki_update = time()
+	subreddit.wiki["commands"].edit(table)
+	last_wiki_update = time()
 
-def write_command_data(force_reddit_update=False):
+def write_command_data():
 	global commands_dict
 	with open("commands.txt", "w", encoding="utf-8") as f:
 		f.write(str(commands_dict).replace("},", "},\n"))
 
-	update_thread = Thread(target=update_commands_wiki, args=(force_reddit_update,))
+	update_thread = Thread(target=update_commands_wiki)
 	update_thread.start()
 
 def commit_subscribers():
