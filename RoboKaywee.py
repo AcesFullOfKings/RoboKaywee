@@ -56,53 +56,55 @@ with open("subscribers.txt", "r", encoding="utf-8") as f:
 		log("Exception creating subscriber dictionary: " + str(ex))
 		subscribers = {}
 
-def update_commands_wiki():
+last_wiki_update = 0
+def update_commands_wiki(force_update_reddit=False):
 	global last_wiki_update
+	
+	if force_update_reddit or last_wiki_update < time() - 60*30: # don't update more often than 30 mins unless forced
+		permissions = {0:"Pleb", 2:"Follower", 4:"Subscriber", 6:"VIP", 8:"Mod", 10:"Broadcaster"}
 
-	permissions = {0:"Pleb", 2:"Follower", 4:"Subscriber", 6:"VIP", 8:"Mod", 10:"Broadcaster"}
+		r = praw.Reddit("RoboKaywee")
+		subreddit = r.subreddit("RoboKaywee")
 
-	r = praw.Reddit("RoboKaywee")
-	subreddit = r.subreddit("RoboKaywee")
+		with open("commands.txt", "r", encoding="utf-8") as f:
+			commands = dict(eval(f.read()))
 
-	with open("commands.txt", "r", encoding="utf-8") as f:
-		commands = dict(eval(f.read()))
+		table = "Note: all commands are now sent with /me so will display in the bot's colour.\n\n\n**Command**|**Level**|**Response/Description**|**Uses**\n---|---|---|---\n"
 
-	table = "Note: all commands are now sent with /me so will display in the bot's colour.\n\n\n**Command**|**Level**|**Response/Description**|**Uses**\n---|---|---|---\n"
-
-	for command in commands:
-		if "permission" in commands[command]:
-			try:
-				level = permissions[commands[command]["permission"]]
-			except KeyError:
+		for command in sorted(commands):
+			if "permission" in commands[command]:
+				try:
+					level = permissions[commands[command]["permission"]]
+				except KeyError:
+					level = "Pleb"
+			else:
 				level = "Pleb"
-		else:
-			level = "Pleb"
 
-		if "uses" in commands[command]:
-			uses = commands[command]["uses"]
-		else:
-			uses = "-"
-
-		if commands[command]["coded"]:
-			if "description" in commands[command]:
-				table += f"{command}|{level}|Coded: {commands[command]['description']}|{uses}\n"
+			if "uses" in commands[command]:
+				uses = commands[command]["uses"]
 			else:
-				table += f"{command}|{level}|Coded command with no description.|{uses}\n"
-		else:
-			if "response" in commands[command]:
-				table += f"{command}|{level}|Response: {commands[command]['response']}|{uses}\n"
+				uses = "-"
+
+			if commands[command]["coded"]:
+				if "description" in commands[command]:
+					table += f"{command}|{level}|Coded: {commands[command]['description']}|{uses}\n"
+				else:
+					table += f"{command}|{level}|Coded command with no description.|{uses}\n"
 			else:
-				table += f"{command}|{level}|Text command with no response.|{uses}\n"
+				if "response" in commands[command]:
+					table += f"{command}|{level}|Response: {commands[command]['response']}|{uses}\n"
+				else:
+					table += f"{command}|{level}|Text command with no response.|{uses}\n"
 
-	subreddit.wiki["commands"].edit(table)
-	last_wiki_update = time()
+		subreddit.wiki["commands"].edit(table)
+		last_wiki_update = time()
 
-def write_command_data():
+def write_command_data(force_update_reddit=False):
 	global commands_dict
 	with open("commands.txt", "w", encoding="utf-8") as f:
 		f.write(str(commands_dict).replace("},", "},\n"))
 
-	update_thread = Thread(target=update_commands_wiki)
+	update_thread = Thread(target=update_commands_wiki, args=(force_update_reddit,))
 	update_thread.start()
 
 def commit_subscribers():
@@ -123,12 +125,12 @@ def get_title():
 			with open("titles.txt", "r", encoding="utf-8") as f:
 				titles = f.read().split("\n")
 
-				if title not in titles: # only unique titles
-					titles.append(title)
-					with open("titles.txt", "w", encoding="utf-8") as f:
-						f.write("\n".join(titles))
+			if title not in titles: # only unique titles
+				titles.append(title)
+				with open("titles.txt", "w", encoding="utf-8") as f:
+					f.write("\n".join(titles))
 
-		sleep(60*1) # once per hour
+		sleep(60*60) # once per hour
 
 def set_random_colour():
 	lastday = get_data("lastday")
@@ -155,6 +157,11 @@ def it_is_wednesday_my_dudes():
 	send_message("On Wednesdays we wear pink. If you want to sit with us type /color HotPink to update your username colour.")
 	log("Sent Pink reminder.")
 
+def it_is_Thursday_my_dudes():
+	sleep(20*60) # wait 20 mins into the stream
+	send_message("On Thursdays we wear whatever colour we want. Set your username colour by using /color and come and sit with us.")
+	log("Sent UnPink reminder.")
+
 def update_subs():
 	while True:
 		for sub in list(subscribers):
@@ -174,10 +181,8 @@ def get_data(name):
 	except ValueError as ex:
 		log(f"Failed to get data called {name} - Value Error (corrupt file??)")
 		return None
-	if name in data:
-		return data[name]
-	else:
-		return None
+
+	return data[name] # -> intentionally doesn't handle KeyError
 
 def set_data(name, value):
 	try:
@@ -248,19 +253,19 @@ def check_cooldown(command_name, user):
 					if user_cooldowns[user][command_name] < command_time - cmd_data["user_cooldown"]:
 						user_cooldowns[user][command_name] = command_time
 						cmd_data["last_used"] = command_time
-						write_command_data()
+						write_command_data(False)
 						return True
 					else:
 						return False
 				else:
 					user_cooldowns[user][command_name] = command_time
 					cmd_data["last_used"] = command_time
-					write_command_data()
+					write_command_data(False)
 					return True
 			else:
 				user_cooldowns[user] = {command_name:command_time}
 				cmd_data["last_used"] = command_time
-				write_command_data()
+				write_command_data(False)
 				return True
 		else:
 			cmd_data["last_used"] = command_time
@@ -299,7 +304,7 @@ def respond_message(user, message, permission):
 		log(f"Sent KEKW to {user}")
 
 	elif "@robokaywee" in message_lower:
-		send_message(f"@{user} I'm a bot, so I can't reply. Maybe you can try talking to one of the helpful human mods instead.")
+		send_message(f"@{user} I'm a bot, so I can't reply. Try talking to one of the helpful human mods instead.")
 		log(f"Sent \"I'm a bot\" to {user}")
 
 	elif message[0] == "^":
@@ -329,11 +334,11 @@ for command_name in [o for o in dir(commands_file) if not(o.startswith("_") or o
 		if getattr(commands_file, command_name).is_command:
 			if command_name not in commands_dict:
 				commands_dict[command_name] = {'permission': 0, 'global_cooldown': 1, 'user_cooldown': 5, 'coded': True, 'uses': 0, "description": getattr(commands_file, command_name).description}
-				write_command_data()
+				write_command_data(False)
 			else:
 				if commands_dict[command_name]["description"] != getattr(commands_file, command_name).description:
 					commands_dict[command_name]["description"] = getattr(commands_file, command_name).description # update description
-					write_command_data()
+					write_command_data(False)
 	except AttributeError:
 		pass
 
@@ -429,7 +434,7 @@ if __name__ == "__main__":
 													command_obj["uses"] += 1
 												else:
 													command_obj["uses"] = 1
-												write_command_data()
+												write_command_data(False)
 												
 										else:
 											log(f"WARNING: tried to call non-command function: {command}")
@@ -443,7 +448,7 @@ if __name__ == "__main__":
 											command_obj["uses"] += 1
 										else:
 											command_obj["uses"] = 1
-										write_command_data()
+										write_command_data(False)
 									else:
 										log(f"WARNING: Stored text command with no response: {command}")
 					else:
