@@ -8,6 +8,9 @@ from threading     import Thread
 from credentials   import kaywee_channel_id, robokaywee_client_id
 from googletrans   import Translator
 
+from PyDictionary import PyDictionary
+dic = PyDictionary()
+
 def is_command(description=""):
 	def inner(func, description=description):
 		func.is_command = True
@@ -21,6 +24,12 @@ Each function returns either a string, which gets sent in chat, or None, which i
 All replies will be sent in the bot's colour, using /me.
 The `bot` object and the `send_message` function will be accessible here at runtime.
 """
+
+gg_phrases = ["I feel very, very small... please hold me...",
+"It's past my bedtime. Please don't tell my mommy.",
+"I'm wrestling with some insecurity issues in my life but thank you for playing with me.",
+"I'm trying to be a nicer person. It's hard, but I'm trying, guys.",
+]
 
 currencies = {'CAD', 'HKD', 'ISK', 'PHP', 'DKK', 'HUF', 'CZK', 'GBP', 'RON', 'SEK', 'IDR', 'INR', 'BRL', 'RUB', 'HRK', 'JPY', 'THB', 'CHF', 'EUR', 'MYR', 'BGN', 'TRY', 'CNY', 'NOK', 'NZD', 'ZAR', 'USD', 'MXN', 'SGD', 'AUD', 'ILS', 'KRW', 'PLN'}
 bttv_global = {'PedoBear', 'RebeccaBlack', ':tf:', 'CiGrip', 'DatSauce', 'ForeverAlone', 'GabeN', 'HailHelix', 'HerbPerve', 'iDog', 'rStrike', 'ShoopDaWhoop', 'SwedSwag', 'M&Mjc', 'bttvNice', 'TopHam', 'TwaT', 'WatChuSay', 'SavageJerky', 'Zappa', 'tehPoleCat', 'AngelThump', 'HHydro', 'TaxiBro', 'BroBalt', 'ButterSauce', 'BaconEffect', 'SuchFraud', 'CandianRage', "She'llBeRight", 'D:', 'VisLaud', 'KaRappa', 'YetiZ', 'miniJulia', 'FishMoley', 'Hhhehehe', 'KKona', 'PoleDoge', 'sosGame', 'CruW', 'RarePepe', 'iamsocal', 'haHAA', 'FeelsBirthdayMan', 'RonSmug', 'KappaCool', 'FeelsBadMan', 'BasedGod', 'bUrself', 'ConcernDoge', 'FeelsGoodMan', 'FireSpeed', 'NaM', 'SourPls', 'LuL', 'SaltyCorn', 'FCreep', 'monkaS', 'VapeNation', 'ariW', 'notsquishY', 'FeelsAmazingMan', 'DuckerZ', 'SqShy', 'Wowee', 'WubTF', 'cvR', 'cvL', 'cvHazmat', 'cvMask'}
@@ -45,7 +54,7 @@ with open("subscribers.txt", "r", encoding="utf-8") as f:
 		print("Exception creating subscriber dictionary: " + str(ex))
 		subscribers = dict()
 
-@is_command("Allows mods to add and edit existing commands. All commands are sent with /me so including it is unnecessary. Syntax: !rcommand [add/edit/delete/options] <command name> (add/edit: <command text> // options: [cooldown/usercooldown/permission])")
+@is_command("Allows mods to add and edit existing commands. Syntax: !rcommand [add/edit/delete/options] <command name> <add/edit: <command text> // options: <[cooldown/usercooldown/permission]>>")
 def rcommand(user, message):
 	"""
 	format:
@@ -69,7 +78,7 @@ def rcommand(user, message):
 		command_name = params[1].lower()
 	except IndexError:
 		send_message("Syntax error.")
-		return
+		return False
 
 	if action == "edit":
 		if command_name in command_dict:
@@ -89,18 +98,18 @@ def rcommand(user, message):
 			option = params[2]
 		except IndexError:
 			send_message("Syntax error.")
-			return
+			return False
 		if option in ["globalcooldown", "cooldown"]: #assume "cooldown" means global cooldown
 			try:
 				cooldown = int(params[3])
 				assert 0 <= cooldown <= 300
 			except (ValueError, IndexError, AssertionError):
 				send_message("Cooldown must be provided as an integer between 1 and 300 seconds.")
-				return
+				return False
 
 			if command_name  in command_dict:
 				command_dict[command_name]["global_cooldown"] = cooldown
-				write_command_data()
+				write_command_data(True)
 				log(f"{user} updated global cooldown on command {command_name} to {cooldown}")
 				send_message(f"Global Cooldown upated to {cooldown} on {command_name}")
 			else:
@@ -111,10 +120,10 @@ def rcommand(user, message):
 				assert 0 <= cooldown <= 3600
 			except (ValueError, IndexError, AssertionError):
 				send_message("Cooldown must be provided as an integer between 1 and 3600 seconds.")
-				return
+				return False
 
 			command_dict[command_name]["user_cooldown"] = cooldown
-			write_command_data()
+			write_command_data(True)
 			log(f"{user} updated user cooldown on command {command_name} to {cooldown}")
 			send_message(f"User Cooldown upated to {cooldown} on {command_name}")
 		elif option == "permission":
@@ -122,12 +131,12 @@ def rcommand(user, message):
 				permission = int(params[3])
 				assert permission in [0,4,6,8,10]
 			except (ValueError, IndexError, AssertionError):
-				send_message("Permission must be provided as an integer: 0=All, 4=Subscriber, 6=VIP, 8=Moderator, 10=Broadcaster")
-				return
+				send_message("Permission must be an integer: 0=All, 4=Subscriber, 6=VIP, 8=Moderator, 10=Broadcaster")
+				return False
 
 			if command_name in command_dict:
 				command_dict[command_name]["permission"] = permission
-				write_command_data()
+				write_command_data(True)
 
 				send_message(f"Permission updated to {permission} on command {command_name}")
 				log(f"{user} updated permission on command {command_name} to {permission}")
@@ -186,38 +195,17 @@ def rcommand(user, message):
 		send_message("Unrecognised action: must be add, remove, edit, options, view")
 
 @is_command("Sends a triangle of emotes. Syntax: e.g. !triangle LUL")
-def triangle(user, message, emotes=""):
+def triangle(user, message):
 	global all_emotes
 	params = message.split(" ")
 	try:
 		emote = params[1]
 	except:
-		return
+		return False
 
-	if emote in all_emotes:
-		pass
-	else:
-		if not emotes:
-			send_message("You can only triangle with an emote.")
-			return
-
-		try:
-			valid_emote = False
-
-			for emoteID in emotes:
-				positions = emotes[emoteID].split(",")
-				for position in positions:
-					start, end = position.split("-")
-					if start == "10":
-						valid_emote = True
-						break
-		except:
-			send_message("You can only triangle with an emote.")
-			return
-
-		if not valid_emote:
-			send_message("You can only triangle with an emote.")
-			return
+	if emote not in all_emotes:
+		send_message("You can only triangle with an emote.")
+		return False
 
 	num = 3
 		
@@ -242,7 +230,7 @@ def toxicpoll(user, message):
 	poll_thread = Thread(target=_start_toxic_poll)
 	poll_thread.start()
 
-@is_command("Only allowed while a toxicpoll is active: votes toxic")
+@is_command("Only allowed while a toxicpoll is active. Votes toxic.")
 def votetoxic(user, message):
 	global toxic_poll
 	global toxic_votes
@@ -256,7 +244,7 @@ def votetoxic(user, message):
 	else:
 		return False
 
-@is_command("Only allowed while a toxicpoll is active: votes nice")
+@is_command("Only allowed while a toxicpoll is active. Votes nice.")
 def votenice(user, message):
 	global toxic_poll
 	global nottoxic_votes
@@ -373,7 +361,7 @@ def followgoal(user, message):
 		followers_left = goal - followers
 		if followers_left > 0:
 			send_message(f"Kaywee has {followers} followers, meaning there are only {followers_left:,} more followers until we hit our goal of {goal:,}! kaywee1AYAYA")
-			log(f"Sent followergoal of {followers_left} to {user} ({followers:,} currently")
+			log(f"Sent followergoal of {followers_left} to {user} (currently {followers:,})")
 		else:
 			send_message(f"The follower goal of {goal:,} has been met! We now have {followers:,} followers! kaywee1AYAYA")
 			log(f"Sent followergoal has been met to {user}")
@@ -461,13 +449,13 @@ def tofreedom(user, message):
 		input = input[:-1]
 		if len(input) == 0:
 			send_message("You have to provide a quantity to convert.")
-			return
+			return False
 
 	try:
 		quantity = float(input)
 	except (ValueError):
 		send_message("That doesn't look like a number. Try a number followed by a unit, e.g. '5cm' or '12kg'.")
-		return
+		return False
 
 	try:
 		free_unit, free_quantity = _tofreedom(unit, quantity)
@@ -494,13 +482,13 @@ def unfreedom(user, message):
 		input = input[:-1]
 		if len(input) == 0:
 			send_message("You have to provide a quantity to convert.")
-			return
+			return False
 
 	try:
 		quantity = float(input)
 	except (ValueError):
 		send_message("That... doesn't look like a number. Try a number followed by a unit e.g. '5ft' or '10lb'.")
-		return
+		return False
 
 	try:
 		sensible_unit, sensible_quantity = _unfreedom(unit, quantity)
@@ -530,14 +518,12 @@ def whogifted(user, message):
 			try:
 				gifter = subscribers[target]["gifter_name"]
 			except KeyError:
-				return
+				return False
 			send_message(f"@{target}'s current subscription was gifted to them by @{gifter}! Thank you! kaywee1AYAYA ")
 			log(f"Sent whogifted (target={target}, gifter={gifter}) in response to user {user}.")
-			return
 		else:
 			send_message(f"@{target} subscribed on their own this time. Thank you! kaywee1AYAYA ")
 			log(f"Sent whogifted ({target} subbed on their own) in response to user {user}.")
-			return
 	else:
 		send_message(f"@{target} is not a subscriber. FeelsBadMan")
 
@@ -592,12 +578,12 @@ def theonefoster(user, message):
 		else:
 			send_message(f"Foster can change his username back in {hours} {hs}!")
 
-@is_command("Translates a Spanish mesasge into English. Syntax: !toenglish hola OR !toenglish @toniki")
+@is_command("Translates a Spanish message into English. Syntax: \"!toenglish hola\" OR \"!toenglish @toniki\"")
 def toenglish(user, message):
 	phrase = " ".join(message.split(" ")[1:])
 	english = ""
-	if phrase.lower() in ["robokaywee", user, "@" + user,""]:
-		return
+	if phrase.lower() in ["robokaywee", user, "@" + user, ""]:
+		return False
 	if phrase[0] == "@" and len(phrase.split(" ")) == 1: #parameter is really a username
 		try:
 			target = phrase[1:].lower()
@@ -610,12 +596,12 @@ def toenglish(user, message):
 	send_message(english)
 	log(f"Translated \"{phrase}\" into English for {user}: it says \"{english}\"")
 
-@is_command("Translates an English mesasge into Spanish. Syntax: !tospanish hello OR !tospanish @kaywee")
+@is_command("Translates an English message into Spanish. Syntax: \"!tospanish hello\" OR \"!tospanish @kaywee\"")
 def tospanish(user, message):
 	phrase = " ".join(message.split(" ")[1:])
 	spanish = ""
 	if phrase.lower() in ["robokaywee", user, "@" + user, ""]:
-		return
+		return False
 	if phrase[0] == "@" and len(phrase.split(" ")) == 1: #parameter is really a username
 		try:
 			target = phrase[1:].lower()
@@ -639,7 +625,7 @@ def translate(user, message):
 	
 	output = ""
 	if phrase.lower() in ["robokaywee", user, "@" + user,""]:
-		return
+		return False
 	if phrase[0] == "@" and len(phrase.split(" ")) == 1: #parameter is really a username
 		try:
 			target = phrase[1:].lower()
@@ -729,15 +715,15 @@ def setcolour(user, message):
 	else:
 		send_message(f"@{user} That colour isn't right. Valid colours are: random, default, blue, blueviolet, cadetblue, chocolate, coral, dodgerblue, firebrick, goldenrod, green, hotpink, orangered, red, seagreen, springgreen, yellowgreen")
 
-@is_command("Rainbows the messages into the chat. Syntax: !rainbow hello")
+@is_command("Rainbows the messages into the chat. (big spam warning) Syntax: !rainbow hello")
 def rainbow(user, message):
 	try:
 		word = message.split(" ")[1][:12] # 12 chr limit
 	except IndexError:
-		return
+		return False
 
 	if word == "":
-		return
+		return False
 
 	for colour in ["red", "coral", "goldenrod", "green", "seagreen", "dodgerblue", "blue", "blueviolet", "hotpink"]:
 		send_message(f"/color {colour}", False)
@@ -773,7 +759,7 @@ def start_timer(user, time_in, reminder):
 			time_str = time_str.split("h")[1]
 		except:
 			bot.send_message(f"/me @{user} sorry, I don't recognise that format :(")
-			return
+			return False
 
 	if "m" in time_str:
 		try:
@@ -781,7 +767,7 @@ def start_timer(user, time_in, reminder):
 			time_str = time_str.split("m")[1]
 		except:
 			bot.send_message(f"/me @{user} sorry, I don't recognise that format :(")
-			return
+			return False
 
 	if "s" in time_str:
 		try:
@@ -789,17 +775,17 @@ def start_timer(user, time_in, reminder):
 			time_str = time_str.split("s")[1]
 		except:
 			bot.send_message(f"/me @{user} sorry, I don't recognise that format :(")
-			return
+			return False
 
-	if secs >= 60 or mins >= 60 or hours >= 24 or time_str!="":
+	if time_str != "": # or secs >= 60 or mins >= 60 or hours > 24:
 		bot.send_message("/me That time doesn't look right. ")
-		return
+		return False
 
 	timer_time = 60*60*hours + 60*mins + secs
 
 	if timer_time < 30:
 		bot.send_message("/me The timer must be for at least 30 seconds.")
-		return
+		return False
 	
 	bot.send_message(f"/me @{user} - your {time_in} timer has started!")
 
@@ -818,7 +804,7 @@ def timer(user, message):
 	try:
 		time_str = message.split(" ")[1]
 	except:
-		return
+		return False
 
 	try:
 		reminder = " ".join(message.split(" ")[2:])
@@ -846,7 +832,7 @@ def nochat_mode():
 	sleep(10*60)
 	nochat_on = False
 
-@is_command("Turns on nochat mode - users who mention @kaywee will receive a notification that kaywee isn't looking at chat")
+@is_command("Turns on nochat mode: users who mention @kaywee will receive a notification that kaywee isn't looking at chat")
 def nochaton(user, message):
 	nochat_thread = Thread(target=nochat_mode)
 	nochat_thread.start()
@@ -864,3 +850,24 @@ def nochatoff(user, message):
 def rcommands(user, message):
 	send_message("The RoboKaywee commands list is here: https://old.reddit.com/r/RoboKaywee/wiki/commands")
 	log(f"Sent commands list to {user}")
+
+@is_command("Provides either one or two definitions for an English word.")
+def define(user, message):
+	try:
+		word = message.split(" ")[1]
+		assert word != ""
+	except (IndexError, AssertionError):
+		return False
+
+	definitions = dic.meaning(word)
+	nouns = definitions.get("Noun", [])
+	adjs = definitions.get("Adjective", [])
+	vers = definitions.get("Verb", [])
+	advs = definitions.get("Adverb", [])
+
+	definitions = list(adjs+vers+advs+nouns)
+
+	if len(definitions) == 1:
+		send_message(f"The definition of {word} is: {definitions[0]}")
+	else:
+		send_message(f"The definitions of {word} are: \"{definitions[0]}\" OR \"{definitions[1]}\"")
