@@ -15,17 +15,6 @@ from API_functions import get_app_access_token
 
 import commands as commands_file
 
-"""
-TODO:
-
-wednesday colour reminder (added but test)
-
-should be able to add counters and variables to text commands
-
-subscribers.txt was {}
-
-"""
-
 command_lock = Lock()
 config_lock = Lock()
 
