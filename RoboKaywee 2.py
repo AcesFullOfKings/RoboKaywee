@@ -8,7 +8,7 @@ from enum        import IntEnum
 from math        import ceil
 from chatbot     import ChatBot # see https://github.com/theonefoster/pyTwitchChatBot
 from datetime    import date, datetime
-from threading   import Thread
+from threading   import Thread, Lock
 from credentials import bot_name, password, channel_name, kaywee_channel_id, bearer_token, robokaywee_client_id
 
 from API_functions import get_app_access_token
@@ -25,6 +25,9 @@ should be able to add counters and variables to text commands
 subscribers.txt was {}
 
 """
+
+command_lock = Lock()
+config_lock = Lock()
 
 bots = {"robokaywee", "streamelements", "nightbot"}
 
@@ -66,46 +69,56 @@ def update_commands_wiki(force_update_reddit=False):
 		r = praw.Reddit("RoboKaywee")
 		subreddit = r.subreddit("RoboKaywee")
 
-		with open("commands.txt", "r", encoding="utf-8") as f:
-			commands = dict(eval(f.read()))
+		if command_lock.acquire(timeout=10):
+			with open("commands.txt", "r", encoding="utf-8") as f:
+				commands = dict(eval(f.read()))
 
-		table = "Note: all commands are now sent with /me so will display in the bot's colour.\n\n\n**Command**|**Level**|**Response/Description**|**Uses**\n---|---|---|---\n"
+			command_lock.release()
 
-		for command in sorted(commands):
-			if "permission" in commands[command]:
-				try:
-					level = permissions[commands[command]["permission"]]
-				except KeyError:
+			table = "Note: all commands are now sent with /me so will display in the bot's colour.\n\n\n**Command**|**Level**|**Response/Description**|**Uses**\n---|---|---|---\n"
+
+			for command in sorted(commands):
+				if "permission" in commands[command]:
+					try:
+						level = permissions[commands[command]["permission"]]
+					except KeyError:
+						level = "Pleb"
+				else:
 					level = "Pleb"
-			else:
-				level = "Pleb"
 
-			if "uses" in commands[command]:
-				uses = commands[command]["uses"]
-			else:
-				uses = "-"
-
-			if commands[command]["coded"]:
-				if "description" in commands[command]:
-					table += f"{command}|{level}|Coded: {commands[command]['description']}|{uses}\n"
+				if "uses" in commands[command]:
+					uses = commands[command]["uses"]
 				else:
-					table += f"{command}|{level}|Coded command with no description.|{uses}\n"
-			else:
-				if "response" in commands[command]:
-					table += f"{command}|{level}|Response: {commands[command]['response']}|{uses}\n"
-				else:
-					table += f"{command}|{level}|Text command with no response.|{uses}\n"
+					uses = "-"
 
-		subreddit.wiki["commands"].edit(table)
-		last_wiki_update = time()
+				if commands[command]["coded"]:
+					if "description" in commands[command]:
+						table += f"{command}|{level}|Coded: {commands[command]['description']}|{uses}\n"
+					else:
+						table += f"{command}|{level}|Coded command with no description.|{uses}\n"
+				else:
+					if "response" in commands[command]:
+						table += f"{command}|{level}|Response: {commands[command]['response']}|{uses}\n"
+					else:
+						table += f"{command}|{level}|Text command with no response.|{uses}\n"
+
+			subreddit.wiki["commands"].edit(table)
+			last_wiki_update = time()
+		else:
+			log("Warning: Command Lock timed out on update_commands_wiki() !!")
 
 def write_command_data(force_update_reddit=False):
 	global commands_dict
-	with open("commands.txt", "w", encoding="utf-8") as f:
-		f.write(str(commands_dict).replace("},", "},\n"))
 
-	update_thread = Thread(target=update_commands_wiki, args=(force_update_reddit,))
-	update_thread.start()
+	if command_lock.acquire(timeout=3):
+		with open("commands.txt", "w", encoding="utf-8") as f:
+			f.write(str(commands_dict).replace("},", "},\n"))
+		command_lock.release()
+
+		update_thread = Thread(target=update_commands_wiki, args=(force_update_reddit,))
+		update_thread.start()
+	else:
+		log("Warning: Command Lock timed out on write_command_data() !!")
 
 def commit_subscribers():
 	with open("subscribers.txt", "w", encoding="utf-8") as f:
@@ -172,9 +185,14 @@ def update_subs():
 
 def get_data(name):
 	try:
-		with open("config.txt", "r") as f:
-			file = f.read()
-			data = dict(eval(file))
+		if config_lock.acquire(timeout=3):
+			with open("config.txt", "r") as f:
+				file = f.read()
+				data = dict(eval(file))
+				config_lock.release()
+		else:
+			log("WARNING: config_lock timed out in get_data() !!")
+			return None
 	except FileNotFoundError as ex:
 		log(f"Failed to get data called {name} - File Not Found.")
 		return None
@@ -186,9 +204,14 @@ def get_data(name):
 
 def set_data(name, value):
 	try:
-		with open("config.txt", "r") as f:
-			file = f.read()
-			data = dict(eval(file))
+		if config_lock.acquire(timeout=3):
+			with open("config.txt", "r") as f:
+				file = f.read()
+				data = dict(eval(file))
+				config_lock.release()
+		else:
+			log("WARNING: config_lock timed out (while reading) in set_data() !!")
+			return None
 	except FileNotFoundError as ex:
 		log(f"Failed to set data of {name} to {value} - File Not Found.")
 		return None
@@ -198,8 +221,13 @@ def set_data(name, value):
 
 	data[name] = value
 
-	with open("config.txt", "w") as f:
-		f.write(str(data).replace(", ", ",\n"))
+	if config_lock.acquire(timeout=3):
+		with open("config.txt", "w") as f:
+			f.write(str(data).replace(", ", ",\n"))
+		config_lock.release()
+	else:
+		log("WARNING: config_lock timed out (while writing) in set_data() !!")
+		return None
 
 def update_app_access_token():
 	while True:
@@ -321,6 +349,10 @@ def respond_message(user, message, permission):
 		if any(x in msg_without_spaces for x in ["bigfollows.com", "bigfollows*com", "bigfollowsdotcom"]):
 			send_message(f"/ban {user}")
 			log(f"Banned {user} for linking to bigfollows")
+
+	elif message_lower in ["hewwo", "hewwo?", "hewwo??"]:
+		send_message("HEWWO! UwU kaywee1AYAYA")
+		log(f"Sent hewwo to {user}")
 
 	if user == "streamelements" and not pink_reminder_sent and date.today().weekday() == 2:
 		wednesday_thread = Thread(target=it_is_wednesday_my_dudes)
