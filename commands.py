@@ -25,12 +25,6 @@ All replies will be sent in the bot's colour, using /me.
 The `bot` object and the `send_message` function will be accessible here at runtime.
 """
 
-gg_phrases = ["I feel very, very small... please hold me...",
-"It's past my bedtime. Please don't tell my mommy.",
-"I'm wrestling with some insecurity issues in my life but thank you for playing with me.",
-"I'm trying to be a nicer person. It's hard, but I'm trying, guys.",
-]
-
 currencies = {'CAD', 'HKD', 'ISK', 'PHP', 'DKK', 'HUF', 'CZK', 'GBP', 'RON', 'SEK', 'IDR', 'INR', 'BRL', 'RUB', 'HRK', 'JPY', 'THB', 'CHF', 'EUR', 'MYR', 'BGN', 'TRY', 'CNY', 'NOK', 'NZD', 'ZAR', 'USD', 'MXN', 'SGD', 'AUD', 'ILS', 'KRW', 'PLN'}
 bttv_global = {'PedoBear', 'RebeccaBlack', ':tf:', 'CiGrip', 'DatSauce', 'ForeverAlone', 'GabeN', 'HailHelix', 'HerbPerve', 'iDog', 'rStrike', 'ShoopDaWhoop', 'SwedSwag', 'M&Mjc', 'bttvNice', 'TopHam', 'TwaT', 'WatChuSay', 'SavageJerky', 'Zappa', 'tehPoleCat', 'AngelThump', 'HHydro', 'TaxiBro', 'BroBalt', 'ButterSauce', 'BaconEffect', 'SuchFraud', 'CandianRage', "She'llBeRight", 'D:', 'VisLaud', 'KaRappa', 'YetiZ', 'miniJulia', 'FishMoley', 'Hhhehehe', 'KKona', 'PoleDoge', 'sosGame', 'CruW', 'RarePepe', 'iamsocal', 'haHAA', 'FeelsBirthdayMan', 'RonSmug', 'KappaCool', 'FeelsBadMan', 'BasedGod', 'bUrself', 'ConcernDoge', 'FeelsGoodMan', 'FireSpeed', 'NaM', 'SourPls', 'LuL', 'SaltyCorn', 'FCreep', 'monkaS', 'VapeNation', 'ariW', 'notsquishY', 'FeelsAmazingMan', 'DuckerZ', 'SqShy', 'Wowee', 'WubTF', 'cvR', 'cvL', 'cvHazmat', 'cvMask'}
 bttv_local = {'ppCircle', 'KayWeird', 'PepeHands', 'monkaS', 'POGGERS', 'PepoDance', 'HYPERS', 'BongoCat', 'RareParrot', 'BIGWOW', '5Head', 'WeirdChamp', 'PepeJam', 'KEKWHD', 'widepeepoHappyRightHeart', 'gachiHYPER', 'peepoNuggie', 'MonkaTOS', 'KKool', 'OMEGALUL', 'monkaSHAKE', 'PogUU', 'Clap', 'AYAYA', 'CuteDog', 'weSmart', 'DogePls', 'REEEE', 'BBoomer', 'HAhaa', 'FeelsLitMan', 'POGSLIDE', 'CCOGGERS', 'peepoPANTIES', 'PartyParrot', 'monkaX', 'widepeepoSadBrokenHeart', 'KoolDoge', 'TriDance', 'PepePls', 'gachiBASS', 'pepeLaugh', 'whatBlink', 'FeelsSadMan'}
@@ -364,8 +358,8 @@ def followgoal(user, message):
 			log(f"Sent followergoal of {followers_left} to {user} (currently {followers:,})")
 		else:
 			send_message(f"The follower goal of {goal:,} has been met! We now have {followers:,} followers! kaywee1AYAYA")
-			log(f"Sent followergoal has been met to {user}")
-			while goal < followers:
+			log(f"Sent followergoal has been met to {user} ({followers:,}/{goal})")
+			while goal <= followers:
 				goal += 100
 			set_data("followgoal", goal)
 			log(f"Increased followgoal to {goal}")
@@ -396,7 +390,7 @@ def _tofreedom(unit, quantity):
 		mi = round(quantity / 1.60934, 2)
 		return ("mi", mi)
 	elif unit.upper() in currencies:
-		dlr = round(quantity * get_currencies(base=unit, convert_to="USD"), 2)
+		dlr = round(quantity * _get_currencies(base=unit, convert_to="USD"), 2)
 		return ("USD", dlr)
 	elif unit == "ml":
 		pt = round(quantity / 568.261, 3)
@@ -426,13 +420,20 @@ def _unfreedom(unit, quantity):
 		km = round(quantity * 1.60934, 2)
 		return ("km", km)
 	elif unit == "usd":
-		result = round(quantity * get_currencies(base="USD", convert_to="GBP"), 2)
+		result = round(quantity * _get_currencies(base="USD", convert_to="GBP"), 2)
 		return ("GBP", result)
 	elif unit == "pt":
 		ml = round(quantity * 568.261, 1)
 		return("ml", ml)
 
 	return -1
+
+def _get_currencies(base="USD", convert_to="GBP"):
+	base = base.upper()
+	result = requests.get(f"https://api.exchangeratesapi.io/latest?base={base}").json()
+	rates = result["rates"]
+	if convert_to.upper() in rates:
+		return rates[convert_to]
 
 @is_command("Convert Metric units into Imperial. Syntax: !tofreedom <quantity><unit> e.g. !tofreedom 5kg")
 def tofreedom(user, message):
@@ -871,3 +872,53 @@ def define(user, message):
 		send_message(f"The definition of {word} is: {definitions[0]}")
 	else:
 		send_message(f"The definitions of {word} are: \"{definitions[0]}\" OR \"{definitions[1]}\"")
+
+@is_command("Lets mods ban a user.")
+def ban(user, message):
+	target = message.split(" ")[1]
+	send_message(f"/ban {target}")
+	log(f"Banned user {target} in response to {user}")
+
+@is_command("Lets mods timeout a user.")
+def timeout(user, message):
+	target = message.split(" ")[1]
+
+	try:
+		duration = int(message.split(" ")[2])
+	except (ValueError, IndexError):
+		duration = 600
+
+	send_message(f"/timeout {target} {duration}")
+	log(f"Timed out user {target} for {duration} seconds, in response to {user}")
+
+@is_command("Repeats the phrase in chat. Mods only so that mod commands can't be abused.")
+def echo(user, message):
+	phrase = " ".join(message.split(" ")[1:])
+	send_message(phrase, False, True)
+
+@is_command("")
+def refreshtranslator(user, message):
+	global translator
+
+	"""
+	The Translate library is sometimes unreliable and can load incorrectly sometimes.
+	This function refreshes the Translator object to guarantee that it works.
+	It does this by creating a new object, and attempting a translation.
+	If the translation excepts, the object is replaced by a fresh object until a translation is successful.
+	Then the global object is replaced with the new object.
+	"""
+
+	loaded_correctly = False
+	while not loaded_correctly:
+		new_translator = Translator()
+		try:
+			new_translator.translate("hello!", source="en", dest="es").text
+		except AttributeError:
+			pass # try again on next loop
+		else:
+			loaded_correctly = True # exit loop
+
+	translator = new_translator
+
+	send_message("The translator object has been refreshed.")
+	log(f"Refreshed Translator in response to {user}.")
