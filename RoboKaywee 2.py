@@ -280,20 +280,14 @@ def check_cooldown(command_name, user):
 				if command_name in user_cooldowns[user]:
 					if user_cooldowns[user][command_name] < command_time - cmd_data["user_cooldown"]:
 						user_cooldowns[user][command_name] = command_time
-						cmd_data["last_used"] = command_time
-						write_command_data(False)
 						return True
 					else:
 						return False
 				else:
 					user_cooldowns[user][command_name] = command_time
-					cmd_data["last_used"] = command_time
-					write_command_data(False)
 					return True
 			else:
 				user_cooldowns[user] = {command_name:command_time}
-				cmd_data["last_used"] = command_time
-				write_command_data(False)
 				return True
 		else:
 			cmd_data["last_used"] = command_time
@@ -466,6 +460,8 @@ if __name__ == "__main__":
 													command_obj["uses"] += 1
 												else:
 													command_obj["uses"] = 1
+
+												command_obj["last_used"] = time()
 												write_command_data(False)
 												
 										else:
@@ -480,6 +476,8 @@ if __name__ == "__main__":
 											command_obj["uses"] += 1
 										else:
 											command_obj["uses"] = 1
+
+										command_obj["last_used"] = time()
 										write_command_data(False)
 									else:
 										log(f"WARNING: Stored text command with no response: {command}")
