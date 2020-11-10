@@ -121,6 +121,7 @@ def commit_subscribers():
 	if command_lock.acquire(timeout=3):
 		with open("subscribers.txt", "w", encoding="utf-8") as f:
 			f.write(str(subscribers))
+		command_lock.release()
 	else:
 		log("Warning: Subs Lock timed out in commit_subscribers() !!")
 def get_title():
