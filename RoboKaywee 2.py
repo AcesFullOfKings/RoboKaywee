@@ -1,4 +1,4 @@
-#import sqlite3
+#import sqlite3 # one day maybe I'll use an actual database LOL
 import requests
 import random
 import praw
@@ -15,8 +15,16 @@ from API_functions import get_app_access_token
 
 import commands as commands_file
 
+"""
+TODO:
+
+should be able to add counters and variables to text commands
+
+"""
+
 command_lock = Lock()
 config_lock = Lock()
+subs_lock = Lock()
 
 bots = {"robokaywee", "streamelements", "nightbot"}
 
@@ -35,7 +43,7 @@ def log(s):
 	log_time = day + "/" + month + " " + hour + ":" + minute + ":" + second 
 
 	print(s)
-	with open("robov2_log.txt", "a", encoding="utf-8") as f:
+	with open("log.txt", "a", encoding="utf-8") as f:
 		f.write(log_time + " - " + s + "\n")
 
 with open("commands.txt", "r", encoding="utf-8") as f:
@@ -110,9 +118,11 @@ def write_command_data(force_update_reddit=False):
 		log("Warning: Command Lock timed out on write_command_data() !!")
 
 def commit_subscribers():
-	with open("subscribers.txt", "w", encoding="utf-8") as f:
-		f.write(str(subscribers))
-
+	if command_lock.acquire(timeout=3):
+		with open("subscribers.txt", "w", encoding="utf-8") as f:
+			f.write(str(subscribers))
+	else:
+		log("Warning: Subs Lock timed out in commit_subscribers() !!")
 def get_title():
 	url = "https://api.twitch.tv/helix/streams?user_id=" + kaywee_channel_id
 	authorisation_header = {"Client-ID": robokaywee_client_id, "Authorization":"Bearer " + get_data("app_access_token")}
@@ -200,13 +210,13 @@ def set_data(name, value):
 				config_lock.release()
 		else:
 			log("WARNING: config_lock timed out (while reading) in set_data() !!")
-			return None
+			return
 	except FileNotFoundError as ex:
 		log(f"Failed to set data of {name} to {value} - File Not Found.")
-		return None
+		return
 	except ValueError as ex:
 		log(f"Failed to set data of {name} to {value} - Value Error (corrupt file??)")
-		return None
+		return
 
 	data[name] = value
 
@@ -216,7 +226,7 @@ def set_data(name, value):
 		config_lock.release()
 	else:
 		log("WARNING: config_lock timed out (while writing) in set_data() !!")
-		return None
+		return
 
 def update_app_access_token():
 	while True:
@@ -246,10 +256,10 @@ def send_message(message, add_to_chatlog=False, suppress_colour=False):
 	"""
 	Will also be accessible from the commands file.
 	"""
-	global bot
-	if False:
-		print("SEND_MESASGE FUNCTION IS DISABLED!")
-		return
+
+	#if False: # -> allows me to run the bot silently during testing
+	#	print("SEND_MESASGE FUNCTION IS DISABLED!")
+	#	return
 
 	if message.startswith("/") or suppress_colour:
 		bot.send_message(message)
@@ -354,7 +364,7 @@ for command_name in [o for o in dir(commands_file) if not(o.startswith("_") or o
 	try:
 		if getattr(commands_file, command_name).is_command:
 			if command_name not in commands_dict:
-				commands_dict[command_name] = {'permission': 0, 'global_cooldown': 1, 'user_cooldown': 5, 'coded': True, 'uses': 0, "description": getattr(commands_file, command_name).description}
+				commands_dict[command_name] = {'permission': 0, 'global_cooldown': 1, 'user_cooldown': 0, 'coded': True, 'uses': 0, "description": getattr(commands_file, command_name).description}
 				write_command_data(False)
 			else:
 				if commands_dict[command_name]["description"] != getattr(commands_file, command_name).description:
@@ -433,7 +443,7 @@ if __name__ == "__main__":
 					if "badges" in message_dict:
 						if "broadcaster" in message_dict["badges"]:
 							user_permission = permissions.Broadcaster
-						elif "moderator" in message_dict["badges"]:
+						elif "moderator" in message_dict["badges"] or user == "acesfullofkings_":
 							user_permission = permissions.Mod
 						elif "vip/1" in message_dict["badges"]:
 							user_permission = permissions.VIP
@@ -472,6 +482,7 @@ if __name__ == "__main__":
 										write_command_data(False)
 									else:
 										log(f"WARNING: Stored text command with no response: {command}")
+
 					else:
 						respond_message(user, message, user_permission)
 
@@ -624,3 +635,4 @@ if __name__ == "__main__":
 						f.write("unknown message type: " + str(message_dict) + "\n\n")
 		except Exception as ex:
 			log("Exception in main loop: " + str(ex)) # generic catch-all (literally) to make sure bot doesn't crash
+
