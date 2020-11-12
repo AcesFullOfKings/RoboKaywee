@@ -334,13 +334,13 @@ def dice(user, message):
 		send_message(f"{user} rolled a dice and got a {str(sum)}!")
 		log(f"Sent a dice roll of {sum} to {user}")
 	else:
-		send_message(user + f" rolled {num} dice and totalled " + str(sum) + "! " + str(tuple(rolls)))
-		log(f"Sent {num} dice rolls to {name}, totalling {sum}")
+		send_message(f"{user} rolled {num} dice and totalled {str(sum)}! {str(tuple(rolls))}")
+		log(f"Sent {num} dice rolls to {user}, totalling {sum}")
 
 @is_command("Pulls from the power of the cosmos to predict your fortune.")
 def fortune(user, message):
 	fortune = random.choice(fortunes)
-	send_message(f"@{user}, your fortune is: " + fortune)
+	send_message(f"@{user}, your fortune is: {fortune}")
 	log(f"Sent fortune to {user}")
 
 @is_command("Shows the current followgoal.")
@@ -356,7 +356,7 @@ def followgoal(user, message):
 		followers = data["total"]
 		followers_left = goal - followers
 		if followers_left > 0:
-			send_message(f"Kaywee has {followers} followers, meaning there are only {followers_left:,} more followers until we hit our goal of {goal:,}! kaywee1AYAYA")
+			send_message(f"Kaywee has {followers:,} followers, meaning there are only {followers_left:,} more followers until we hit our goal of {goal:,}! kaywee1AYAYA")
 			log(f"Sent followergoal of {followers_left} to {user} (currently {followers:,})")
 		else:
 			send_message(f"The follower goal of {goal:,} has been met! We now have {followers:,} followers! kaywee1AYAYA")
@@ -463,7 +463,8 @@ def tofreedom(user, message):
 	try:
 		free_unit, free_quantity = _tofreedom(unit, quantity)
 	except (ValueError, TypeError):
-		send_message("I don't recognise that metric unit. Sorry :(")
+		send_message("Sorry, I don't recognise that metric unit. :(")
+		return False
 
 	if free_quantity == int(free_quantity): #if the float is a whole number
 		free_quantity = int(free_quantity) #convert it to an int (i.e. remove the .0)
@@ -497,6 +498,7 @@ def unfreedom(user, message):
 		sensible_unit, sensible_quantity = _unfreedom(unit, quantity)
 	except (ValueError, TypeError):
 		send_message("I don't recognise that imperial unit. Sorry! :( PepeHands")
+		return False
 
 	if sensible_quantity == int(sensible_quantity): #if the float is a whole number
 		sensible_quantity = int(sensible_quantity) #convert it to an int (i.e. remove the .0)
@@ -521,12 +523,13 @@ def whogifted(user, message):
 			try:
 				gifter = subscribers[target]["gifter_name"]
 			except KeyError:
+				send_message(f"Error - this is a gifted sub but there is no record of the gifter. WeirdChamp")
 				return False
 			send_message(f"@{target}'s current subscription was gifted to them by @{gifter}! Thank you! kaywee1AYAYA ")
-			log(f"Sent whogifted (target={target}, gifter={gifter}) in response to user {user}.")
+			log(f"Sent whogifted (target={target}, gifter={gifter}) in response to {user}.")
 		else:
 			send_message(f"@{target} subscribed on their own this time. Thank you! kaywee1AYAYA ")
-			log(f"Sent whogifted ({target} subbed on their own) in response to user {user}.")
+			log(f"Sent whogifted ({target} subbed on their own) in response to {user}.")
 	else:
 		send_message(f"@{target} is not a subscriber. FeelsBadMan")
 
@@ -566,7 +569,7 @@ def theonefoster(user, message):
 
 	if time_left < 0:
 		send_message("Foster can now change his username back!")
-		log(f"Sent username time to {user}, targeting {target}, showing that the username can be changed.")
+		log(f"Sent username time to {user}, showing that the username can be changed.")
 	else:
 		days = int(time_left // 86400)
 		ds = "day" if days == 1 else "days"
@@ -627,7 +630,7 @@ def translate(user, message):
 		send_message("Syntax Error. Usage: !translate <sourc_lang> <dest_lang> <text>")
 	
 	output = ""
-	if phrase.lower() in ["robokaywee", user, "@" + user,""]:
+	if phrase.lower() in ["robokaywee", user, "@" + user, ""]:
 		return False
 	if phrase[0] == "@" and len(phrase.split(" ")) == 1: #parameter is really a username
 		try:
@@ -647,9 +650,10 @@ def translate(user, message):
 @is_command("Shows the user who most recently raided, and the time of the raid.")
 def lastraid(user, message):
 	raid_data = get_data("last_raid")
-	name = raid_data["raider"]
+
+	name    = raid_data["raider"]
 	viewers = raid_data["viewers"]
-	time = raid_data["time"]
+	time    = raid_data["time"]
 
 	date_num = datetime.utcfromtimestamp(time).strftime('%d')
 	if date_num in [1, 21, 31]:
@@ -664,10 +668,7 @@ def lastraid(user, message):
 	date_num = str(date_num).lstrip("0")
 	time_str = datetime.utcfromtimestamp(time).strftime("%A " + date_num + suffix + " of %B at %H:%M UTC")
 
-	if viewers == 1:
-		plural = ""
-	else:
-		plural = "s"
+	plural = "" if viewers == 1 else "s"
 
 	send_message(f"The latest raid was by {name}, who raided with {viewers} viewer{plural} on {time_str}!")
 
@@ -683,24 +684,21 @@ def setcolour(user, message):
 	else:
 		valid = False
 
-	# ONLY WORKS WITH TWITCH PRIME:
-	#if colour[0] == "#": 
-	#	if len(colour) == 7:
-	#		for c in colour[1:].lower():
-	#			if c not in "0123456789abcdef":
-	#				valid = False
-	#				break
-	#		else:
-	#			valid=True
+		# ONLY WORKS WITH TWITCH PRIME:
+		#if colour[0] == "#": 
+		#	if len(colour) == 7:
+		#		for c in colour[1:].lower():
+		#			if c not in "0123456789abcdef":
+		#				valid = False
+		#				break
+		#		else:
+		#			valid=True
 
 	if valid:
 		if colour == "default":
-			send_message("/color HotPink", False)
-			sleep(0.9)
-			send_message("The Robocolour was updated to HotPink! kaywee1AYAYA")
-			set_data("current_colour", "HotPink")
-			log(f"Colour was updated to {colour} in response to {user}")
-		elif colour == "random":
+			colour = "HotPink"
+
+		if colour == "random":
 			colours = ["blue","blueviolet","cadetblue","chocolate","coral","dodgerblue","firebrick","goldenrod","green","hotpink","orangered","red","seagreen","springgreen","yellowgreen"]
 			new_colour = random.choice(colours)
 			send_message("/color " + new_colour, False)
@@ -832,15 +830,28 @@ def uses(user, message):
 def nochat_mode():
 	global nochat_on
 	nochat_on = True
-	sleep(10*60)
-	nochat_on = False
+
+	duration = 10*60 # 10 mins
+	check_period = 5 # secs
+
+	for secs in range(0, duration, check_period):
+		if not nochat_on: #nochat mode gets turned off externally
+			raise AssertionError("Nochat mode has been turned off.") # unhandled exceptions kill the thread
+
+		sleep(check_period)
+
+	nochat_on = False # turn nochat mode off after the duration
 
 @is_command("Turns on nochat mode: users who mention @kaywee will receive a notification that kaywee isn't looking at chat")
 def nochaton(user, message):
-	nochat_thread = Thread(target=nochat_mode)
-	nochat_thread.start()
-	send_message("Nochat mode is now on.")
-	log("Nochat mode is now on.")
+	global nochat_on
+	if not nochat_on:
+		nochat_thread = Thread(target=nochat_mode)
+		nochat_thread.start()
+		send_message("Nochat mode is now on.")
+		log("Nochat mode is now on.")
+	else:
+		send_message("Nochat mode is already on.")
 
 @is_command("Turns off nochat mode")
 def nochatoff(user, message):
