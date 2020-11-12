@@ -20,9 +20,7 @@ def is_command(description=""):
 
 """
 Each function is a command, callable by sending "!<function_name>" in chat.
-Each function returns either a string, which gets sent in chat, or None, which indicates no reply is needed.
 All replies will be sent in the bot's colour, using /me.
-The `bot` object and the `send_message` function will be accessible here at runtime.
 """
 
 currencies = {'CAD', 'HKD', 'ISK', 'PHP', 'DKK', 'HUF', 'CZK', 'GBP', 'RON', 'SEK', 'IDR', 'INR', 'BRL', 'RUB', 'HRK', 'JPY', 'THB', 'CHF', 'EUR', 'MYR', 'BGN', 'TRY', 'CNY', 'NOK', 'NZD', 'ZAR', 'USD', 'MXN', 'SGD', 'AUD', 'ILS', 'KRW', 'PLN'}
@@ -77,9 +75,11 @@ def rcommand(user, message):
 	if action == "edit":
 		if command_name in command_dict:
 			if not command_dict[command_name]["coded"] and "response" in command_dict[command_name]:
-				command_dict[command_name]["response"] = " ".join(params[2:])
+				response = " ".join(params[2:])
 				if response[:4] == "/me ":
 					response = response[4:] #include the space
+
+				command_dict[command_name]["response"] = response
 
 				send_message(f"Command {command_name} has been updated.")
 				write_command_data(True)
@@ -896,8 +896,13 @@ def echo(user, message):
 	phrase = " ".join(message.split(" ")[1:])
 	send_message(phrase, False, True)
 
-@is_command("")
+@is_command("Reloads the translation object to attempt to fix errors.")
 def refreshtranslator(user, message):
+	_refreshtranslator()
+	send_message("The translator object has been refreshed.")
+	log(f"Refreshed Translator in response to {user}.")
+
+def _refreshtranslator():
 	global translator
 
 	"""
@@ -909,6 +914,7 @@ def refreshtranslator(user, message):
 	"""
 
 	loaded_correctly = False
+
 	while not loaded_correctly:
 		new_translator = Translator()
 		try:
@@ -920,5 +926,4 @@ def refreshtranslator(user, message):
 
 	translator = new_translator
 
-	send_message("The translator object has been refreshed.")
-	log(f"Refreshed Translator in response to {user}.")
+_refreshtranslator() # run when the file is imported
