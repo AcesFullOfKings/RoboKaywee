@@ -50,19 +50,21 @@ with open("subscribers.txt", "r", encoding="utf-8") as f:
 def rcommand(user, message):
 	"""
 	format:
-	!robo <action> <command> [<params>]
+	!rcommand <action> <command> [<params>]
 
 	examples:
 	* add a text command:
-		!robo add helloworld Hello World!
+		!rcommand add helloworld Hello World!
 	* edit an existing text command:
-		!robo edit helloworld Hello World Again!
+		!rcommand edit helloworld Hello World Again!
 	* delete a command:
-		!robo delete helloworld
+		!rcommand delete helloworld
 	* change command options:
-		!robo options helloworld permission 10
-		!robo options helloworld cooldown 60
-		!robo options helloworld usercooldown 120
+		!rcommand options helloworld permission 10
+		!rcommand options helloworld cooldown 60
+		!rcommand options helloworld usercooldown 120
+	* view current command details:
+		!rcommand view helloworld
 	"""
 	params = message.split(" ")[1:]
 	try:
