@@ -1,5 +1,6 @@
 import random
-import requests 
+import requests
+import re
 
 from time          import sleep, time
 from datetime      import date, datetime
@@ -940,3 +941,16 @@ def _refreshtranslator():
 	translator = new_translator
 
 _refreshtranslator() # run when the file is imported
+
+@is_command("Looks up the current World Day")
+def worldday(user, message):
+	#flasgod don't judge me, I know this is wonky af
+	page = requests.get("https://www.daysoftheyear.com/").text
+
+	links_re = re.compile("<a.*?\/a>")
+	links = [link for link in re.findall(links_re, page) if "www.daysoftheyear.com" in link and "class=\"js-link-target\"" in link]
+
+	day_re = re.compile("<.*?>([^<]*)<")
+	world_day = re.search(day_re, links[0])
+
+	send_message("Today is: " + world_day.group(1))
