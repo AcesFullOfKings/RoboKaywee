@@ -912,7 +912,7 @@ def echo(user, message):
 
 @is_command("Reloads the translation object to attempt to fix errors.")
 def refreshtranslator(user, message):
-	_refreshtranslator()
+	_refreshtranslator() #separate function so it can be called elsewhere without sending the message
 	send_message("The translator object has been refreshed.")
 	log(f"Refreshed Translator in response to {user}.")
 
@@ -944,13 +944,14 @@ _refreshtranslator() # run when the file is imported
 
 @is_command("Looks up the current World Day")
 def worldday(user, message):
-	#flasgod don't judge me, I know this is wonky af
 	page = requests.get("https://www.daysoftheyear.com/").text
 
-	links_re = re.compile("<a.*?\/a>")
-	links = [link for link in re.findall(links_re, page) if "www.daysoftheyear.com" in link and "class=\"js-link-target\"" in link]
+	# flasgod don't judge me, I know this is wonky af
+	links_re = re.compile("<a.*?\/a>") # looks for <a> tags that also have a close tag
+	links = [link for link in re.findall(links_re, page) if "www.daysoftheyear.com" in link and "class=\"js-link-target\"" in link] #"link" is the entire <a></a> tag
 
-	day_re = re.compile("<.*?>([^<]*)<")
-	world_day = re.search(day_re, links[0])
+	day_re = re.compile("<.*?>([^<]*)<")# text between the tags
+	world_day = re.search(day_re, links[0]).group(1) # first group of 0th match (0th group is the whole match, 1st group is between ())
 
-	send_message("Today is: " + world_day.group(1))
+	send_message(f"Happy {world_day}! (Source: https://www.daysoftheyear.com)" )
+	log(f"Sent World Day ({world_day}) to {user}")
