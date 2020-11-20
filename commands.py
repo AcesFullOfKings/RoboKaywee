@@ -13,6 +13,9 @@ from PyDictionary import PyDictionary
 dic = PyDictionary()
 
 def is_command(description=""):
+	"""
+	This is the decorator function which marks other functions as commands and sets their properties.
+	"""
 	def inner(func, description=description):
 		func.is_command = True
 		func.description = description
@@ -279,10 +282,10 @@ def _start_toxic_poll():
 	toxic_percent = round(100*toxic_percent)
 	nottoxic_percent = round(100*nottoxic_percent)
 
-	message = f"Results are in! Toxic: {toxic_votes} votes ({toxic_percent}%) - Nice: {nottoxic_votes} votes ({nottoxic_percent}%)"
+	message = f"STOP THE COUNT!! Toxic: {toxic_votes} votes ({toxic_percent}%) - Nice: {nottoxic_votes} votes ({nottoxic_percent}%). "
 	
 	if nottoxic_votes > toxic_votes:
-		send_message(message + ". Chat votes that the game was NOT toxic! FeelsGoodMan ")
+		send_message(message + "Chat votes that the game was NOT toxic! FeelsGoodMan ")
 		send_message("!untoxic")
 		log(f"Poll result: not toxic. Toxic: {toxic_votes} votes ({toxic_percent}%) - Nice: {nottoxic_votes} votes ({nottoxic_percent}%)")
 
@@ -955,3 +958,43 @@ def worldday(user, message):
 
 	send_message(f"Happy {world_day}! (Source: https://www.daysoftheyear.com)" )
 	log(f"Sent World Day ({world_day}) to {user}")
+
+@is_command("Gamble the bot's fortunes away.")
+def autogamble(user, message):
+	try:
+		amount = int(message.split(" ")[1])
+	except (IndexError, ValueError):
+		amount = 50
+
+	send_message(f"!gamble {amount}")
+	log(f"Gambled {amount} points in response to {user}.")
+
+@is_command("Perform maths with the supreme calculation power of the bot.")
+def calculate(user, message):
+	try:
+		calculation = " ".join(message.split(" ")[1:]) # everything after !calculate
+	except (IndexError):
+		return False
+
+	calculation = calculation.replace(" ", "")
+
+	if all(c in "0123456789+-*/()" for c in calculation): # don't allow invalid characters: unsanitised eval() is spoopy
+		try:
+			result = eval(calculation) # make sure this is super sanitised!
+
+			# only allow sensible calculation sizes. 10 billion is arbitraty. This also throws TypeError if it's somehow not a number
+			assert -10_000_000_000 < result < 10_000_000_000
+
+			if int(result) != result: # result is not a numeric integer (may still be type float though, e.g. 10/2 = 5.0)
+				result = round(result, 2)
+			else:
+				result = int(result)
+		except:
+			send_message("That calculation didn't work.")
+			return False
+		else:
+			send_message(f"The result is {result}")
+			return True
+	else:
+		send_message("That calculation doesn't look right. You can use 0-9, +-*/()")
+		return False
