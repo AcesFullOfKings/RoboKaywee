@@ -1,7 +1,7 @@
 #import sqlite3 # one day maybe I'll use an actual database LOL
-import requests
-import random
 import praw
+import random
+import requests
 
 from time        import time, sleep, localtime
 from enum        import IntEnum
@@ -11,9 +11,8 @@ from datetime    import date, datetime
 from threading   import Thread, Lock
 from credentials import bot_name, password, channel_name, kaywee_channel_id, bearer_token, robokaywee_client_id
 
-from API_functions import get_app_access_token
-
 import commands as commands_file
+from API_functions import get_app_access_token
 
 """
 TODO:
@@ -27,6 +26,7 @@ config_lock = Lock()
 subs_lock = Lock()
 
 bots = {"robokaywee", "streamelements", "nightbot"}
+channel_emotes = {"kaywee1AYAYA", "kaywee1Wut", "kaywee1Dale", "kaywee1Imout", "kaywee1GASM"}
 
 def log(s):
 	"""
@@ -146,24 +146,26 @@ def get_title():
 		sleep(60*60) # once per hour
 
 def set_random_colour():
-	lastday = get_data("lastday")
 	days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-	today_name = days[date.today().weekday()]
+	
+	while True:
+		today_name = days[date.today().weekday()]
+		lastday = get_data("lastday")
+		
+		if lastday is None or lastday != today_name:
+			set_data("lastday", today_name)
+			if today_name == "Wednesday":
+				send_message("/color HotPink", False)
+				set_data("current_colour", "HotPink")
+				log(f"Colour was updated to HotPink in response to Timed Event")
+			else:
+				colours = ["blue","blueviolet","cadetblue","chocolate","coral","dodgerblue","firebrick","goldenrod","green","hotpink","orangered","red","seagreen","springgreen","yellowgreen"]
+				new_colour = random.choice(colours)
+				send_message("/color " + new_colour, False)
+				set_data("current_colour", new_colour)
+				log(f"Colour was updated to {new_colour} in response to Timed Event")
 
-	if lastday is None or lastday != today_name:
-		set_data("lastday", today_name)
-		if today_name == "Wednesday":
-			send_message("/color HotPink", False)
-			set_data("current_colour", "HotPink")
-			log(f"Colour was updated to HotPink in response to Timed Event")
-		else:
-			colours = ["blue","blueviolet","cadetblue","chocolate","coral","dodgerblue","firebrick","goldenrod","green","hotpink","orangered","red","seagreen","springgreen","yellowgreen"]
-			new_colour = random.choice(colours)
-			send_message("/color " + new_colour, False)
-			set_data("current_colour", new_colour)
-			log(f"Colour was updated to {new_colour} in response to Timed Event")
-
-	sleep(60*60)
+		sleep(60*60)
 
 def it_is_wednesday_my_dudes():
 	sleep(20*60) # wait 20 mins into the stream
@@ -174,6 +176,10 @@ def it_is_Thursday_my_dudes():
 	sleep(20*60) # wait 20 mins into the stream
 	send_message("On Thursdays we wear whatever colour we want. Set your username colour by using /color and come and sit with us.")
 	log("Sent UnPink reminder.")
+
+def it_is_worldday_my_dudes():
+	sleep(15*60)
+	commands_file.worldday("Timed Event", "!worldday")
 
 def update_subs():
 	while True:
@@ -333,7 +339,7 @@ def respond_message(user, message, permission):
 		send_message("^", suppress_colour=True)
 		log(f"Sent ^ to {user}")
 
-	elif commands_file.nochat_on and "kaywee" in message_lower and user not in bots:
+	elif commands_file.nochat_on and "kaywee" in message_lower and user not in bots and all(emote not in message for emote in channel_emotes):
 		if "nochat" in commands_dict and "response" in commands_dict["nochat"]:
 			send_message(f"@{user} {commands_dict['nochat']['response']}")
 			log(f"Sent nochat to {user} in response to @kaywee during nochat mode.")
@@ -348,11 +354,15 @@ def respond_message(user, message, permission):
 		send_message("HEWWO! UwU kaywee1AYAYA")
 		log(f"Sent hewwo to {user}")
 
-	if user == "streamelements" and not pink_reminder_sent and date.today().weekday() == 2:
-		wednesday_thread = Thread(target=it_is_wednesday_my_dudes)
-		wednesday_thread.start()
-		pink_reminder_sent = True
-		set_data("pink_reminder_sent", True)
+	if user == "streamelements":
+		if not pink_reminder_sent and date.today().weekday() == 2:
+			wednesday_thread = Thread(target=it_is_wednesday_my_dudes)
+			wednesday_thread.start()
+			pink_reminder_sent = True
+			set_data("pink_reminder_sent", True)
+		if "kaywee is now live!" in message:
+			worldday_thread = Thread(target=it_is_worldday_my_dudes)
+			worldday_thread.start()
 
 #check for new commands and add to database:
 for command_name in [o for o in dir(commands_file) if not(o.startswith("_") or o.endswith("_"))]:
@@ -393,9 +403,9 @@ if __name__ == "__main__":
 	ultramodwall_size = 50
 	hypermodwall_size = 100
 
-	if date.today().weekday() == 2: #if it's Wednesday (my dudes)
+	if date.today().weekday() == 2: # if it's Wednesday (my dudes)
 		pink_reminder_sent = get_data("pink_reminder_sent")		
-	else: #if it's not wednesday
+	else: # if it's not wednesday
 		set_data("pink_reminder_sent", False)
 		pink_reminder_sent = False
 
