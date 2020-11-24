@@ -174,11 +174,11 @@ def it_is_wednesday_my_dudes():
 
 def it_is_Thursday_my_dudes():
 	sleep(20*60) # wait 20 mins into the stream
-	send_message("On Thursdays we wear whatever colour we want. Set your username colour by using /color and come and sit with us.")
+	send_message("On Thursdays we wear whatever colour we want. Set your username colour by using /color and sit with us.")
 	log("Sent UnPink reminder.")
 
 def it_is_worldday_my_dudes():
-	sleep(15*60)
+	sleep(5*60) # wait 5 mins into stream
 	commands_file.worldday("Timed Event", "!worldday")
 
 def update_subs():
