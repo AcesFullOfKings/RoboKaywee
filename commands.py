@@ -660,11 +660,11 @@ def lastraid(user, message):
 	time    = raid_data["time"]
 
 	date_num = datetime.utcfromtimestamp(time).strftime('%d')
-	if date_num in [1, 21, 31]:
+	if date_num in ["1", "21", "31"]:
 		suffix = "st"
-	elif date_num in [2, 22]:
+	elif date_num in ["2", "22"]:
 		suffix = "nd"
-	elif date_num in [3, 23]:
+	elif date_num in ["3", "23"]:
 		suffix = "rd"
 	else:
 		suffix = "th"
@@ -675,6 +675,7 @@ def lastraid(user, message):
 	plural = "" if viewers == 1 else "s"
 
 	send_message(f"The latest raid was by {name}, who raided with {viewers} viewer{plural} on {time_str}!")
+	log(f"Sent last raid to {user}: it was {name}, who raided with {viewers} viewer{plural} on {time_str}!")
 
 @is_command("Changes the colour of the bot's username. Syntax: !setcolour HotPink")
 def setcolour(user, message):
