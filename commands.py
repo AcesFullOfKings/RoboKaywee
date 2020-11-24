@@ -321,8 +321,7 @@ def dice(user, message):
 	try:
 		num = message.split(" ")[1]
 		if "d" in num:
-			num, sides = num.split("d")
-			num, sides = int(num), int(sides)
+			num, sides = map(int, num.split("d"))
 		else:
 			num = int(num)
 	except (IndexError, ValueError):
