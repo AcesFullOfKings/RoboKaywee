@@ -324,6 +324,7 @@ def dice(user, message):
 			num, sides = map(int, num.split("d"))
 		else:
 			num = int(num)
+			sides = 6
 	except (IndexError, ValueError):
 		num = 1
 		sides = 6
