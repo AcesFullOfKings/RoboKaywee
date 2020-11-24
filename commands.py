@@ -290,11 +290,11 @@ def _start_toxic_poll():
 		log(f"Poll result: not toxic. Toxic: {toxic_votes} votes ({toxic_percent}%) - Nice: {nottoxic_votes} votes ({nottoxic_percent}%)")
 
 	elif toxic_votes > nottoxic_votes:
-		send_message(message + ". Chat votes that the game was TOXIC! FeelsBadMan ")
+		send_message(message + "Chat votes that the game was TOXIC! FeelsBadMan ")
 		send_message("!toxic")
 		log(f"Poll result: TOXIC. Toxic: {toxic_votes} votes ({toxic_percent}%) - Nice: {nottoxic_votes} votes ({nottoxic_percent}%)")
 	else:
-		send_message(message + ". Poll was a draw! Chat can't make up its mind! kaywee1Wut ")
+		send_message(message + "Poll was a draw! Chat can't make up its mind! kaywee1Wut ")
 		log(f"Poll result: undecided. Toxic: {toxic_votes} votes ({toxic_percent}%) - Nice: {nottoxic_votes} votes ({nottoxic_percent}%)")
 
 	voters = set()
@@ -319,18 +319,27 @@ def hello(user, message):
 @is_command("Roll one or more dice. Syntax: !dice [<number>]")
 def dice(user, message):
 	try:
-		num = int(message.split(" ")[1])
+		num = message.split(" ")[1]
+		if "d" in num:
+			num, sides = num.split("d")
+			num, sides = int(num), int(sides)
+		else:
+			num = int(num)
 	except (IndexError, ValueError):
 		num = 1
+		sides = 6
 
 	if num > 10:
 		num = 10
+
+	if sides > 120:
+		sides = 120
 			
 	sum = 0
 	rolls = []
 
 	for _ in range(num):
-		roll = random.choice(range(1,7))
+		roll = random.choice(range(1,sides+1))
 		sum += roll
 		rolls.append(roll)
 
