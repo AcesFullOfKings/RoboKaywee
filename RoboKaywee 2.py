@@ -179,7 +179,7 @@ def it_is_Thursday_my_dudes():
 
 def it_is_worldday_my_dudes():
 	sleep(5*60) # wait 5 mins into stream
-	commands_file.worldday("Timed Event", "!worldday")
+	commands_file.worldday({"display-name":"Timed Event"}) #have to include a message dict param
 
 def update_subs():
 	while True:
@@ -465,7 +465,7 @@ if __name__ == "__main__":
 									if command in dir(commands_file):
 										func = getattr(commands_file, command)
 										if func.is_command:
-											if func(user, message) != False:
+											if func(message_dict) != False:
 												if "uses" in command_obj:
 													command_obj["uses"] += 1
 												else:
