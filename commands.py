@@ -51,7 +51,7 @@ with open("subscribers.txt", "r", encoding="utf-8") as f:
 		subscribers = dict()
 
 @is_command("Allows mods to add and edit existing commands. Syntax: !rcommand [add/edit/delete/options] <command name> <add/edit: <command text> // options: <[cooldown/usercooldown/permission]>>")
-def rcommand(user, message):
+def rcommand(message_dict):
 	"""
 	format:
 	!rcommand <action> <command> [<params>]
@@ -70,6 +70,9 @@ def rcommand(user, message):
 	* view current command details:
 		!rcommand view helloworld
 	"""
+	user = message_dict["display-name"].lower()
+	message = message_dict["message"]
+
 	params = message.split(" ")[1:]
 	try:
 		action = params[0]
@@ -111,7 +114,7 @@ def rcommand(user, message):
 				command_dict[command_name]["global_cooldown"] = cooldown
 				write_command_data(True)
 				log(f"{user} updated global cooldown on command {command_name} to {cooldown}")
-				send_message(f"Global Cooldown upated to {cooldown} on {command_name}")
+				send_message(f"Global Cooldown updated to {cooldown} on {command_name}")
 			else:
 				send_message(f"No command exists with name {command_name}.")
 		elif option == "usercooldown":
@@ -195,8 +198,11 @@ def rcommand(user, message):
 		send_message("Unrecognised action: must be add, remove, edit, options, view")
 
 @is_command("Sends a triangle of emotes. Syntax: e.g. !triangle LUL")
-def triangle(user, message):
+def triangle(message_dict):
 	global all_emotes
+	user = message_dict["display-name"].lower()
+	message = message_dict["message"]
+
 	params = message.split(" ")
 	try:
 		emote = params[1]
@@ -226,15 +232,18 @@ def triangle(user, message):
 		log(f"Sent triangle of {emote} of size {num} to {user}")
 
 @is_command("Begins a toxicpoll")
-def toxicpoll(user, message):
+def toxicpoll(message_dict):
 	poll_thread = Thread(target=_start_toxic_poll)
 	poll_thread.start()
 
 @is_command("Only allowed while a toxicpoll is active. Votes toxic.")
-def votetoxic(user, message):
+def votetoxic(message_dict):
 	global toxic_poll
 	global toxic_votes
 	global voters
+
+	user = message_dict["display-name"].lower()
+	message = message_dict["message"]
 
 	if toxic_poll and user not in voters:
 		toxic_votes += 1
@@ -245,10 +254,13 @@ def votetoxic(user, message):
 		return False
 
 @is_command("Only allowed while a toxicpoll is active. Votes nice.")
-def votenice(user, message):
+def votenice(message_dict):
 	global toxic_poll
 	global nottoxic_votes
 	global voters
+
+	user = message_dict["display-name"].lower()
+	message = message_dict["message"]
 
 	if toxic_poll and user not in voters:
 		nottoxic_votes += 1
@@ -302,12 +314,16 @@ def _start_toxic_poll():
 	nottoxic_votes = 0
 
 @is_command("Lets a user view their current permission")
-def permission(user, message):
+def permission(message_dict):
+	user = message_dict["display-name"].lower()
+
 	log(f"Sent permission to {user} - their permission is {user_permission.name}")
 	send_message(f"@{user}, your maximum permission is: {user_permission.name}")
 
 @is_command("Say hello!")
-def hello(user, message):
+def hello(message_dict):
+	user = message_dict["display-name"].lower()
+	message = message_dict["message"]
 	try:
 		name = message.split(" ")[1]
 	except (ValueError, IndexError):
@@ -317,7 +333,9 @@ def hello(user, message):
 	log(f"Sent Hello to {name} in response to {user}")
 
 @is_command("Roll one or more dice. Syntax: !dice [<number>]")
-def dice(user, message):
+def dice(message_dict):
+	user = message_dict["display-name"].lower()
+	message = message_dict["message"]
 	try:
 		num = message.split(" ")[1]
 		if "d" in num:
@@ -351,13 +369,17 @@ def dice(user, message):
 		log(f"Sent {num} dice rolls to {user}, totalling {sum}")
 
 @is_command("Pulls from the power of the cosmos to predict your fortune.")
-def fortune(user, message):
+def fortune(message_dict):
+	user = message_dict["display-name"].lower()
+
 	fortune = random.choice(fortunes)
 	send_message(f"@{user}, your fortune is: {fortune}")
 	log(f"Sent fortune to {user}")
 
 @is_command("Shows the current followgoal.")
-def followgoal(user, message):
+def followgoal(message_dict):
+	user = message_dict["display-name"].lower()
+
 	goal = get_data("followgoal")
 		
 	url = "https://api.twitch.tv/helix/users/follows?to_id=" + kaywee_channel_id
@@ -451,7 +473,9 @@ def _get_currencies(base="USD", convert_to="GBP"):
 		return rates[convert_to]
 
 @is_command("Convert Metric units into Imperial. Syntax: !tofreedom <quantity><unit> e.g. !tofreedom 5kg")
-def tofreedom(user, message):
+def tofreedom(message_dict):
+	user = message_dict["display-name"].lower()
+	message = message_dict["message"]
 	try:
 		input = message.split(" ")[1]
 	except (ValueError, IndexError):
@@ -485,7 +509,9 @@ def tofreedom(user, message):
 	send_message(f"{quantity}{unit} in incomprehensible Freedom Units is {free_quantity}{free_unit}.")
 
 @is_command("Convert Imperial units into Metric. Syntax: !unfreedom <quantity><unit> e.g. !tofreedom 5lb")
-def unfreedom(user, message):
+def unfreedom(message_dict):
+	user = message_dict["display-name"].lower()
+	message = message_dict["message"]
 	try:
 		input = message.split(" ")[1]
 	except (ValueError, IndexError):
@@ -520,7 +546,9 @@ def unfreedom(user, message):
 
 
 @is_command("Looks up who gifted the current subscription to the given user. Syntax: !whogifted [@]kaywee")
-def whogifted(user, message):
+def whogifted(message_dict):
+	user = message_dict["display-name"].lower()
+	message = message_dict["message"]
 	try:
 		target = message.split(" ")[1]
 	except IndexError: # no target specified
@@ -547,7 +575,9 @@ def whogifted(user, message):
 		send_message(f"@{target} is not a subscriber. FeelsBadMan")
 
 @is_command("Looks up how many of the currently-active subscriptions were gifted by the given user. Syntax: !howmanygifts [@]kaywee")
-def howmanygifts(user, message):
+def howmanygifts(message_dict):
+	user = message_dict["display-name"].lower()
+	message = message_dict["message"]
 	try:
 		target = message.split(" ")[1]
 	except IndexError: # no target specified
@@ -577,7 +607,9 @@ def howmanygifts(user, message):
 		log(f"Sent {target} has {count} gifted subs, in response to {user}.")
 
 @is_command("Shows a timer until the username becomes available again.")
-def theonefoster(user, message):
+def theonefoster(message_dict):
+	user = message_dict["display-name"].lower()
+
 	time_left = 1607299200 - time()
 
 	if time_left < 0:
@@ -598,7 +630,10 @@ def theonefoster(user, message):
 			send_message(f"Foster can change his username back in {hours} {hs}!")
 
 @is_command("Translates a Spanish message into English. Syntax: \"!toenglish hola\" OR \"!toenglish @toniki\"")
-def toenglish(user, message):
+def toenglish(message_dict):
+	user = message_dict["display-name"].lower()
+	message = message_dict["message"]
+
 	phrase = " ".join(message.split(" ")[1:])
 	english = ""
 	if phrase.lower() in ["robokaywee", user, "@" + user, ""]:
@@ -616,7 +651,10 @@ def toenglish(user, message):
 	log(f"Translated \"{phrase}\" into English for {user}: it says \"{english}\"")
 
 @is_command("Translates an English message into Spanish. Syntax: \"!tospanish hello\" OR \"!tospanish @kaywee\"")
-def tospanish(user, message):
+def tospanish(message_dict):
+	user = message_dict["display-name"].lower()
+	message = message_dict["message"]
+
 	phrase = " ".join(message.split(" ")[1:])
 	spanish = ""
 	if phrase.lower() in ["robokaywee", user, "@" + user, ""]:
@@ -634,7 +672,10 @@ def tospanish(user, message):
 	log(f"Translated \"{phrase}\" into Spanish for {user}: it says \"{spanish}\"")
 
 @is_command("Translates a message from one language to another, powered by Google Translate. Languages are specified as a two-letter code, e.g. en/es/nl/fr. Syntax: !translate <source_lang> <dest_lang> <message>")
-def translate(user, message):	
+def translate(message_dict):
+	user = message_dict["display-name"].lower()
+	message = message_dict["message"]
+
 	try:
 		source = message.split(" ")[1]
 		dest = message.split(" ")[2]
@@ -661,7 +702,9 @@ def translate(user, message):
 			send_message(str(ex))
 
 @is_command("Shows the user who most recently raided, and the time of the raid.")
-def lastraid(user, message):
+def lastraid(message_dict):
+	user = message_dict["display-name"].lower()
+
 	raid_data = get_data("last_raid")
 
 	name    = raid_data["raider"]
@@ -687,7 +730,10 @@ def lastraid(user, message):
 	log(f"Sent last raid to {user}: it was {name}, who raided with {viewers} viewer{plural} on {time_str}!")
 
 @is_command("Changes the colour of the bot's username. Syntax: !setcolour HotPink")
-def setcolour(user, message):
+def setcolour(message_dict):
+	user = message_dict["display-name"].lower()
+	message = message_dict["message"]
+
 	try:
 		colour = message.split(" ")[1]
 	except(ValueError, IndexError):
@@ -731,7 +777,10 @@ def setcolour(user, message):
 		send_message(f"@{user} That colour isn't right. Valid colours are: random, default, blue, blueviolet, cadetblue, chocolate, coral, dodgerblue, firebrick, goldenrod, green, hotpink, orangered, red, seagreen, springgreen, yellowgreen")
 
 @is_command("Rainbows the messages into the chat. (big spam warning) Syntax: !rainbow hello")
-def rainbow(user, message):
+def rainbow(message_dict):
+	user = message_dict["display-name"].lower()
+	message = message_dict["message"]
+
 	try:
 		word = message.split(" ")[1][:12] # 12 chr limit
 	except IndexError:
@@ -751,7 +800,10 @@ def rainbow(user, message):
 	send_message(f"/color {current_colour}")
 
 @is_command("Shows all of the possible username colours (for non-prime users) (big spam warning)")
-def allcolours(user, message):
+def allcolours(message_dict):
+	user = message_dict["display-name"].lower()
+	message = message_dict["message"]
+
 	for colour in ['blue', 'blueviolet', 'cadetblue', 'chocolate', 'coral', 'dodgerblue', 'firebrick', 'goldenrod', 'green', 'hotpink', 'orangered', 'red', 'seagreen', 'springgreen', 'yellowgreen']:
 		send_message(f"/color {colour}", False)
 		sleep(0.1)
@@ -761,7 +813,7 @@ def allcolours(user, message):
 	current_colour = get_data("current_colour")
 	send_message(f"/color {current_colour}")
 
-def start_timer(user, time_in, reminder):
+def _start_timer(user, time_in, reminder):
 	hours = 0
 	mins  = 0
 	secs  = 0 # defaults
@@ -815,7 +867,10 @@ def start_timer(user, time_in, reminder):
 	log(f"{user}'s {timer_time} timer expired.")
 
 @is_command("Starts a timer, after which the bot will send a reminder message in chat. Syntax: !timer 1h2m3s <message>")
-def timer(user, message):
+def timer(message_dict):
+	user = message_dict["display-name"].lower()
+	message = message_dict["message"]
+
 	try:
 		time_str = message.split(" ")[1]
 	except:
@@ -826,61 +881,79 @@ def timer(user, message):
 	except:
 		reminder = ""
 
-	timer_thread = Thread(target=start_timer, args=(user,time_str,reminder))
+	timer_thread = Thread(target=_start_timer, args=(user,time_str,reminder))
 	timer_thread.start()
 
 @is_command("Shows how many times a command has been used. Syntax: !uses translate")
-def uses(user, message):
+def uses(message_dict):
+	user = message_dict["display-name"].lower()
+	message = message_dict["message"]
+
 	command = message.split(" ")[1]
 	if command in command_dict:
 		times_used = command_dict[command].get("uses", 0)
 		if times_used > 1:
 			send_message(f"The {command} command has been used {times_used} times.")
+			log(f"Sent uses to {user}: command {command} has been used {times_used} times.")
 		else:
 			send_message(f"The {command} command has been used {times_used} time.")
+			log(f"Sent uses to {user}: command {command} has been used {times_used} time.")
 	else:
 		send_message("Command not recognised.")
 
-def nochat_mode():
+def _nochat_mode():
 	global nochat_on
 	nochat_on = True
 
 	duration = 10*60 # 10 mins
 	check_period = 5 # secs
+	try:
+		for secs in range(0, duration, check_period):
+			if not nochat_on: #nochat mode gets turned off externally
+				raise AssertionError("Nochat mode has been turned off.") # unhandled exceptions kill the thread
 
-	for secs in range(0, duration, check_period):
-		if not nochat_on: #nochat mode gets turned off externally
-			raise AssertionError("Nochat mode has been turned off.") # unhandled exceptions kill the thread
+			sleep(check_period)
 
-		sleep(check_period)
+		nochat_on = False # turn nochat mode off after the duration
 
-	nochat_on = False # turn nochat mode off after the duration
+	except AttributeError:
+		pass # I know.. exceptions aren't control flow. Except here, where they are. Thread exits here.
 
 @is_command("Turns on nochat mode: users who mention @kaywee will receive a notification that kaywee isn't looking at chat")
-def nochaton(user, message):
+def nochaton(message_dict):
+	user = message_dict["display-name"].lower()
+
 	global nochat_on
 	if not nochat_on:
-		nochat_thread = Thread(target=nochat_mode)
+		nochat_thread = Thread(target=_nochat_mode)
 		nochat_thread.start()
 		send_message("Nochat mode is now on.")
-		log("Nochat mode is now on.")
+		log(f"Nochat mode is now on in response to {user}.")
 	else:
 		send_message("Nochat mode is already on.")
 
 @is_command("Turns off nochat mode")
-def nochatoff(user, message):
+def nochatoff(message_dict):
+	user = message_dict["display-name"].lower()
+	message = message_dict["message"]
+
 	global nochat_on
 	nochat_on = False
 	send_message("Nochat mode is now off.")
-	log("Nochat mode is now off.")
+	log(f"{user} turned off Nochat mode.")
 
 @is_command("View the current commands list.")
-def rcommands(user, message):
+def rcommands(message_dict):
+	user = message_dict["display-name"].lower()
+	
 	send_message("The RoboKaywee commands list is here: https://old.reddit.com/r/RoboKaywee/wiki/commands")
 	log(f"Sent commands list to {user}")
 
 @is_command("Provides either one or two definitions for an English word.")
-def define(user, message):
+def define(message_dict):
+	user = message_dict["display-name"].lower()
+	message = message_dict["message"]
+
 	try:
 		word = message.split(" ")[1]
 		assert word != ""
@@ -901,13 +974,19 @@ def define(user, message):
 		send_message(f"The definitions of {word} are: \"{definitions[0]}\" OR \"{definitions[1]}\"")
 
 @is_command("Lets mods ban a user.")
-def ban(user, message):
+def ban(message_dict):
+	user = message_dict["display-name"].lower()
+	message = message_dict["message"]
+
 	target = message.split(" ")[1]
 	send_message(f"/ban {target}")
 	log(f"Banned user {target} in response to {user}")
 
 @is_command("Lets mods timeout a user.")
-def timeout(user, message):
+def timeout(message_dict):
+	user = message_dict["display-name"].lower()
+	message = message_dict["message"]
+
 	target = message.split(" ")[1]
 
 	try:
@@ -919,12 +998,18 @@ def timeout(user, message):
 	log(f"Timed out user {target} for {duration} seconds, in response to {user}")
 
 @is_command("Repeats the phrase in chat. Mods only so that mod commands can't be abused.")
-def echo(user, message):
+def echo(message_dict):
+	user = message_dict["display-name"].lower()
+	message = message_dict["message"]
+
 	phrase = " ".join(message.split(" ")[1:])
 	send_message(phrase, False, True)
+	log(f"Echoed \"{phrase}\" for {user}.")
 
 @is_command("Reloads the translation object to attempt to fix errors.")
-def refreshtranslator(user, message):
+def refreshtranslator(message_dict):
+	user = message_dict["display-name"].lower()
+
 	_refreshtranslator() #separate function so it can be called elsewhere without sending the message
 	send_message("The translator object has been refreshed.")
 	log(f"Refreshed Translator in response to {user}.")
@@ -956,7 +1041,9 @@ def _refreshtranslator():
 _refreshtranslator() # run when the file is imported
 
 @is_command("Looks up the current World Day")
-def worldday(user, message):
+def worldday(message_dict):
+	user = message_dict["display-name"].lower()
+	
 	page = requests.get("https://www.daysoftheyear.com/").text
 
 	# flasgod don't judge me, I know this is wonky af
@@ -970,7 +1057,10 @@ def worldday(user, message):
 	log(f"Sent World Day ({world_day}) to {user}")
 
 @is_command("Gamble the bot's fortunes away.")
-def autogamble(user, message):
+def autogamble(message_dict):
+	user = message_dict["display-name"].lower()
+	message = message_dict["message"]
+
 	try:
 		amount = int(message.split(" ")[1])
 	except (IndexError, ValueError):
@@ -980,7 +1070,10 @@ def autogamble(user, message):
 	log(f"Gambled {amount} points in response to {user}.")
 
 @is_command("Perform maths with the supreme calculation power of the bot.")
-def calculate(user, message):
+def calculate(message_dict):
+	user = message_dict["display-name"].lower()
+	message = message_dict["message"]
+	
 	try:
 		calculation = " ".join(message.split(" ")[1:]) # everything after !calculate
 	except (IndexError):
