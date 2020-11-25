@@ -514,8 +514,6 @@ if __name__ == "__main__":
 							elif modwall == hypermodwall_size:
 								send_message("#H Y P E R M O D W A L L gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1AYAYA kaywee1Wut")
 					else:
-						modwall = 0
-						modwall_mods = set()
 						if modwall > supermodwall_size:
 							if modwall > hypermodwall_size:
 								send_message(f"Hypermodwall has been broken by {user}! :( FeelsBadMan NotLikeThis PepeHands")
@@ -523,6 +521,9 @@ if __name__ == "__main__":
 								send_message(f"Ultramodwall has been broken by {user}! :( FeelsBadMan NotLikeThis")
 							else: # must be >supermodwall
 								send_message(f"Megamodwall has been broken by {user}! :( FeelsBadMan")
+
+						modwall = 0
+						modwall_mods = set()
 
 					#future me: don't indent this (otherwise mods can't interrupt vipwalls)
 					if user_permission == permissions.VIP:
