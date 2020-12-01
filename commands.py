@@ -392,14 +392,14 @@ def followgoal(message_dict):
 		followers_left = goal - followers
 		if followers_left > 0:
 			send_message(f"Kaywee has {followers:,} followers, meaning there are only {followers_left:,} more followers until we hit our goal of {goal:,}! kaywee1AYAYA")
-			log(f"Sent followergoal of {followers_left} to {user} (currently {followers:,})")
+			log(f"Sent followergoal of {followers_left} to {user} (currently {followers:,}/{goal:,})")
 		else:
 			send_message(f"The follower goal of {goal:,} has been met! We now have {followers:,} followers! kaywee1AYAYA")
-			log(f"Sent followergoal has been met to {user} ({followers:,}/{goal})")
+			log(f"Sent followergoal has been met to {user} ({followers:,}/{goal:,})")
 			while goal <= followers:
-				goal += 100
+				goal += 500
 			set_data("followgoal", goal)
-			log(f"Increased followgoal to {goal}")
+			log(f"Increased followgoal to {goal:,}")
 
 			followers_left = goal - followers
 			send_message(f"Our new follow goal is {goal:,}! kaywee1AYAYA")
@@ -442,7 +442,7 @@ def _unfreedom(unit, quantity):
 	unit = unit.lower()
 
 	if unit == "f":
-		cel = round((quantity-32) * (5/9), 1) #C = (F − 32) × 5/9
+		cel = round((quantity-32) * (5/9), 1) # C = (F − 32) × 5/9
 		return ("c", cel)
 	elif unit == "in":
 		cm = round(quantity * 2.54, 2)
@@ -472,7 +472,7 @@ def _get_currencies(base="USD", convert_to="GBP"):
 	if convert_to.upper() in rates:
 		return rates[convert_to]
 
-@is_command("Convert Metric units into Imperial. Syntax: !tofreedom <quantity><unit> e.g. !tofreedom 5kg")
+@is_command("Convert metric units into imperial. Syntax: !tofreedom <quantity><unit> e.g. !tofreedom 5kg")
 def tofreedom(message_dict):
 	user = message_dict["display-name"].lower()
 	message = message_dict["message"]
@@ -494,7 +494,7 @@ def tofreedom(message_dict):
 	try:
 		quantity = float(input)
 	except (ValueError):
-		send_message("That doesn't look like a number. Try a number followed by a unit, e.g. '5cm' or '12kg'.")
+		send_message("That.. doesn't look like a number. Try a number followed by a unit, e.g. '5cm' or '12kg'.")
 		return False
 
 	try:
@@ -508,7 +508,7 @@ def tofreedom(message_dict):
 
 	send_message(f"{quantity}{unit} in incomprehensible Freedom Units is {free_quantity}{free_unit}.")
 
-@is_command("Convert Imperial units into Metric. Syntax: !unfreedom <quantity><unit> e.g. !tofreedom 5lb")
+@is_command("Convert imperial units into metric. Syntax: !unfreedom <quantity><unit> e.g. !tofreedom 5lb")
 def unfreedom(message_dict):
 	user = message_dict["display-name"].lower()
 	message = message_dict["message"]
@@ -539,8 +539,8 @@ def unfreedom(message_dict):
 		send_message("I don't recognise that imperial unit. Sorry! :( PepeHands")
 		return False
 
-	if sensible_quantity == int(sensible_quantity): #if the float is a whole number
-		sensible_quantity = int(sensible_quantity) #convert it to an int (i.e. remove the .0)
+	if sensible_quantity == int(sensible_quantity): # if the float is a whole number
+		sensible_quantity = int(sensible_quantity) # convert it to an int (i.e. remove the .0)
 
 	send_message(f"{quantity}{unit} in units which actualy make sense is {sensible_quantity}{sensible_unit}.")
 
@@ -601,7 +601,7 @@ def howmanygifts(message_dict):
 	else:
 		recipients = recipients[:-2]
 		message = f"{target} has gifted {count} of the current subscriptions to: {recipients}. Thanks for the support <3 kaywee1AYAYA"
-		if len(message) > 500: #twitch max length
+		if len(message) > 500: # twitch max length
 			message = f"{target} has gifted {count} of the current subscriptions! Thanks for the support <3 kaywee1AYAYA"
 		send_message(message)
 		log(f"Sent {target} has {count} gifted subs, in response to {user}.")
@@ -610,24 +610,31 @@ def howmanygifts(message_dict):
 def theonefoster(message_dict):
 	user = message_dict["display-name"].lower()
 
-	time_left = 1607299200 - time()
+	time_left = 1607292990 - time()
 
-	if time_left < 0:
+	if time_left <= 0:
 		send_message("Foster can now change his username back!")
 		log(f"Sent username time to {user}, showing that the username can be changed.")
 	else:
 		days = int(time_left // 86400)
-		ds = "day" if days == 1 else "days"
-
-		time_left = time_left % 86400
-
-		hours = int(time_left // 3600)
-		hs = "hour" if hours == 1 else "hours"
+		hours = int((time_left % 86400) // 3600)
+		
 
 		if days > 0:
+			ds = "day" if days == 1 else "days"
+			hs = "hour" if hours == 1 else "hours"
+
 			send_message(f"Foster can change his username back in {days} {ds} and {hours} {hs}! (Not that he's counting though)")
-		else:
+			log(f"Sent theonefoster time to {user} as {days} {ds} and {hours} {hs}")
+		elif hours > 0:
+			hs = "hour" if hours == 1 else "hours"
+
 			send_message(f"Foster can change his username back in {hours} {hs}!")
+			log(f"Sent theonefoster time to {user} as {hours} {hs}")
+		else: # hours == 0
+			mins = int(time_left // 60)
+			send_message(f"Foster can change his username back in {mins} minutes!")
+			log(f"Sent theonefoster time to {user} as {mins} minutes")
 
 @is_command("Translates a Spanish message into English. Syntax: \"!toenglish hola\" OR \"!toenglish @toniki\"")
 def toenglish(message_dict):
@@ -638,7 +645,7 @@ def toenglish(message_dict):
 	english = ""
 	if phrase.lower() in ["robokaywee", user, "@" + user, ""]:
 		return False
-	if phrase[0] == "@" and len(phrase.split(" ")) == 1: #parameter is really a username
+	if phrase[0] == "@" and len(phrase.split(" ")) == 1: # parameter is really a username
 		try:
 			target = phrase[1:].lower()
 			phrase = last_message[target]
@@ -646,7 +653,12 @@ def toenglish(message_dict):
 		except KeyError:
 			return False
 
-	english += translator.translate(phrase, source="es", dest="en").text
+	try:
+		english += translator.translate(phrase, source="es", dest="en").text
+	except AttributeError as ex:
+		send_message("Translation failed. FeelsBadMan Try using !refreshtranslator to fix the Translator.")
+		return
+
 	send_message(english)
 	log(f"Translated \"{phrase}\" into English for {user}: it says \"{english}\"")
 
@@ -659,7 +671,7 @@ def tospanish(message_dict):
 	spanish = ""
 	if phrase.lower() in ["robokaywee", user, "@" + user, ""]:
 		return False
-	if phrase[0] == "@" and len(phrase.split(" ")) == 1: #parameter is really a username
+	if phrase[0] == "@" and len(phrase.split(" ")) == 1: # parameter is really a username
 		try:
 			target = phrase[1:].lower()
 			phrase = last_message[target]
@@ -667,7 +679,12 @@ def tospanish(message_dict):
 		except KeyError:
 			return False
 
-	spanish += translator.translate(phrase, source="en", dest="es").text
+	try:
+		spanish += translator.translate(phrase, source="en", dest="es").text
+	except AttributeError as ex:
+		send_message("Translation failed. FeelsBadMan Try using !refreshtranslator to fix the Translator.")
+		return
+
 	send_message(spanish)
 	log(f"Translated \"{phrase}\" into Spanish for {user}: it says \"{spanish}\"")
 
@@ -686,7 +703,7 @@ def translate(message_dict):
 	output = ""
 	if phrase.lower() in ["robokaywee", user, "@" + user, ""]:
 		return False
-	if phrase[0] == "@" and len(phrase.split(" ")) == 1: #parameter is really a username
+	if phrase[0] == "@" and len(phrase.split(" ")) == 1: # parameter is really a username
 		try:
 			target = phrase[1:].lower()
 			phrase = last_message[target]
@@ -700,6 +717,9 @@ def translate(message_dict):
 	except ValueError as ex:
 		if "language" in str(ex):
 			send_message(str(ex))
+	except AttributeError as ex:
+		send_message("Translation failed. FeelsBadMan Try using !refreshtranslator to fix the Translator.")
+		return
 
 @is_command("Shows the user who most recently raided, and the time of the raid.")
 def lastraid(message_dict):
@@ -919,7 +939,7 @@ def _nochat_mode():
 	except AttributeError:
 		pass # I know.. exceptions aren't control flow. Except here, where they are. Thread exits here.
 
-@is_command("Turns on nochat mode: users who mention @kaywee will receive a notification that kaywee isn't looking at chat")
+@is_command("Turns on nochat mode: users who mention kaywee will receive a notification that kaywee isn't looking at chat")
 def nochaton(message_dict):
 	user = message_dict["display-name"].lower()
 
@@ -1010,9 +1030,16 @@ def echo(message_dict):
 def refreshtranslator(message_dict):
 	user = message_dict["display-name"].lower()
 
-	_refreshtranslator() #separate function so it can be called elsewhere without sending the message
-	send_message("The translator object has been refreshed.")
-	log(f"Refreshed Translator in response to {user}.")
+	if _refreshtranslator(): #separate function so it can be called elsewhere without sending the message
+		send_message("The translator object has been refreshed.")
+		log(f"Refreshed Translator in response to {user}.")
+	else:
+		try:
+			send_message("Unable to refresh translator FeelsBadMan")
+			log(f"Unable to refresh translator object in response to {user}.")
+		except: # method might not exist if the bot is still booting up
+			print("Failed to create Translator object")
+
 
 def _refreshtranslator():
 	global translator
@@ -1025,18 +1052,24 @@ def _refreshtranslator():
 	Then the global object is replaced with the new object.
 	"""
 
-	loaded_correctly = False
+	exit_loop = False
+	attempts = 0
 
-	while not loaded_correctly:
+	while not exit_loop:
 		new_translator = Translator()
-		try:
-			new_translator.translate("hello!", source="en", dest="es").text
-		except AttributeError:
-			pass # try again on next loop
+		if attempts <3:
+			try:
+				new_translator.translate("hello!", source="en", dest="es").text
+				translator = new_translator
+				return True
+			except AttributeError as ex:
+				attempts+=1
+				print("Failed to refresh translator: " + str(ex))
+				pass # try again on next loop
+			else:
+				exit_loop = True # exit loop
 		else:
-			loaded_correctly = True # exit loop
-
-	translator = new_translator
+			return False # give up trying after 3 attempts
 
 _refreshtranslator() # run when the file is imported
 
