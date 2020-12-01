@@ -132,7 +132,7 @@ def get_title():
 		try:
 			title = requests.get(url, headers=authorisation_header).json()["data"][0]["title"]
 
-		except IndexError: # streamer isn't live
+		except (IndexError, KeyError): # streamer isn't live
 			pass
 		else:
 			with open("titles.txt", "r", encoding="utf-8") as f:
@@ -254,7 +254,7 @@ def update_app_access_token():
 			log("Exception when fetching App Access Token: " + str(ex))
 			expires_in = 0
 
-		if expires_in < 24*60*60: #if token expires in the next 24h
+		if expires_in < 48*60*60: #if token expires in the next 48h
 			set_data("app_access_token", get_app_access_token()) # get a new one
 
 		sleep(23*60*60) # wait 23 hours
@@ -415,7 +415,7 @@ if __name__ == "__main__":
 	last_message = {}
 	
 
-	#let commands file access key data:
+	# let commands file access key data:
 	commands_file.bot                = bot
 	commands_file.send_message       = send_message
 	commands_file.log                = log
@@ -500,9 +500,9 @@ if __name__ == "__main__":
 
 						# don't send modwall unless there are at least 3 mods in the wall
 						if (    modwall <  (modwall_size-1) # few messages
-							or (modwall >= (modwall_size-1) and len(modwall_mods) >= 3) #lots of messages and at least 3 mods
+							or (modwall >= (modwall_size-1) and len(modwall_mods) >= 3) # lots of messages and at least 3 mods
 							   
-							): #sadface
+							): # sadface
 
 							modwall += 1
 							if modwall == modwall_size:
@@ -525,7 +525,7 @@ if __name__ == "__main__":
 						modwall = 0
 						modwall_mods = set()
 
-					#future me: don't indent this (otherwise mods can't interrupt vipwalls)
+					# future me: don't indent this (otherwise mods can't interrupt vipwalls)
 					if user_permission == permissions.VIP:
 						vip_wall += 1
 
@@ -580,7 +580,7 @@ if __name__ == "__main__":
 							log(f"{user} has resubscribed!")
 
 						elif message_dict["msg-id"] == "anonsubgift": # ANONYMOUS GIFTED SUBSCRIPTION
-							#comes through as a gifted sub from AnAnonymousGifter ? So might not need this
+							# comes through as a gifted sub from AnAnonymousGifter ? So might not need this
 							recipient = message_dict["msg-param-recipient-display-name"].lower()
 							with open("chatlog.txt", "a", encoding="utf-8") as f:
 								f.write(f"USERNOTICE: Anon has gifted a subscription to {recipient}!\n")
@@ -617,14 +617,14 @@ if __name__ == "__main__":
 						else:
 							with open("verbose log.txt", "a", encoding="utf-8") as f:
 								f.write("(unknown msg-id?) - " + str(message_dict) + "\n\n")
-						 #other sub msg-ids: sub, resub, subgift, anonsubgift, submysterygift, giftpaidupgrade, rewardgift, anongiftpaidupgrade
+						 # other sub msg-ids: sub, resub, subgift, anonsubgift, submysterygift, giftpaidupgrade, rewardgift, anongiftpaidupgrade
 					else:
 						with open("verbose log.txt", "a", encoding="utf-8") as f:
 							f.write("(no msg-id?) - " + str(message_dict) + "\n\n")
 
-				#does hosttarget not work? why not?
+				# does hosttarget not come through? why not?
 				elif message_dict["message_type"] == "hosttarget":
-					#OUTGOING HOST
+					#O UTGOING HOST
 					host_name = message_dict["host_name"] # the user we're now hosting
 					viewers = message_dict["viewers"] # num viewers we've sent to them
 					with open("chatlog.txt", "a", encoding="utf-8") as f:
@@ -637,7 +637,7 @@ if __name__ == "__main__":
 					log(f"Stream is back online!")
 
 				elif message_dict["message_type"] == "userstate":
-					#Motly just for colour changes which I don't care about
+					# Mostly just for colour changes which I don't care about
 					pass
 
 				else:
