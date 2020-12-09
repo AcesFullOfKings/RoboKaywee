@@ -1,1136 +1,679 @@
+#import sqlite3 # one day maybe I'll use an actual database LOL
+import praw
 import random
 import requests
-import re
 
-from time          import sleep, time
-from datetime      import date, datetime
-from fortunes      import fortunes
-from threading     import Thread
-from credentials   import kaywee_channel_id, robokaywee_client_id
-from googletrans   import Translator
+from time        import time, sleep, localtime
+from enum        import IntEnum
+from math        import ceil
+from chatbot     import ChatBot # see https://github.com/theonefoster/pyTwitchChatBot
+from datetime    import date, datetime
+from threading   import Thread, Lock
+from credentials import bot_name, password, channel_name, kaywee_channel_id, bearer_token, robokaywee_client_id
 
-from PyDictionary import PyDictionary
-dic = PyDictionary()
-
-def is_command(description=""):
-	"""
-	This is the decorator function which marks other functions as commands and sets their properties.
-	"""
-	def inner(func, description=description):
-		func.is_command = True
-		func.description = description
-		return func
-	return inner
+import commands as commands_file
+from API_functions import get_app_access_token
 
 """
-Each function is a command, callable by sending "!<function_name>" in chat.
-All replies will be sent in the bot's colour, using /me.
+TODO:
+
+should be able to add counters and variables to text commands
+should be able to give any command multiple names via aliases
+
 """
 
-currencies = {'CAD', 'HKD', 'ISK', 'PHP', 'DKK', 'HUF', 'CZK', 'GBP', 'RON', 'SEK', 'IDR', 'INR', 'BRL', 'RUB', 'HRK', 'JPY', 'THB', 'CHF', 'EUR', 'MYR', 'BGN', 'TRY', 'CNY', 'NOK', 'NZD', 'ZAR', 'USD', 'MXN', 'SGD', 'AUD', 'ILS', 'KRW', 'PLN'}
-bttv_global = {'PedoBear', 'RebeccaBlack', ':tf:', 'CiGrip', 'DatSauce', 'ForeverAlone', 'GabeN', 'HailHelix', 'HerbPerve', 'iDog', 'rStrike', 'ShoopDaWhoop', 'SwedSwag', 'M&Mjc', 'bttvNice', 'TopHam', 'TwaT', 'WatChuSay', 'SavageJerky', 'Zappa', 'tehPoleCat', 'AngelThump', 'HHydro', 'TaxiBro', 'BroBalt', 'ButterSauce', 'BaconEffect', 'SuchFraud', 'CandianRage', "She'llBeRight", 'D:', 'VisLaud', 'KaRappa', 'YetiZ', 'miniJulia', 'FishMoley', 'Hhhehehe', 'KKona', 'PoleDoge', 'sosGame', 'CruW', 'RarePepe', 'iamsocal', 'haHAA', 'FeelsBirthdayMan', 'RonSmug', 'KappaCool', 'FeelsBadMan', 'BasedGod', 'bUrself', 'ConcernDoge', 'FeelsGoodMan', 'FireSpeed', 'NaM', 'SourPls', 'LuL', 'SaltyCorn', 'FCreep', 'monkaS', 'VapeNation', 'ariW', 'notsquishY', 'FeelsAmazingMan', 'DuckerZ', 'SqShy', 'Wowee', 'WubTF', 'cvR', 'cvL', 'cvHazmat', 'cvMask'}
-bttv_local = {'ppCircle', 'KayWeird', 'PepeHands', 'monkaS', 'POGGERS', 'PepoDance', 'HYPERS', 'BongoCat', 'RareParrot', 'BIGWOW', '5Head', 'WeirdChamp', 'PepeJam', 'KEKWHD', 'widepeepoHappyRightHeart', 'gachiHYPER', 'peepoNuggie', 'MonkaTOS', 'KKool', 'OMEGALUL', 'monkaSHAKE', 'PogUU', 'Clap', 'AYAYA', 'CuteDog', 'weSmart', 'DogePls', 'REEEE', 'BBoomer', 'HAhaa', 'FeelsLitMan', 'POGSLIDE', 'CCOGGERS', 'peepoPANTIES', 'PartyParrot', 'monkaX', 'widepeepoSadBrokenHeart', 'KoolDoge', 'TriDance', 'PepePls', 'gachiBASS', 'pepeLaugh', 'whatBlink', 'FeelsSadMan'}
+command_lock = Lock()
+config_lock = Lock()
+subs_lock = Lock()
 
-with open("emotes.txt", "r", encoding="utf-8") as f:
-	emote_list = set(f.read().split("\n"))
+bday_sent_ryan = False
 
-all_emotes = emote_list | bttv_local | bttv_global
+bots = {"robokaywee", "streamelements", "nightbot"}
+channel_emotes = {"kaywee1AYAYA", "kaywee1Wut", "kaywee1Dale", "kaywee1Imout", "kaywee1GASM"}
 
-toxic_poll = False
-toxic_votes = 0
-nottoxic_votes = 0
-voters = set()
+def log(s):
+	"""
+	Takes a string, s, and logs it to a log file on disk with a timestamp. Also prints the string to console.
+	"""
+	current_time = localtime()
+	year   = str(current_time.tm_year)
+	month  = str(current_time.tm_mon).zfill(2)
+	day    = str(current_time.tm_mday).zfill(2)
+	hour   = str(current_time.tm_hour).zfill(2)
+	minute = str(current_time.tm_min).zfill(2)
+	second = str(current_time.tm_sec).zfill(2)
+	
+	log_time = day + "/" + month + " " + hour + ":" + minute + ":" + second 
 
-translator = Translator()
+	print(s)
+	with open("log.txt", "a", encoding="utf-8") as f:
+		f.write(log_time + " - " + s + "\n")
+
+with open("commands.txt", "r", encoding="utf-8") as f:
+	commands_dict = dict(eval(f.read()))
 
 with open("subscribers.txt", "r", encoding="utf-8") as f:
 	try:
 		subscribers = dict(eval(f.read()))
 	except Exception as ex:
-		print("Exception creating subscriber dictionary: " + str(ex))
-		subscribers = dict()
+		log("Exception creating subscriber dictionary: " + str(ex))
+		subscribers = {}
 
-@is_command("Allows mods to add and edit existing commands. Syntax: !rcommand [add/edit/delete/options] <command name> <add/edit: <command text> // options: <[cooldown/usercooldown/permission]>>")
-def rcommand(message_dict):
-	"""
-	format:
-	!rcommand <action> <command> [<params>]
-
-	examples:
-	* add a text command:
-		!rcommand add helloworld Hello World!
-	* edit an existing text command:
-		!rcommand edit helloworld Hello World Again!
-	* delete a command:
-		!rcommand delete helloworld
-	* change command options:
-		!rcommand options helloworld permission 10
-		!rcommand options helloworld cooldown 60
-		!rcommand options helloworld usercooldown 120
-	* view current command details:
-		!rcommand view helloworld
-	"""
-	user = message_dict["display-name"].lower()
-	message = message_dict["message"]
-
-	params = message.split(" ")[1:]
-	try:
-		action = params[0]
-		command_name = params[1].lower()
-	except IndexError:
-		send_message("Syntax error.")
-		return False
-
-	if action == "edit":
-		if command_name in command_dict:
-			if not command_dict[command_name]["coded"] and "response" in command_dict[command_name]:
-				response = " ".join(params[2:])
-				if response[:4] == "/me ":
-					response = response[4:] #include the space
-
-				command_dict[command_name]["response"] = response
-
-				send_message(f"Command {command_name} has been updated.")
-				write_command_data(True)
-			else:
-				send_message(f"The command {command_name} is not updatable.")
-		else:
-			send_message(f"No command exists with name {command_name}.")
-	elif action == "options":
-		try:
-			option = params[2]
-		except IndexError:
-			send_message("Syntax error.")
-			return False
-		if option in ["globalcooldown", "cooldown"]: #assume "cooldown" means global cooldown
-			try:
-				cooldown = int(params[3])
-				assert 0 <= cooldown <= 300
-			except (ValueError, IndexError, AssertionError):
-				send_message("Cooldown must be provided as an integer between 1 and 300 seconds.")
-				return False
-
-			if command_name  in command_dict:
-				command_dict[command_name]["global_cooldown"] = cooldown
-				write_command_data(True)
-				log(f"{user} updated global cooldown on command {command_name} to {cooldown}")
-				send_message(f"Global Cooldown updated to {cooldown} on {command_name}")
-			else:
-				send_message(f"No command exists with name {command_name}.")
-		elif option == "usercooldown":
-			try:
-				cooldown = int(params[3])
-				assert 0 <= cooldown <= 3600
-			except (ValueError, IndexError, AssertionError):
-				send_message("Cooldown must be provided as an integer between 1 and 3600 seconds.")
-				return False
-
-			command_dict[command_name]["user_cooldown"] = cooldown
-			write_command_data(True)
-			log(f"{user} updated user cooldown on command {command_name} to {cooldown}")
-			send_message(f"User Cooldown upated to {cooldown} on {command_name}")
-		elif option == "permission":
-			try:
-				permission = int(params[3])
-				assert permission in [0,4,6,8,10]
-			except (ValueError, IndexError, AssertionError):
-				send_message("Permission must be an integer: 0=All, 4=Subscriber, 6=VIP, 8=Moderator, 10=Broadcaster")
-				return False
-
-			if command_name in command_dict:
-				command_dict[command_name]["permission"] = permission
-				write_command_data(True)
-
-				send_message(f"Permission updated to {permission} on command {command_name}")
-				log(f"{user} updated permission on command {command_name} to {permission}")
-			else:
-				send_message(f"No command exists with name {command_name}.")
-		else:
-			send_message("Unrecognised option: must be permission, globalcooldown, or usercooldown")
-	elif action in ["add", "create"]:
-		if command_name not in command_dict:
-			try:
-				response = " ".join(params[2:])
-				assert response != ""
-			except (IndexError, AssertionError):
-				send_message("Syntax error.")
-				return False
-			else:
-				if response[:4] == "/me ":
-					response = response[4:] #include the space
-				command_dict[command_name] = {'permission': 0, 'global_cooldown': 1, 'user_cooldown': 5, 'coded': False, 'uses':0, 'response': response}
-				write_command_data(True)
-				send_message("Added command " + command_name)
-				log(f"{user} added command {command_name}")
-		else:
-			send_message("Command " + command_name + " already exists.")
-
-	elif action in ["remove", "delete"]:
-		if command_name in command_dict:
-			if command_dict[command_name]["coded"] == False:
-				del command_dict[command_name]
-				write_command_data(True)
-				send_message("Deleted command " + command_name)
-				log(f"{user} deleted command {command_name}")
-			else:
-				send_message(f"You cannot delete the {command_name} command.")
-		else:
-			send_message(f"No command exists with name {command_name}.")
-	#elif action == "alias": # ???
-	#	pass
-	elif action == "view":
-		view_command = command_dict[command_name]
-
-		usercooldown = view_command.get("user_cooldown", 0)
-		cooldown     = view_command.get("global_cooldown", 0)
-		coded        = view_command.get("coded", False)
-		permission   = view_command.get("permission", 0)
-		response     = view_command.get("response", "")
-
-		permission = {0:"Pleb", 2:"Follower", 4:"Subscriber", 6:"VIP", 8:"Mod", 10:"Broadcaster"}[permission]
-
-		if coded or response == "":
-			send_message(f"{command_name}: Permission: {permission}; Global Cooldown: {cooldown}; User Cooldown: {usercooldown}")
-		else:
-			send_message(f"{command_name}: Permission: {permission}; Global Cooldown: {cooldown}; User Cooldown: {usercooldown}; Response: {response}")
-
-	else:
-		send_message("Unrecognised action: must be add, remove, edit, options, view")
-
-@is_command("Sends a triangle of emotes. Syntax: e.g. !triangle LUL")
-def triangle(message_dict):
-	global all_emotes
-	user = message_dict["display-name"].lower()
-	message = message_dict["message"]
-
-	params = message.split(" ")
-	try:
-		emote = params[1]
-	except:
-		return False
-
-	if emote not in all_emotes:
-		send_message("You can only triangle with an emote.")
-		return False
-
-	num = 3
-		
-	try:
-		num = int(params[2])
-	except IndexError:
-		pass #leave it at 3
-	except ValueError: #if conversion to int fails, e.g. int("hello")
-		num = 3
-			
-	if emote != "":
-		if num > 5:
-			num = 5
-		
-		counts = list(range(1,num+1)) + list(range(1,num)[::-1])
-		for count in counts:
-			send_message((emote + " ") * count)
-		log(f"Sent triangle of {emote} of size {num} to {user}")
-
-@is_command("Begins a toxicpoll")
-def toxicpoll(message_dict):
-	poll_thread = Thread(target=_start_toxic_poll)
-	poll_thread.start()
-
-@is_command("Only allowed while a toxicpoll is active. Votes toxic.")
-def votetoxic(message_dict):
-	global toxic_poll
-	global toxic_votes
-	global voters
-
-	user = message_dict["display-name"].lower()
-	message = message_dict["message"]
-
-	if toxic_poll and user not in voters:
-		toxic_votes += 1
-		voters.add(user)
-		send_message(f"{user} voted toxic.")
-		print(f"Toxic vote from {user}!")
-	else:
-		return False
-
-@is_command("Only allowed while a toxicpoll is active. Votes nice.")
-def votenice(message_dict):
-	global toxic_poll
-	global nottoxic_votes
-	global voters
-
-	user = message_dict["display-name"].lower()
-	message = message_dict["message"]
-
-	if toxic_poll and user not in voters:
-		nottoxic_votes += 1
-		voters.add(user)
-		send_message(f"{user} voted NOT toxic.")
-		print(f"NOTtoxic vote from {user}!")
-	else:
-		return False
-
-def _start_toxic_poll():
-	global toxic_poll
-	global toxic_votes
-	global nottoxic_votes
-	global voters
-		
-	send_message("Poll starting! Type !votetoxic or !votenice to vote on whether the previous game was toxic or nice. Results in 60 seconds.")
-	toxic_poll = True
-	sleep(60)
-	toxic_poll = False
-	if nottoxic_votes > 0 and toxic_votes > 0:
-		toxic_percent    =    toxic_votes / (toxic_votes + nottoxic_votes)
-		nottoxic_percent = nottoxic_votes / (toxic_votes + nottoxic_votes)
-	else:
-		if toxic_votes > 0:
-			toxic_percent = 1
-			nottoxic_percent = 0
-		else:
-			toxic_percent = 0
-			nottoxic_percent = 0
-
-	toxic_percent = round(100*toxic_percent)
-	nottoxic_percent = round(100*nottoxic_percent)
-
-	message = f"STOP THE COUNT!! Toxic: {toxic_votes} votes ({toxic_percent}%) - Nice: {nottoxic_votes} votes ({nottoxic_percent}%). "
+last_wiki_update = 0
+def update_commands_wiki(force_update_reddit=False):
+	global last_wiki_update
 	
-	if nottoxic_votes > toxic_votes:
-		send_message(message + "Chat votes that the game was NOT toxic! FeelsGoodMan ")
-		send_message("!untoxic")
-		log(f"Poll result: not toxic. Toxic: {toxic_votes} votes ({toxic_percent}%) - Nice: {nottoxic_votes} votes ({nottoxic_percent}%)")
+	if force_update_reddit or last_wiki_update < time() - 60*30: # don't update more often than 30 mins unless forced
+		permissions = {0:"Pleb", 2:"Follower", 4:"Subscriber", 6:"VIP", 8:"Mod", 10:"Broadcaster", 12:"Disabled"}
 
-	elif toxic_votes > nottoxic_votes:
-		send_message(message + "Chat votes that the game was TOXIC! FeelsBadMan ")
-		send_message("!toxic")
-		log(f"Poll result: TOXIC. Toxic: {toxic_votes} votes ({toxic_percent}%) - Nice: {nottoxic_votes} votes ({nottoxic_percent}%)")
-	else:
-		send_message(message + "Poll was a draw! Chat can't make up its mind! kaywee1Wut ")
-		log(f"Poll result: undecided. Toxic: {toxic_votes} votes ({toxic_percent}%) - Nice: {nottoxic_votes} votes ({nottoxic_percent}%)")
+		r = praw.Reddit("RoboKaywee")
+		subreddit = r.subreddit("RoboKaywee")
 
-	voters = set()
-	toxic_votes = 0
-	nottoxic_votes = 0
+		if command_lock.acquire(timeout=10):
+			with open("commands.txt", "r", encoding="utf-8") as f:
+				commands = dict(eval(f.read()))
 
-@is_command("Lets a user view their current permission")
-def permission(message_dict):
-	user = message_dict["display-name"].lower()
+			command_lock.release()
 
-	log(f"Sent permission to {user} - their permission is {user_permission.name}")
-	send_message(f"@{user}, your maximum permission is: {user_permission.name}")
+			table = "Note: all commands are now sent with /me so will display in the bot's colour.\n\n\n**Command**|**Level**|**Response/Description**|**Uses**\n---|---|---|---\n"
 
-@is_command("Say hello!")
-def hello(message_dict):
-	user = message_dict["display-name"].lower()
-	message = message_dict["message"]
-	try:
-		name = message.split(" ")[1]
-	except (ValueError, IndexError):
-		name = user
+			for command in sorted(commands):
+				if "permission" in commands[command]:
+					try:
+						level = permissions[commands[command]["permission"]]
+					except KeyError:
+						level = "Pleb"
+				else:
+					level = "Pleb"
 
-	send_message(f"Hello, {name}! kaywee1AYAYA")
-	log(f"Sent Hello to {name} in response to {user}")
+				if "uses" in commands[command]:
+					uses = commands[command]["uses"]
+				else:
+					uses = "-"
 
-@is_command("Roll one or more dice. Syntax: !dice [<number>]")
-def dice(message_dict):
-	user = message_dict["display-name"].lower()
-	message = message_dict["message"]
-	try:
-		num = message.split(" ")[1]
-		if "d" in num:
-			num, sides = map(int, num.split("d"))
+				if commands[command]["coded"]:
+					if "description" in commands[command]:
+						table += f"{command}|{level}|Coded: {commands[command]['description']}|{uses}\n"
+					else:
+						table += f"{command}|{level}|Coded command with no description.|{uses}\n"
+				else:
+					if "response" in commands[command]:
+						table += f"{command}|{level}|Response: {commands[command]['response']}|{uses}\n"
+					else:
+						table += f"{command}|{level}|Text command with no response.|{uses}\n"
+
+			subreddit.wiki["commands"].edit(table)
+			last_wiki_update = time()
 		else:
-			num = int(num)
-			sides = 6
-	except (IndexError, ValueError):
-		num = 1
-		sides = 6
+			log("Warning: Command Lock timed out on update_commands_wiki() !!")
 
-	if num > 10:
-		num = 10
+def write_command_data(force_update_reddit=False):
+	global commands_dict
 
-	if sides > 120:
-		sides = 120
-			
-	sum = 0
-	rolls = []
+	if command_lock.acquire(timeout=3):
+		with open("commands.txt", "w", encoding="utf-8") as f:
+			f.write(str(commands_dict).replace("},", "},\n"))
+		command_lock.release()
 
-	for _ in range(num):
-		roll = random.choice(range(1,sides+1))
-		sum += roll
-		rolls.append(roll)
-
-	if num == 1:
-		send_message(f"{user} rolled a dice and got a {str(sum)}!")
-		log(f"Sent a dice roll of {sum} to {user}")
+		update_thread = Thread(target=update_commands_wiki, args=(force_update_reddit,))
+		update_thread.start()
 	else:
-		send_message(f"{user} rolled {num} dice and totalled {str(sum)}! {str(tuple(rolls))}")
-		log(f"Sent {num} dice rolls to {user}, totalling {sum}")
+		log("Warning: Command Lock timed out on write_command_data() !!")
 
-@is_command("Pulls from the power of the cosmos to predict your fortune.")
-def fortune(message_dict):
-	user = message_dict["display-name"].lower()
-
-	fortune = random.choice(fortunes)
-	send_message(f"@{user}, your fortune is: {fortune}")
-	log(f"Sent fortune to {user}")
-
-@is_command("Shows the current followgoal.")
-def followgoal(message_dict):
-	user = message_dict["display-name"].lower()
-
-	goal = get_data("followgoal")
-		
-	url = "https://api.twitch.tv/helix/users/follows?to_id=" + kaywee_channel_id
-	bearer_token = get_data("app_access_token")
-
-	authorisation_header = {"Client-ID": robokaywee_client_id, "Authorization":"Bearer " + bearer_token}
-	try:
-		data = requests.get(url, headers=authorisation_header).json()
-		followers = data["total"]
-		followers_left = goal - followers
-		if followers_left > 0:
-			send_message(f"Kaywee has {followers:,} followers, meaning there are only {followers_left:,} more followers until we hit our goal of {goal:,}! kaywee1AYAYA")
-			log(f"Sent followergoal of {followers_left} to {user} (currently {followers:,}/{goal:,})")
-		else:
-			send_message(f"The follower goal of {goal:,} has been met! We now have {followers:,} followers! kaywee1AYAYA")
-			log(f"Sent followergoal has been met to {user} ({followers:,}/{goal:,})")
-			while goal <= followers:
-				goal += 500
-			set_data("followgoal", goal)
-			log(f"Increased followgoal to {goal:,}")
-
-			followers_left = goal - followers
-			send_message(f"Our new follow goal is {goal:,}! kaywee1AYAYA")
-	except (ValueError, KeyError) as ex:
-		print("Error in followgoal command: " + ex)
-
-def _tofreedom(unit, quantity):
-	"""Intentionally doesn't handle errors"""
-
-	unit = unit.lower()
-
-	if unit == "c":
-		far = round((quantity * (9/5)) + 32, 1) # F = (C × 9/5) + 32
-		return ("f", far)
-	elif unit == "cm":
-		inches = round(quantity / 2.54, 2)
-		return ("in", inches)
-	elif unit == "kg":
-		labs = round(quantity * 2.204, 2)
-		return ("lb", labs)
-	elif unit == "m":
-		ft = round(quantity * 3.28084, 2)
-		return ("ft", ft)
-	elif unit == "km":
-		mi = round(quantity / 1.60934, 2)
-		return ("mi", mi)
-	elif unit.upper() in currencies:
-		dlr = round(quantity * _get_currencies(base=unit, convert_to="USD"), 2)
-		return ("USD", dlr)
-	elif unit == "ml":
-		pt = round(quantity / 568.261, 3)
-		return("pints", pt)
-	elif unit == "cl":
-		ml = cl * 10
-		return ("ml", ml)
-
-	return -1
-
-def _unfreedom(unit, quantity):
-	unit = unit.lower()
-
-	if unit == "f":
-		cel = round((quantity-32) * (5/9), 1) # C = (F − 32) × 5/9
-		return ("c", cel)
-	elif unit == "in":
-		cm = round(quantity * 2.54, 2)
-		return ("cm", cm)
-	elif unit == "lb":
-		kg = round(quantity / 2.204, 2)
-		return ("kg", kg)
-	elif unit == "ft":
-		m = round(quantity / 3.28084, 2)
-		return ("m", m)
-	elif unit == "mi":
-		km = round(quantity * 1.60934, 2)
-		return ("km", km)
-	elif unit == "usd":
-		result = round(quantity * _get_currencies(base="USD", convert_to="GBP"), 2)
-		return ("GBP", result)
-	elif unit == "pt":
-		ml = round(quantity * 568.261, 1)
-		return("ml", ml)
-
-	return -1
-
-def _get_currencies(base="USD", convert_to="GBP"):
-	base = base.upper()
-	result = requests.get(f"https://api.exchangeratesapi.io/latest?base={base}").json()
-	rates = result["rates"]
-	if convert_to.upper() in rates:
-		return rates[convert_to]
-
-@is_command("Convert metric units into imperial. Syntax: !tofreedom <quantity><unit> e.g. !tofreedom 5kg")
-def tofreedom(message_dict):
-	user = message_dict["display-name"].lower()
-	message = message_dict["message"]
-	try:
-		input = message.split(" ")[1]
-	except (ValueError, IndexError):
-		send_message("You have to provide something to convert..!")
-
-	unit = ""
-
-	while input[-1] not in "0123456789": 
-		if input[-1] != " ":
-			unit = input[-1] + unit  # e.g. cm or kg
-		input = input[:-1]
-		if len(input) == 0:
-			send_message("You have to provide a quantity to convert.")
-			return False
-
-	try:
-		quantity = float(input)
-	except (ValueError):
-		send_message("That.. doesn't look like a number. Try a number followed by a unit, e.g. '5cm' or '12kg'.")
-		return False
-
-	try:
-		free_unit, free_quantity = _tofreedom(unit, quantity)
-	except (ValueError, TypeError):
-		send_message("Sorry, I don't recognise that metric unit. :(")
-		return False
-
-	if free_quantity == int(free_quantity): #if the float is a whole number
-		free_quantity = int(free_quantity) #convert it to an int (i.e. remove the .0)
-
-	send_message(f"{quantity}{unit} in incomprehensible Freedom Units is {free_quantity}{free_unit}.")
-
-@is_command("Convert imperial units into metric. Syntax: !unfreedom <quantity><unit> e.g. !tofreedom 5lb")
-def unfreedom(message_dict):
-	user = message_dict["display-name"].lower()
-	message = message_dict["message"]
-	try:
-		input = message.split(" ")[1]
-	except (ValueError, IndexError):
-		send_message("You have to provide something to convert..!")
-
-	unit = ""
-
-	while input[-1] not in "0123456789": 
-		if input[-1] != " ":
-			unit = input[-1] + unit  # e.g. cm or kg
-		input = input[:-1]
-		if len(input) == 0:
-			send_message("You have to provide a quantity to convert.")
-			return False
-
-	try:
-		quantity = float(input)
-	except (ValueError):
-		send_message("That... doesn't look like a number. Try a number followed by a unit e.g. '5ft' or '10lb'.")
-		return False
-
-	try:
-		sensible_unit, sensible_quantity = _unfreedom(unit, quantity)
-	except (ValueError, TypeError):
-		send_message("I don't recognise that imperial unit. Sorry! :( PepeHands")
-		return False
-
-	if sensible_quantity == int(sensible_quantity): # if the float is a whole number
-		sensible_quantity = int(sensible_quantity) # convert it to an int (i.e. remove the .0)
-
-	send_message(f"{quantity}{unit} in units which actualy make sense is {sensible_quantity}{sensible_unit}.")
-
-
-@is_command("Looks up who gifted the current subscription to the given user. Syntax: !whogifted [@]kaywee")
-def whogifted(message_dict):
-	user = message_dict["display-name"].lower()
-	message = message_dict["message"]
-	try:
-		target = message.split(" ")[1]
-	except IndexError: # no target specified
-		target = user
-		
-	if target[0] == "@": # ignore @ tags
-		target = target[1:]
-		
-	target = target.lower()
-
-	if target in subscribers:
-		if subscribers[target]["is_gift"]:
-			try:
-				gifter = subscribers[target]["gifter_name"]
-			except KeyError:
-				send_message(f"Error - this is a gifted sub but there is no record of the gifter. WeirdChamp")
-				return False
-			send_message(f"@{target}'s current subscription was gifted to them by @{gifter}! Thank you! kaywee1AYAYA ")
-			log(f"Sent whogifted (target={target}, gifter={gifter}) in response to {user}.")
-		else:
-			send_message(f"@{target} subscribed on their own this time. Thank you! kaywee1AYAYA ")
-			log(f"Sent whogifted ({target} subbed on their own) in response to {user}.")
+def commit_subscribers():
+	if command_lock.acquire(timeout=3):
+		with open("subscribers.txt", "w", encoding="utf-8") as f:
+			f.write(str(subscribers))
+		command_lock.release()
 	else:
-		send_message(f"@{target} is not a subscriber. FeelsBadMan")
-
-@is_command("Looks up how many of the currently-active subscriptions were gifted by the given user. Syntax: !howmanygifts [@]kaywee")
-def howmanygifts(message_dict):
-	user = message_dict["display-name"].lower()
-	message = message_dict["message"]
-	try:
-		target = message.split(" ")[1]
-	except IndexError: # no target specified
-		target = user
-		
-	if target[0] == "@": # ignore @ tags
-		target = target[1:]
-		
-	target = target.lower()
-	count = 0
-	recipients = ""
-		
-	for sub in subscribers:
-		if subscribers[sub]["gifter_name"].lower() == target:
-			recipients += sub + ", "
-			count += 1
-		
-	if count == 0:
-		send_message(f"None of the current subscribers were gifted by {target}.")
-		log(f"Sent {target} has no gifted subs, in response to {user}.")
-	else:
-		recipients = recipients[:-2]
-		message = f"{target} has gifted {count} of the current subscriptions to: {recipients}. Thanks for the support <3 kaywee1AYAYA"
-		if len(message) > 500: # twitch max length
-			message = f"{target} has gifted {count} of the current subscriptions! Thanks for the support <3 kaywee1AYAYA"
-		send_message(message)
-		log(f"Sent {target} has {count} gifted subs, in response to {user}.")
-
-@is_command("Shows a timer until the username becomes available again.")
-def theonefoster(message_dict):
-	user = message_dict["display-name"].lower()
-
-	time_left = 1607292990 - time()
-
-	if time_left <= 0:
-		send_message("Foster can now change his username back!")
-		log(f"Sent username time to {user}, showing that the username can be changed.")
-	else:
-		days = int(time_left // 86400)
-		hours = int((time_left % 86400) // 3600)
-		
-
-		if days > 0:
-			ds = "day" if days == 1 else "days"
-			hs = "hour" if hours == 1 else "hours"
-
-			send_message(f"Foster can change his username back in {days} {ds} and {hours} {hs}! (Not that he's counting though)")
-			log(f"Sent theonefoster time to {user} as {days} {ds} and {hours} {hs}")
-		elif hours > 0:
-			hs = "hour" if hours == 1 else "hours"
-
-			send_message(f"Foster can change his username back in {hours} {hs}!")
-			log(f"Sent theonefoster time to {user} as {hours} {hs}")
-		else: # hours == 0
-			mins = int(time_left // 60)
-			send_message(f"Foster can change his username back in {mins} minutes!")
-			log(f"Sent theonefoster time to {user} as {mins} minutes")
-
-@is_command("Translates a Spanish message into English. Syntax: \"!toenglish hola\" OR \"!toenglish @toniki\"")
-def toenglish(message_dict):
-	user = message_dict["display-name"].lower()
-	message = message_dict["message"]
-
-	phrase = " ".join(message.split(" ")[1:])
-	english = ""
-	if phrase.lower() in ["robokaywee", user, "@" + user, ""]:
-		return False
-	if phrase[0] == "@" and len(phrase.split(" ")) == 1: # parameter is really a username
-		try:
-			target = phrase[1:].lower()
-			phrase = last_message[target]
-			english = target + ": "
-		except KeyError:
-			return False
-
-	try:
-		english += translator.translate(phrase, source="es", dest="en").text
-	except AttributeError as ex:
-		send_message("Translation failed. FeelsBadMan Try using !refreshtranslator to fix the Translator.")
-		return
-
-	send_message(english)
-	log(f"Translated \"{phrase}\" into English for {user}: it says \"{english}\"")
-
-@is_command("Translates an English message into Spanish. Syntax: \"!tospanish hello\" OR \"!tospanish @kaywee\"")
-def tospanish(message_dict):
-	user = message_dict["display-name"].lower()
-	message = message_dict["message"]
-
-	phrase = " ".join(message.split(" ")[1:])
-	spanish = ""
-	if phrase.lower() in ["robokaywee", user, "@" + user, ""]:
-		return False
-	if phrase[0] == "@" and len(phrase.split(" ")) == 1: # parameter is really a username
-		try:
-			target = phrase[1:].lower()
-			phrase = last_message[target]
-			spanish = target + ": "
-		except KeyError:
-			return False
-
-	try:
-		spanish += translator.translate(phrase, source="en", dest="es").text
-	except AttributeError as ex:
-		send_message("Translation failed. FeelsBadMan Try using !refreshtranslator to fix the Translator.")
-		return
-
-	send_message(spanish)
-	log(f"Translated \"{phrase}\" into Spanish for {user}: it says \"{spanish}\"")
-
-@is_command("Translates a message from one language to another, powered by Google Translate. Languages are specified as a two-letter code, e.g. en/es/nl/fr. Syntax: !translate <source_lang> <dest_lang> <message>")
-def translate(message_dict):
-	user = message_dict["display-name"].lower()
-	message = message_dict["message"]
-
-	try:
-		source = message.split(" ")[1]
-		dest = message.split(" ")[2]
-		phrase = " ".join(message.split(" ")[3:])
-	except IndexError:
-		send_message("Syntax Error. Usage: !translate <sourc_lang> <dest_lang> <text>")
+		log("Warning: Subs Lock timed out in commit_subscribers() !!")
+def get_title():
+	url = "https://api.twitch.tv/helix/streams?user_id=" + kaywee_channel_id
+	authorisation_header = {"Client-ID": robokaywee_client_id, "Authorization":"Bearer " + get_data("app_access_token")}
 	
-	output = ""
-	if phrase.lower() in ["robokaywee", user, "@" + user, ""]:
-		return False
-	if phrase[0] == "@" and len(phrase.split(" ")) == 1: # parameter is really a username
+	while True:
 		try:
-			target = phrase[1:].lower()
-			phrase = last_message[target]
-			output = target + ": "
-		except KeyError:
-			return False
+			title = requests.get(url, headers=authorisation_header).json()["data"][0]["title"]
+
+		except (IndexError, KeyError): # streamer isn't live
+			pass
+		else:
+			with open("titles.txt", "r", encoding="utf-8") as f:
+				titles = f.read().split("\n")
+
+			if title not in titles: # only unique titles
+				titles.append(title)
+				with open("titles.txt", "w", encoding="utf-8") as f:
+					f.write("\n".join(titles))
+
+		sleep(60*60) # once per hour
+
+def set_random_colour():
+	days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+	
+	while True:
+		today_name = days[date.today().weekday()]
+		lastday = get_data("lastday")
+		
+		if lastday is None or lastday != today_name:
+			set_data("lastday", today_name)
+			if today_name == "Wednesday":
+				send_message("/color HotPink", False)
+				set_data("current_colour", "HotPink")
+				log(f"Colour was updated to HotPink in response to Timed Event")
+			else:
+				colours = ["blue","blueviolet","cadetblue","chocolate","coral","dodgerblue","firebrick","goldenrod","green","hotpink","orangered","red","seagreen","springgreen","yellowgreen"]
+				new_colour = random.choice(colours)
+				send_message("/color " + new_colour, False)
+				set_data("current_colour", new_colour)
+				log(f"Colour was updated to {new_colour} in response to Timed Event")
+
+		sleep(60*60)
+
+def it_is_wednesday_my_dudes():
+	sleep(20*60) # wait 20 mins into the stream
+	while True:
+		if date.today().weekday() == 2: # if it's stil wednesday
+			url = "https://api.twitch.tv/helix/streams?user_id=" + kaywee_channel_id
+			authorisation_header = {"Client-ID": robokaywee_client_id, "Authorization":"Bearer " + get_data("app_access_token")}
+
+			try:
+				# try getting the title of the stream to test if streamer is live:
+				title = requests.get(url, headers=authorisation_header).json()["data"][0]["title"]
+			except (IndexError, KeyError): # streamer isn't live
+				pass
+			else:
+				send_message("On Wednesdays we wear pink. If you want to sit with us type /color HotPink to update your username colour.")
+				log("Sent Pink reminder.")
+			sleep(60*60)
+
+def it_is_Thursday_my_dudes():
+	sleep(20*60) # wait 20 mins into the stream
+	send_message("On Thursdays we wear whatever colour we want. Set your username colour by using /color and sit with us.")
+	log("Sent UnPink reminder.")
+
+def it_is_worldday_my_dudes():
+	sleep(5*60) # wait 5 mins into stream
+	commands_file.worldday({"display-name":"Timed Event"}) #have to include a message dict param
+
+def update_subs():
+	while True:
+		for sub in list(subscribers):
+			if subscribers[sub]["subscribe_time"] < time() - 60*60*24*30:
+				del subscribers[sub]
+		commit_subscribers()
+		sleep(30*60)
+
+def get_data(name):
 	try:
-		output += translator.translate(phrase, source=source, dest=dest).text
-		send_message(" " + output)
-		log(f"Translated \"{phrase}\" into {dest} for {user}: it says \"{output}\"")
+		if config_lock.acquire(timeout=3):
+			with open("config.txt", "r") as f:
+				file = f.read()
+				data = dict(eval(file))
+				config_lock.release()
+		else:
+			log("WARNING: config_lock timed out in get_data() !!")
+			return None
+	except FileNotFoundError as ex:
+		log(f"Failed to get data called {name} - File Not Found.")
+		return None
 	except ValueError as ex:
-		if "language" in str(ex):
-			send_message(str(ex))
-	except AttributeError as ex:
-		send_message("Translation failed. FeelsBadMan Try using !refreshtranslator to fix the Translator.")
+		log(f"Failed to get data called {name} - Value Error (corrupt file??)")
+		return None
+
+	return data[name] # -> intentionally doesn't handle KeyError
+
+def set_data(name, value):
+	try:
+		if config_lock.acquire(timeout=3):
+			with open("config.txt", "r") as f:
+				file = f.read()
+				data = dict(eval(file))
+				config_lock.release()
+		else:
+			log("WARNING: config_lock timed out (while reading) in set_data() !!")
+			return
+	except FileNotFoundError as ex:
+		log(f"Failed to set data of {name} to {value} - File Not Found.")
+		return
+	except ValueError as ex:
+		log(f"Failed to set data of {name} to {value} - Value Error (corrupt file??)")
 		return
 
-@is_command("Shows the user who most recently raided, and the time of the raid.")
-def lastraid(message_dict):
-	user = message_dict["display-name"].lower()
+	data[name] = value
 
-	raid_data = get_data("last_raid")
-
-	name    = raid_data["raider"]
-	viewers = raid_data["viewers"]
-	time    = raid_data["time"]
-
-	date_num = datetime.utcfromtimestamp(time).strftime('%d')
-	if date_num in ["1", "21", "31"]:
-		suffix = "st"
-	elif date_num in ["2", "22"]:
-		suffix = "nd"
-	elif date_num in ["3", "23"]:
-		suffix = "rd"
+	if config_lock.acquire(timeout=3):
+		with open("config.txt", "w") as f:
+			f.write(str(data).replace(", ", ",\n"))
+		config_lock.release()
 	else:
-		suffix = "th"
+		log("WARNING: config_lock timed out (while writing) in set_data() !!")
+		return
 
-	date_num = str(date_num).lstrip("0")
-	time_str = datetime.utcfromtimestamp(time).strftime("%A " + date_num + suffix + " of %B at %H:%M UTC")
+def update_app_access_token():
+	while True:
+		url = "https://id.twitch.tv/oauth2/validate"
 
-	plural = "" if viewers == 1 else "s"
-
-	send_message(f"The latest raid was by {name}, who raided with {viewers} viewer{plural} on {time_str}!")
-	log(f"Sent last raid to {user}: it was {name}, who raided with {viewers} viewer{plural} on {time_str}!")
-
-@is_command("Changes the colour of the bot's username. Syntax: !setcolour HotPink")
-def setcolour(message_dict):
-	user = message_dict["display-name"].lower()
-	message = message_dict["message"]
-
-	try:
-		colour = message.split(" ")[1]
-	except(ValueError, IndexError):
-		colour = "default"
-
-	if colour.lower() in ["random", "default", "blue","blueviolet","cadetblue","chocolate","coral","dodgerblue","firebrick","goldenrod","green","hotpink","orangered","red","seagreen","springgreen","yellowgreen"]:
-		valid = True
-	else:
-		valid = False
-
-		# ONLY WORKS WITH TWITCH PRIME:
-		#if colour[0] == "#": 
-		#	if len(colour) == 7:
-		#		for c in colour[1:].lower():
-		#			if c not in "0123456789abcdef":
-		#				valid = False
-		#				break
-		#		else:
-		#			valid=True
-
-	if valid:
-		if colour == "default":
-			colour = "HotPink"
-
-		if colour == "random":
-			colours = ["blue","blueviolet","cadetblue","chocolate","coral","dodgerblue","firebrick","goldenrod","green","hotpink","orangered","red","seagreen","springgreen","yellowgreen"]
-			new_colour = random.choice(colours)
-			send_message("/color " + new_colour, False)
-			sleep(0.9)
-			set_data("current_colour", new_colour)
-			if user != "Timed Event":
-				send_message(f"The Robocolour was randomly updated to {new_colour}! kaywee1AYAYA")
-			log(f"Colour was randomly updated to {new_colour} in response to {user}")
-		else:
-			send_message("/color " + colour, False)
-			sleep(0.9)
-			set_data("current_colour", colour)
-			send_message(f"The Robocolour was updated to {colour}! kaywee1AYAYA")
-			log(f"Colour was updated to {colour} in response to {user}")
-	else:
-		send_message(f"@{user} That colour isn't right. Valid colours are: random, default, blue, blueviolet, cadetblue, chocolate, coral, dodgerblue, firebrick, goldenrod, green, hotpink, orangered, red, seagreen, springgreen, yellowgreen")
-
-@is_command("Rainbows the messages into the chat. (big spam warning) Syntax: !rainbow hello")
-def rainbow(message_dict):
-	user = message_dict["display-name"].lower()
-	message = message_dict["message"]
-
-	try:
-		word = message.split(" ")[1][:12] # 12 chr limit
-	except IndexError:
-		return False
-
-	if word == "":
-		return False
-
-	for colour in ["red", "coral", "goldenrod", "green", "seagreen", "dodgerblue", "blue", "blueviolet", "hotpink"]:
-		send_message(f"/color {colour}", False)
-		sleep(0.15)
-		send_message(f"/me {word}", False)
-		sleep(0.15)
-
-	current_colour = get_data("current_colour")
-	sleep(1)
-	send_message(f"/color {current_colour}")
-
-@is_command("Shows all of the possible username colours (for non-prime users) (big spam warning)")
-def allcolours(message_dict):
-	user = message_dict["display-name"].lower()
-	message = message_dict["message"]
-
-	for colour in ['blue', 'blueviolet', 'cadetblue', 'chocolate', 'coral', 'dodgerblue', 'firebrick', 'goldenrod', 'green', 'hotpink', 'orangered', 'red', 'seagreen', 'springgreen', 'yellowgreen']:
-		send_message(f"/color {colour}", False)
-		sleep(0.1)
-		send_message(f"/me This is {colour}", False)
-		sleep(0.1)
-
-	current_colour = get_data("current_colour")
-	send_message(f"/color {current_colour}")
-
-def _start_timer(user, time_in, reminder):
-	hours = 0
-	mins  = 0
-	secs  = 0 # defaults
-
-	time_str = time_in[:]
-
-	if "h" in time_str:
 		try:
-			hours = int(time_str.split("h")[0])
-			time_str = time_str.split("h")[1]
-		except:
-			bot.send_message(f"/me @{user} sorry, I don't recognise that format :(")
-			return False
+			current_token = get_data("app_access_token")
+			assert current_token is not None
 
-	if "m" in time_str:
-		try:
-			mins = int(time_str.split("m")[0])
-			time_str = time_str.split("m")[1]
-		except:
-			bot.send_message(f"/me @{user} sorry, I don't recognise that format :(")
-			return False
+			authorisation_header = {"Client-ID": robokaywee_client_id, "Authorization":"Bearer " + current_token}
+			
+			response = requests.get(url, headers=authorisation_header).json()
+			expires_in = response["expires_in"]
+		except AssertionError:
+			log("No Access Token was found in config.txt. Fetching a new one..")
+			expires_in = 0
+		except Exception as ex:
+			log("Exception when fetching App Access Token: " + str(ex))
+			expires_in = 0
 
-	if "s" in time_str:
-		try:
-			secs = int(time_str.split("s")[0])
-			time_str = time_str.split("s")[1]
-		except:
-			bot.send_message(f"/me @{user} sorry, I don't recognise that format :(")
-			return False
+		if expires_in < 48*60*60: #if token expires in the next 48h
+			set_data("app_access_token", get_app_access_token()) # get a new one
 
-	if time_str != "": # or secs >= 60 or mins >= 60 or hours > 24:
-		bot.send_message("/me That time doesn't look right. ")
-		return False
+		sleep(23*60*60) # wait 23 hours
 
-	timer_time = 60*60*hours + 60*mins + secs
-
-	if timer_time < 30:
-		bot.send_message("/me The timer must be for at least 30 seconds.")
-		return False
-	
-	bot.send_message(f"/me @{user} - your {time_in} timer has started!")
-
-	log(f"Started {time_str} timer for {user}.")
-	sleep(timer_time)
-
-	if reminder != "":
-		reminder = ' for "' + reminder + '"'
-
-	bot.send_message(f"/me @{user} your {time_in} timer{reminder} is up! kaywee1AYAYA")
-
-	log(f"{user}'s {timer_time} timer expired.")
-
-@is_command("Starts a timer, after which the bot will send a reminder message in chat. Syntax: !timer 1h2m3s <message>")
-def timer(message_dict):
-	user = message_dict["display-name"].lower()
-	message = message_dict["message"]
-
-	try:
-		time_str = message.split(" ")[1]
-	except:
-		return False
-
-	try:
-		reminder = " ".join(message.split(" ")[2:])
-	except:
-		reminder = ""
-
-	timer_thread = Thread(target=_start_timer, args=(user,time_str,reminder))
-	timer_thread.start()
-
-@is_command("Shows how many times a command has been used. Syntax: !uses translate")
-def uses(message_dict):
-	user = message_dict["display-name"].lower()
-	message = message_dict["message"]
-
-	command = message.split(" ")[1]
-	if command in command_dict:
-		times_used = command_dict[command].get("uses", 0)
-		if times_used > 1:
-			send_message(f"The {command} command has been used {times_used} times.")
-			log(f"Sent uses to {user}: command {command} has been used {times_used} times.")
-		else:
-			send_message(f"The {command} command has been used {times_used} time.")
-			log(f"Sent uses to {user}: command {command} has been used {times_used} time.")
-	else:
-		send_message("Command not recognised.")
-
-def _nochat_mode():
-	global nochat_on
-	nochat_on = True
-
-	duration = 10*60 # 10 mins
-	check_period = 5 # secs
-	try:
-		for secs in range(0, duration, check_period):
-			if not nochat_on: #nochat mode gets turned off externally
-				raise AssertionError("Nochat mode has been turned off.") # unhandled exceptions kill the thread
-
-			sleep(check_period)
-
-		nochat_on = False # turn nochat mode off after the duration
-
-	except AttributeError:
-		pass # I know.. exceptions aren't control flow. Except here, where they are. Thread exits here.
-
-@is_command("Turns on nochat mode: users who mention kaywee will receive a notification that kaywee isn't looking at chat")
-def nochaton(message_dict):
-	user = message_dict["display-name"].lower()
-
-	global nochat_on
-	if not nochat_on:
-		nochat_thread = Thread(target=_nochat_mode)
-		nochat_thread.start()
-		send_message("Nochat mode is now on.")
-		log(f"Nochat mode is now on in response to {user}.")
-	else:
-		send_message("Nochat mode is already on.")
-
-@is_command("Turns off nochat mode")
-def nochatoff(message_dict):
-	user = message_dict["display-name"].lower()
-	message = message_dict["message"]
-
-	global nochat_on
-	nochat_on = False
-	send_message("Nochat mode is now off.")
-	log(f"{user} turned off Nochat mode.")
-
-@is_command("View the current commands list.")
-def rcommands(message_dict):
-	user = message_dict["display-name"].lower()
-	
-	send_message("The RoboKaywee commands list is here: https://old.reddit.com/r/RoboKaywee/wiki/commands")
-	log(f"Sent commands list to {user}")
-
-@is_command("Provides either one or two definitions for an English word.")
-def define(message_dict):
-	user = message_dict["display-name"].lower()
-	message = message_dict["message"]
-
-	try:
-		word = message.split(" ")[1]
-		assert word != ""
-	except (IndexError, AssertionError):
-		return False
-
-	definitions = dic.meaning(word)
-	nouns = definitions.get("Noun", [])
-	adjs = definitions.get("Adjective", [])
-	vers = definitions.get("Verb", [])
-	advs = definitions.get("Adverb", [])
-
-	definitions = list(adjs+vers+advs+nouns)
-
-	if len(definitions) == 1:
-		send_message(f"The definition of {word} is: {definitions[0]}")
-	else:
-		send_message(f"The definitions of {word} are: \"{definitions[0]}\" OR \"{definitions[1]}\"")
-
-@is_command("Lets mods ban a user.")
-def ban(message_dict):
-	user = message_dict["display-name"].lower()
-	message = message_dict["message"]
-
-	target = message.split(" ")[1]
-	send_message(f"/ban {target}")
-	log(f"Banned user {target} in response to {user}")
-
-@is_command("Lets mods timeout a user.")
-def timeout(message_dict):
-	user = message_dict["display-name"].lower()
-	message = message_dict["message"]
-
-	target = message.split(" ")[1]
-
-	try:
-		duration = int(message.split(" ")[2])
-	except (ValueError, IndexError):
-		duration = 600
-
-	send_message(f"/timeout {target} {duration}")
-	log(f"Timed out user {target} for {duration} seconds, in response to {user}")
-
-@is_command("Repeats the phrase in chat. Mods only so that mod commands can't be abused.")
-def echo(message_dict):
-	user = message_dict["display-name"].lower()
-	message = message_dict["message"]
-
-	phrase = " ".join(message.split(" ")[1:])
-	send_message(phrase, False, True)
-	log(f"Echoed \"{phrase}\" for {user}.")
-
-@is_command("Reloads the translation object to attempt to fix errors.")
-def refreshtranslator(message_dict):
-	user = message_dict["display-name"].lower()
-
-	if _refreshtranslator(): #separate function so it can be called elsewhere without sending the message
-		send_message("The translator object has been refreshed.")
-		log(f"Refreshed Translator in response to {user}.")
-	else:
-		try:
-			send_message("Unable to refresh translator FeelsBadMan")
-			log(f"Unable to refresh translator object in response to {user}.")
-		except: # method might not exist if the bot is still booting up
-			print("Failed to create Translator object")
-
-
-def _refreshtranslator():
-	global translator
-
+def send_message(message, add_to_chatlog=False, suppress_colour=False):
 	"""
-	The Translate library is sometimes unreliable and can load incorrectly sometimes.
-	This function refreshes the Translator object to guarantee that it works.
-	It does this by creating a new object, and attempting a translation.
-	If the translation excepts, the object is replaced by a fresh object until a translation is successful.
-	Then the global object is replaced with the new object.
+	Will also be accessible from the commands file.
 	"""
 
-	exit_loop = False
-	attempts = 0
+	#if False: # -> allows me to run the bot silently during testing
+	#	print("SEND_MESASGE FUNCTION IS DISABLED!")
+	#	return
 
-	while not exit_loop:
-		new_translator = Translator()
-		if attempts <3:
-			try:
-				new_translator.translate("hello!", source="en", dest="es").text
-				translator = new_translator
+	if message.startswith("/") or suppress_colour:
+		bot.send_message(message)
+	else:
+		bot.send_message("/me " + message)
+	if add_to_chatlog:
+		with open("chatlog.txt", "a", encoding="utf-8") as f:
+			f.write("robokaywee: " + message + "\n")
+
+def check_cooldown(command_name, user):
+	command_time = ceil(time())
+	cmd_data = commands_dict[command_name]
+
+	def check_user_cooldown():
+		if "user_cooldown" in cmd_data:
+			if user in user_cooldowns:
+				if command_name in user_cooldowns[user]:
+					if user_cooldowns[user][command_name] < command_time - cmd_data["user_cooldown"]:
+						user_cooldowns[user][command_name] = command_time
+						return True
+					else:
+						return False
+				else:
+					user_cooldowns[user][command_name] = command_time
+					return True
+			else:
+				user_cooldowns[user] = {command_name:command_time}
 				return True
-			except AttributeError as ex:
-				attempts+=1
-				print("Failed to refresh translator: " + str(ex))
-				pass # try again on next loop
-			else:
-				exit_loop = True # exit loop
 		else:
-			return False # give up trying after 3 attempts
-
-_refreshtranslator() # run when the file is imported
-
-@is_command("Looks up the current World Day")
-def worldday(message_dict):
-	user = message_dict["display-name"].lower()
-	
-	page = requests.get("https://www.daysoftheyear.com/").text
-
-	# flasgod don't judge me, I know this is wonky af
-	links_re = re.compile("<a.*?\/a>") # looks for <a> tags that also have a close tag
-	links = [link for link in re.findall(links_re, page) if "www.daysoftheyear.com" in link and "class=\"js-link-target\"" in link] #"link" is the entire <a></a> tag
-
-	day_re = re.compile("<.*?>([^<]*)<")# text between the tags
-	world_day = re.search(day_re, links[0]).group(1) # first group of 0th match (0th group is the whole match, 1st group is between ())
-
-	send_message(f"Happy {world_day}! (Source: https://www.daysoftheyear.com)" )
-	log(f"Sent World Day ({world_day}) to {user}")
-
-@is_command("Gamble the bot's fortunes away.")
-def autogamble(message_dict):
-	user = message_dict["display-name"].lower()
-	message = message_dict["message"]
-
-	try:
-		amount = int(message.split(" ")[1])
-	except (IndexError, ValueError):
-		amount = 50
-
-	send_message(f"!gamble {amount}")
-	log(f"Gambled {amount} points in response to {user}.")
-
-@is_command("Perform maths with the supreme calculation power of the bot.")
-def calculate(message_dict):
-	user = message_dict["display-name"].lower()
-	message = message_dict["message"]
-	
-	try:
-		calculation = " ".join(message.split(" ")[1:]) # everything after !calculate
-	except (IndexError):
-		return False
-
-	calculation = calculation.replace(" ", "")
-
-	if all(c in "0123456789+-*/()" for c in calculation): # don't allow invalid characters: unsanitised eval() is spoopy
-		try:
-			result = eval(calculation) # make sure this is super sanitised!
-
-			# only allow sensible calculation sizes. 10 billion is arbitraty. This also throws TypeError if it's somehow not a number
-			assert -10_000_000_000 < result < 10_000_000_000
-
-			if int(result) != result: # result is not a numeric integer (may still be type float though, e.g. 10/2 = 5.0)
-				result = round(result, 2)
-			else:
-				result = int(result)
-		except:
-			send_message("That calculation didn't work.")
-			return False
-		else:
-			send_message(f"The result is {result}")
+			cmd_data["last_used"] = command_time
 			return True
+
+	if "global_cooldown" in cmd_data:
+		if "last_used" in cmd_data:
+			if cmd_data["last_used"] < command_time - cmd_data["global_cooldown"]:
+				return check_user_cooldown()
+			else:
+				return False
+		else:
+			return check_user_cooldown()
 	else:
-		send_message("That calculation doesn't look right. You can use 0-9, +-*/()")
-		return False
+		return check_user_cooldown()
+
+class permissions(IntEnum):
+	Disabled    = 12
+	Broadcaster = 10
+	Mod	        = 8
+	VIP	        = 6
+	Subscriber  = 4
+	Follower    = 2
+	Pleb        = 0
+
+def respond_message(user, message, permission):
+	#for random non-command responses/rules
+	global pink_reminder_sent
+	global bday_sent_mathias
+	global bday_sent_ryan
+
+	message_lower = message.lower()
+
+	if "@robokaywee" in message_lower:
+		send_message(f"@{user} I'm a bot, so I can't reply. Try talking to one of the helpful human mods instead.")
+		log(f"Sent \"I'm a bot\" to {user}")
+
+	elif commands_file.nochat_on and "kaywee" in message_lower and user not in bots and all(emote not in message for emote in channel_emotes):
+		if "nochat" in commands_dict and "response" in commands_dict["nochat"]:
+			send_message(f"@{user} {commands_dict['nochat']['response']}")
+			log(f"Sent nochat to {user} in response to @kaywee during nochat mode.")
+
+	elif permission < permissions.Subscriber: #works in 2.0
+		msg_without_spaces = message_lower.replace(" ", "")
+		if any(x in msg_without_spaces for x in ["bigfollows.com", "bigfollows*com", "bigfollowsdotcom"]):
+			send_message(f"/ban {user}")
+			log(f"Banned {user} for linking to bigfollows")
+
+	# EASTER EGGS:
+	elif message[0] == "^":
+		send_message("^", suppress_colour=True)
+		log(f"Sent ^ to {user}")
+
+	elif message_lower in ["ayy", "ayyy", "ayyyy", "ayyyyy"]:
+		send_message("lmao")
+		log(f"Sent lmao to {user}")
+
+	elif message == "KEKW":
+		send_message("KEKWHD Jebaited")
+		log(f"Sent KEKW to {user}")
+
+	elif message_lower in ["hewwo", "hewwo?", "hewwo??"]:
+		send_message("HEWWO! UwU kaywee1AYAYA")
+		log(f"Sent hewwo to {user}")
+
+	elif message_lower == "hello there":
+		send_message("General Keboni")
+		log(f"Sent Kenobi to {user}")
+
+	# Scheduled Messages:
+
+	if user == "streamelements" and "kaywee is now live!" in message:
+		worldday_thread = Thread(target=it_is_worldday_my_dudes)
+		worldday_thread.start()
+
+		if date.today().weekday() == 2: # and not pink_reminder_sent
+			wednesday_thread = Thread(target=it_is_wednesday_my_dudes)
+			wednesday_thread.start()
+			pink_reminder_sent = True
+			set_data("pink_reminder_sent", True)
+
+#check for new commands and add to database:
+for command_name in [o for o in dir(commands_file) if not(o.startswith("_") or o.endswith("_"))]:
+	try:
+		if getattr(commands_file, command_name).is_command:
+			if command_name not in commands_dict:
+				commands_dict[command_name] = {'permission': 0, 'global_cooldown': 1, 'user_cooldown': 0, 'coded': True, 'uses': 0, "description": getattr(commands_file, command_name).description}
+				write_command_data(False)
+			else:
+				if commands_dict[command_name]["description"] != getattr(commands_file, command_name).description:
+					commands_dict[command_name]["description"] = getattr(commands_file, command_name).description # update description
+					write_command_data(False)
+	except AttributeError:
+		pass
+
+if __name__ == "__main__":
+	log("Starting bot..")
+	bot = ChatBot(bot_name, password, channel_name, debug=False, capabilities=["tags", "commands"])
+
+	user_cooldowns = {}
+
+	app_token_thread = Thread(target=update_app_access_token)
+	app_token_thread.start()
+
+	sub_thread = Thread(target=update_subs)
+	sub_thread.start()
+
+	randcolour_thread = Thread(target=set_random_colour)
+	randcolour_thread.start()
+
+	titles_thread = Thread(target=get_title)
+	titles_thread.start()
+
+	modwall_mods      = set()
+	modwall           = 0
+	modwall_size      = 15
+	supermodwall_size = 30
+	ultramodwall_size = 50
+	hypermodwall_size = 100
+
+	if date.today().weekday() == 2: # if it's Wednesday (my dudes)
+		pink_reminder_sent = get_data("pink_reminder_sent")		
+	else: # if it's not wednesday
+		set_data("pink_reminder_sent", False)
+		pink_reminder_sent = False
+
+	vip_wall = 0
+	vipwall_vips = set()
+
+	last_message = {}
+
+	wednesday_thread = Thread(target=it_is_wednesday_my_dudes)
+	wednesday_thread.start()
+	
+	# let commands file access key data:
+	commands_file.bot                = bot
+	commands_file.send_message       = send_message
+	commands_file.log                = log
+	commands_file.command_dict       = commands_dict
+	commands_file.write_command_data = write_command_data
+	commands_file.get_data           = get_data
+	commands_file.set_data           = set_data
+	commands_file.last_message       = last_message
+	commands_file.nochat_on          = False
+	commands_file.permissions        = permissions
+
+	while True:
+		try:
+			messages = bot.get_messages()
+			for message_dict in messages:
+				if message_dict["message_type"] == "privmsg":
+					user	= message_dict["display-name"].lower()
+					message = message_dict["message"]
+					message_lower = message.lower()
+
+					with open("chatlog.txt", "a", encoding="utf-8") as f:
+						f.write(f"{user}: {message}\n")
+
+					if message_lower in ["hello", "hi", "hey", "hola"]:
+						message = "!hello"
+
+					last_message[user] = message
+
+					user_permission = permissions.Pleb # unless assigned otherwise below:
+
+					if "badges" in message_dict:
+						if "broadcaster" in message_dict["badges"]:
+							user_permission = permissions.Broadcaster
+						elif "moderator" in message_dict["badges"]:
+							user_permission = permissions.Mod
+						elif "vip/1" in message_dict["badges"]:
+							user_permission = permissions.VIP
+						elif "subscriber" in message_dict["badges"]:
+							user_permission = permissions.Subscriber
+
+					message_dict["user_permission"] = user_permission
+
+					if message.startswith("!"):
+						command = message[1:].split(" ")[0].lower()
+						if command in commands_dict:
+							command_obj = commands_dict[command]
+
+							if user_permission >= command_obj["permission"] and check_cooldown(command, user):
+								if command_obj["coded"]:
+									if command in dir(commands_file):
+										func = getattr(commands_file, command)
+										if func.is_command:
+											if func(message_dict) != False:
+												if "uses" in command_obj:
+													command_obj["uses"] += 1
+												else:
+													command_obj["uses"] = 1
+
+												command_obj["last_used"] = time()
+												write_command_data(False)
+												
+										else:
+											log(f"WARNING: tried to call non-command function: {command}")
+									else:
+										log(f"WARNING: Stored coded command with no function: {command}")
+								else:
+									if "response" in command_obj:
+										send_message(command_obj["response"])
+										log(f"Sent {command} in response to {user}.")
+										if "uses" in command_obj:
+											command_obj["uses"] += 1
+										else:
+											command_obj["uses"] = 1
+
+										command_obj["last_used"] = time()
+										write_command_data(False)
+									else:
+										log(f"WARNING: Stored text command with no response: {command}")
+
+					else:
+						respond_message(user, message, user_permission)
+
+					if user_permission >= permissions.Mod:
+						modwall_mods.add(user)
+
+						# don't send modwall unless there are at least 3 mods in the wall
+						if (    modwall <  (modwall_size-1) # few messages
+							or (modwall >= (modwall_size-1) and len(modwall_mods) >= 3) # lots of messages and at least 3 mods
+							   
+							): # sadface
+
+							modwall += 1
+							if modwall == modwall_size:
+								send_message("#modwall ! kaywee1AYAYA")
+							elif modwall == supermodwall_size:
+								send_message("#MEGAmodwall! SeemsGood kaywee1Wut ")
+							elif modwall == ultramodwall_size:
+								send_message("#U L T R A MODWALL TwitchLit kaywee1AYAYA kaywee1Wut")
+							elif modwall == hypermodwall_size:
+								send_message("#H Y P E R M O D W A L L gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1AYAYA kaywee1Wut")
+					else:
+						if modwall > supermodwall_size:
+							if modwall > hypermodwall_size:
+								send_message(f"Hypermodwall has been broken by {user}! :( FeelsBadMan NotLikeThis PepeHands")
+							elif modwall > ultramodwall_size:
+								send_message(f"Ultramodwall has been broken by {user}! :( FeelsBadMan NotLikeThis")
+							else: # must be >supermodwall
+								send_message(f"Megamodwall has been broken by {user}! :( FeelsBadMan")
+
+						modwall = 0
+						modwall_mods = set()
+
+					# future me: don't indent this (otherwise mods can't interrupt vipwalls)
+					if user_permission == permissions.VIP:
+						vip_wall += 1
+
+						if vip_wall == 10:
+							send_message("#VIPwall! kaywee1AYAYA")
+						elif vip_wall == 20:
+							send_message("#SUPER VIPwall! PogChamp")
+						elif vip_wall == 50:
+							send_message("#MEGA VIPwall! PogChamp Kreygasm CurseLit")
+					else:
+						vip_wall = 0
+						vipwall_vips = set()
+				elif message_dict["message_type"] == "notice":
+					if "msg_id" in message_dict: # yes.. it's msg_id here but msg-id everywhere else. Why? Who knows. Why be consistent?
+						id = message_dict["msg_id"]
+						if "message" in message_dict:
+							message = message_dict["message"]
+							log(f"NOTICE: {id}: {message}")
+							if id != "color_changed": #gets spammy with daily colour changes and rainbows etc
+								with open("chatlog.txt", "a", encoding="utf-8") as f:
+									f.write(f"NOTICE: (msg_id {id}): {message}\n")
+						else:
+							log(f"NOTICE with msg_id but no message: {str(message_dict)}")
+					else:
+						log(f"NOTICE with no msg_id: {str(message_dict)}")
+
+				elif message_dict["message_type"] == "usernotice":
+					if "msg-id" in message_dict:
+						if message_dict["msg-id"] == "subgift": # GIFTED SUBSCRIPTION
+							gifter = message_dict["display-name"].lower()
+							recipient = message_dict["msg-param-recipient-display-name"].lower()
+							with open("chatlog.txt", "a", encoding="utf-8") as f:
+								f.write(f"USERNOTICE: {gifter} has gifted a subscription to {recipient}\n")
+							subscribers[recipient] = {"gifter_name":gifter, "is_gift":True, "subscribe_time":int(time())}
+							commit_subscribers()
+							log(f"{gifter} has gifted a sub to {recipient}!")
+
+						elif message_dict["msg-id"] == "sub": # USER SUBSCRIPTION
+							user = message_dict["display-name"].lower()
+							with open("chatlog.txt", "a", encoding="utf-8") as f:
+								f.write(f"USERNOTICE: {user} has subscribed!\n")
+							subscribers[user] = {"gifter_name":"", "is_gift":False, "subscribe_time":int(time())}
+							commit_subscribers()
+							log(f"{user} has subscribed!")
+
+						elif message_dict["msg-id"] == "resub": # USER RESUBSCRIPTION
+							user = message_dict["display-name"].lower()
+							with open("chatlog.txt", "a", encoding="utf-8") as f:
+								f.write(f"USERNOTICE: {user} has resubscribed!\n")
+							subscribers[user] = {"gifter_name":"", "is_gift":False, "subscribe_time":int(time())}
+							commit_subscribers()
+							log(f"{user} has resubscribed!")
+
+						elif message_dict["msg-id"] == "anonsubgift": # ANONYMOUS GIFTED SUBSCRIPTION
+							# comes through as a gifted sub from AnAnonymousGifter ? So might not need this
+							recipient = message_dict["msg-param-recipient-display-name"].lower()
+							with open("chatlog.txt", "a", encoding="utf-8") as f:
+								f.write(f"USERNOTICE: Anon has gifted a subscription to {recipient}!\n")
+							subscribers[recipient] = {"gifter_name":"AnAnonymousGifter", "is_gift":True, "subscribe_time":int(time())}
+							commit_subscribers()
+
+						elif message_dict["msg-id"] == "raid": # RAID
+							raider = message_dict["msg-param-displayName"]
+							viewers = message_dict["msg-param-viewerCount"]
+							with open("chatlog.txt", "a", encoding="utf-8") as f:
+								f.write(f"USERNOTICE: {raider} is raiding with {viewers} viewers!\n")
+							send_message(f"Wow! {raider} is raiding us with {viewers} new friends! Thank you! kaywee1AYAYA")
+							log(f"{raider} is raiding with {viewers} viewers.")
+							raid_data = {"raider": raider, "viewers": viewers, "time": time()}
+							set_data("last_raid", raid_data)
+
+						elif message_dict["msg-id"] == "submysterygift":
+							gifter = message_dict["login"] # comes as lowercase
+							gifts = message_dict["msg-param-mass-gift-count"]
+
+							if gifts != "1":
+								log(f"{gifter} has gifted {gifts} subscriptions to the community.")
+							else:
+								log(f"{gifter} has gifted a subscription to the community.")
+						elif message_dict["msg-id"] == "giftpaidupgrade":
+							subscriber = message_dict["msg-param-sender-login"] 
+
+							with open("chatlog.txt", "a", encoding="utf-8") as f:
+								f.write(f"USERNOTICE: {subscriber} has continued their gifted sub.\n")
+							log(f"{subscriber} has continued their gifted sub.")
+
+							subscribers[subscriber] = {"gifter_name":"", "is_gift":False, "subscribe_time":int(time())}
+							commit_subscribers()
+						else:
+							with open("verbose log.txt", "a", encoding="utf-8") as f:
+								f.write("(unknown msg-id?) - " + str(message_dict) + "\n\n")
+						 # other sub msg-ids: sub, resub, subgift, anonsubgift, submysterygift, giftpaidupgrade, rewardgift, anongiftpaidupgrade
+					else:
+						with open("verbose log.txt", "a", encoding="utf-8") as f:
+							f.write("(no msg-id?) - " + str(message_dict) + "\n\n")
+
+				# does hosttarget not come through? why not?
+				elif message_dict["message_type"] == "hosttarget":
+					# OUTGOING HOST
+					host_name = message_dict["host_name"] # the user we're now hosting
+					viewers = message_dict["viewers"] # num viewers we've sent to them
+					with open("chatlog.txt", "a", encoding="utf-8") as f:
+						f.write(f"HOSTTARGET: now hosting {host_name} with {viewers} viewers.\n")
+					log(f"Now hosting {host_name} with {viewers} viewers.")
+					send_message(f"Now hosting {host_name} with {viewers} viewers.")
+					
+				elif message_dict["message_type"] == "reconnect":
+					send_message("Stream is back online!")
+					log(f"Stream is back online!")
+
+				elif message_dict["message_type"] == "userstate":
+					# Mostly just for colour changes which I don't care about
+					pass
+
+				else:
+					with open("verbose log.txt", "a", encoding="utf-8") as f:
+						f.write("unknown message type: " + str(message_dict) + "\n\n")
+		except Exception as ex:
+			log("Exception in main loop: " + str(ex)) # generic catch-all (literally) to make sure bot doesn't crash
+
