@@ -18,12 +18,15 @@ from API_functions import get_app_access_token
 TODO:
 
 should be able to add counters and variables to text commands
+should be able to give any command multiple names via aliases
 
 """
 
 command_lock = Lock()
 config_lock = Lock()
 subs_lock = Lock()
+
+bday_sent_ryan = False
 
 bots = {"robokaywee", "streamelements", "nightbot"}
 channel_emotes = {"kaywee1AYAYA", "kaywee1Wut", "kaywee1Dale", "kaywee1Imout", "kaywee1GASM"}
@@ -61,7 +64,7 @@ def update_commands_wiki(force_update_reddit=False):
 	global last_wiki_update
 	
 	if force_update_reddit or last_wiki_update < time() - 60*30: # don't update more often than 30 mins unless forced
-		permissions = {0:"Pleb", 2:"Follower", 4:"Subscriber", 6:"VIP", 8:"Mod", 10:"Broadcaster"}
+		permissions = {0:"Pleb", 2:"Follower", 4:"Subscriber", 6:"VIP", 8:"Mod", 10:"Broadcaster", 12:"Disabled"}
 
 		r = praw.Reddit("RoboKaywee")
 		subreddit = r.subreddit("RoboKaywee")
@@ -169,8 +172,20 @@ def set_random_colour():
 
 def it_is_wednesday_my_dudes():
 	sleep(20*60) # wait 20 mins into the stream
-	send_message("On Wednesdays we wear pink. If you want to sit with us type /color HotPink to update your username colour.")
-	log("Sent Pink reminder.")
+	while True:
+		if date.today().weekday() == 2: # if it's stil wednesday
+			url = "https://api.twitch.tv/helix/streams?user_id=" + kaywee_channel_id
+			authorisation_header = {"Client-ID": robokaywee_client_id, "Authorization":"Bearer " + get_data("app_access_token")}
+
+			try:
+				# try getting the title of the stream to test if streamer is live:
+				title = requests.get(url, headers=authorisation_header).json()["data"][0]["title"]
+			except (IndexError, KeyError): # streamer isn't live
+				pass
+			else:
+				send_message("On Wednesdays we wear pink. If you want to sit with us type /color HotPink to update your username colour.")
+				log("Sent Pink reminder.")
+			sleep(60*60)
 
 def it_is_Thursday_my_dudes():
 	sleep(20*60) # wait 20 mins into the stream
@@ -311,6 +326,7 @@ def check_cooldown(command_name, user):
 		return check_user_cooldown()
 
 class permissions(IntEnum):
+	Disabled    = 12
 	Broadcaster = 10
 	Mod	        = 8
 	VIP	        = 6
@@ -321,23 +337,14 @@ class permissions(IntEnum):
 def respond_message(user, message, permission):
 	#for random non-command responses/rules
 	global pink_reminder_sent
+	global bday_sent_mathias
+	global bday_sent_ryan
+
 	message_lower = message.lower()
 
-	if message_lower in ["ayy", "ayyy", "ayyyy", "ayyyyy"]:
-		send_message("lmao")
-		log(f"Sent lmao to {user}")
-
-	elif message == "KEKW":
-		send_message("KEKWHD Jebaited")
-		log(f"Sent KEKW to {user}")
-
-	elif "@robokaywee" in message_lower:
+	if "@robokaywee" in message_lower:
 		send_message(f"@{user} I'm a bot, so I can't reply. Try talking to one of the helpful human mods instead.")
 		log(f"Sent \"I'm a bot\" to {user}")
-
-	elif message[0] == "^":
-		send_message("^", suppress_colour=True)
-		log(f"Sent ^ to {user}")
 
 	elif commands_file.nochat_on and "kaywee" in message_lower and user not in bots and all(emote not in message for emote in channel_emotes):
 		if "nochat" in commands_dict and "response" in commands_dict["nochat"]:
@@ -350,19 +357,38 @@ def respond_message(user, message, permission):
 			send_message(f"/ban {user}")
 			log(f"Banned {user} for linking to bigfollows")
 
+	# EASTER EGGS:
+	elif message[0] == "^":
+		send_message("^", suppress_colour=True)
+		log(f"Sent ^ to {user}")
+
+	elif message_lower in ["ayy", "ayyy", "ayyyy", "ayyyyy"]:
+		send_message("lmao")
+		log(f"Sent lmao to {user}")
+
+	elif message == "KEKW":
+		send_message("KEKWHD Jebaited")
+		log(f"Sent KEKW to {user}")
+
 	elif message_lower in ["hewwo", "hewwo?", "hewwo??"]:
 		send_message("HEWWO! UwU kaywee1AYAYA")
 		log(f"Sent hewwo to {user}")
 
-	if user == "streamelements":
-		if not pink_reminder_sent and date.today().weekday() == 2:
+	elif message_lower == "hello there":
+		send_message("General Keboni")
+		log(f"Sent Kenobi to {user}")
+
+	# Scheduled Messages:
+
+	if user == "streamelements" and "kaywee is now live!" in message:
+		worldday_thread = Thread(target=it_is_worldday_my_dudes)
+		worldday_thread.start()
+
+		if date.today().weekday() == 2: # and not pink_reminder_sent
 			wednesday_thread = Thread(target=it_is_wednesday_my_dudes)
 			wednesday_thread.start()
 			pink_reminder_sent = True
 			set_data("pink_reminder_sent", True)
-		if "kaywee is now live!" in message:
-			worldday_thread = Thread(target=it_is_worldday_my_dudes)
-			worldday_thread.start()
 
 #check for new commands and add to database:
 for command_name in [o for o in dir(commands_file) if not(o.startswith("_") or o.endswith("_"))]:
@@ -413,8 +439,10 @@ if __name__ == "__main__":
 	vipwall_vips = set()
 
 	last_message = {}
-	
 
+	wednesday_thread = Thread(target=it_is_wednesday_my_dudes)
+	wednesday_thread.start()
+	
 	# let commands file access key data:
 	commands_file.bot                = bot
 	commands_file.send_message       = send_message
@@ -425,6 +453,7 @@ if __name__ == "__main__":
 	commands_file.set_data           = set_data
 	commands_file.last_message       = last_message
 	commands_file.nochat_on          = False
+	commands_file.permissions        = permissions
 
 	while True:
 		try:
@@ -448,12 +477,14 @@ if __name__ == "__main__":
 					if "badges" in message_dict:
 						if "broadcaster" in message_dict["badges"]:
 							user_permission = permissions.Broadcaster
-						elif "moderator" in message_dict["badges"] or user == "acesfullofkings_":
+						elif "moderator" in message_dict["badges"]:
 							user_permission = permissions.Mod
 						elif "vip/1" in message_dict["badges"]:
 							user_permission = permissions.VIP
 						elif "subscriber" in message_dict["badges"]:
 							user_permission = permissions.Subscriber
+
+					message_dict["user_permission"] = user_permission
 
 					if message.startswith("!"):
 						command = message[1:].split(" ")[0].lower()
@@ -624,7 +655,7 @@ if __name__ == "__main__":
 
 				# does hosttarget not come through? why not?
 				elif message_dict["message_type"] == "hosttarget":
-					#O UTGOING HOST
+					# OUTGOING HOST
 					host_name = message_dict["host_name"] # the user we're now hosting
 					viewers = message_dict["viewers"] # num viewers we've sent to them
 					with open("chatlog.txt", "a", encoding="utf-8") as f:
