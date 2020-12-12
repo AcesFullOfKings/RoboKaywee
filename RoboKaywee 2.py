@@ -185,7 +185,7 @@ def it_is_wednesday_my_dudes():
 			else:
 				send_message("On Wednesdays we wear pink. If you want to sit with us type /color HotPink to update your username colour.")
 				log("Sent Pink reminder.")
-			sleep(60*60)
+		sleep(60*60)
 
 def it_is_Thursday_my_dudes():
 	sleep(20*60) # wait 20 mins into the stream
