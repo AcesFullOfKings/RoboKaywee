@@ -29,13 +29,12 @@ All replies will be sent in the bot's colour, using /me.
 """
 
 currencies = {'CAD', 'HKD', 'ISK', 'PHP', 'DKK', 'HUF', 'CZK', 'GBP', 'RON', 'SEK', 'IDR', 'INR', 'BRL', 'RUB', 'HRK', 'JPY', 'THB', 'CHF', 'EUR', 'MYR', 'BGN', 'TRY', 'CNY', 'NOK', 'NZD', 'ZAR', 'USD', 'MXN', 'SGD', 'AUD', 'ILS', 'KRW', 'PLN'}
+
+# there must be a way to fetch these lists..?
 bttv_global = {'PedoBear', 'RebeccaBlack', ':tf:', 'CiGrip', 'DatSauce', 'ForeverAlone', 'GabeN', 'HailHelix', 'HerbPerve', 'iDog', 'rStrike', 'ShoopDaWhoop', 'SwedSwag', 'M&Mjc', 'bttvNice', 'TopHam', 'TwaT', 'WatChuSay', 'SavageJerky', 'Zappa', 'tehPoleCat', 'AngelThump', 'HHydro', 'TaxiBro', 'BroBalt', 'ButterSauce', 'BaconEffect', 'SuchFraud', 'CandianRage', "She'llBeRight", 'D:', 'VisLaud', 'KaRappa', 'YetiZ', 'miniJulia', 'FishMoley', 'Hhhehehe', 'KKona', 'PoleDoge', 'sosGame', 'CruW', 'RarePepe', 'iamsocal', 'haHAA', 'FeelsBirthdayMan', 'RonSmug', 'KappaCool', 'FeelsBadMan', 'BasedGod', 'bUrself', 'ConcernDoge', 'FeelsGoodMan', 'FireSpeed', 'NaM', 'SourPls', 'LuL', 'SaltyCorn', 'FCreep', 'monkaS', 'VapeNation', 'ariW', 'notsquishY', 'FeelsAmazingMan', 'DuckerZ', 'SqShy', 'Wowee', 'WubTF', 'cvR', 'cvL', 'cvHazmat', 'cvMask'}
 bttv_local = {'ppCircle', 'KayWeird', 'PepeHands', 'monkaS', 'POGGERS', 'PepoDance', 'HYPERS', 'BongoCat', 'RareParrot', 'BIGWOW', '5Head', 'WeirdChamp', 'PepeJam', 'KEKWHD', 'widepeepoHappyRightHeart', 'gachiHYPER', 'peepoNuggie', 'MonkaTOS', 'KKool', 'OMEGALUL', 'monkaSHAKE', 'PogUU', 'Clap', 'AYAYA', 'CuteDog', 'weSmart', 'DogePls', 'REEEE', 'BBoomer', 'HAhaa', 'FeelsLitMan', 'POGSLIDE', 'CCOGGERS', 'peepoPANTIES', 'PartyParrot', 'monkaX', 'widepeepoSadBrokenHeart', 'KoolDoge', 'TriDance', 'PepePls', 'gachiBASS', 'pepeLaugh', 'whatBlink', 'FeelsSadMan'}
 
-with open("emotes.txt", "r", encoding="utf-8") as f:
-	emote_list = set(f.read().split("\n"))
-
-all_emotes = emote_list | bttv_local | bttv_global
+all_emotes = bttv_local | bttv_global
 
 toxic_poll = False
 toxic_votes = 0
@@ -211,6 +210,7 @@ def triangle(message_dict):
 	global all_emotes
 	user = message_dict["display-name"].lower()
 	message = message_dict["message"]
+	emotes = message_dict["emotes"]
 
 	params = message.split(" ")
 	try:
@@ -218,7 +218,21 @@ def triangle(message_dict):
 	except:
 		return False
 
-	if emote not in all_emotes and user != "theonefoster_":
+	valid_emote = emote in all_emotes
+
+	if not valid_emote:
+		try:
+			emotes_in_msg = emotes.split("/")
+			for e in emotes_in_msg:
+				id, positions = e.split(":")
+				start_pos, end_pos = positions.split(",")[0].split("-")
+				if start_pos == "10":
+					valid_emote = True
+					break
+		except:
+			pass # emote stays not valid
+
+	if not valid_emote:
 		send_message("You can only triangle with an emote.")
 		return False
 
@@ -303,7 +317,7 @@ def _start_toxic_poll():
 	toxic_percent = round(100*toxic_percent)
 	nottoxic_percent = round(100*nottoxic_percent)
 
-	message = f"STOP THE COUNT!! Toxic: {toxic_votes} votes ({toxic_percent}%) - Nice: {nottoxic_votes} votes ({nottoxic_percent}%). "
+	message = f"Toxicpoll results are in! Toxic: {toxic_votes} votes ({toxic_percent}%) - Nice: {nottoxic_votes} votes ({nottoxic_percent}%). "
 	
 	if nottoxic_votes > toxic_votes:
 		send_message(message + "Chat votes that the game was NOT toxic! FeelsGoodMan ")
@@ -334,13 +348,9 @@ def permission(message_dict):
 def hello(message_dict):
 	user = message_dict["display-name"].lower()
 	message = message_dict["message"]
-	try:
-		name = message.split(" ")[1]
-	except (ValueError, IndexError):
-		name = user
 
-	send_message(f"Hello, {name}! kaywee1AYAYA")
-	log(f"Sent Hello to {name} in response to {user}")
+	send_message(f"Hello, {user}! kaywee1AYAYA")
+	log(f"Sent Hello to {user}")
 
 @is_command("Roll one or more dice. Syntax: !dice [<number>]")
 def dice(message_dict):
@@ -670,8 +680,12 @@ def toenglish(message_dict):
 
 	english += en_translator.translate(phrase)
 
-	send_message(english)
-	log(f"Translated \"{phrase}\" into English for {user}: it says \"{english}\"")
+	if "MYMEMORY WARNING: " in english:
+		send_message("Translation limit has been reached for today. // Se alcanzó el límite de traducción por hoy.")
+		log("Translation limit reached.")
+	else:
+		send_message(english)
+		log(f"Translated \"{phrase}\" into English for {user}: it says \"{english}\"")
 
 @is_command("Translates an English message into Spanish. Syntax: \"!tospanish hello\" OR \"!tospanish @kaywee\"")
 def tospanish(message_dict):
@@ -692,8 +706,12 @@ def tospanish(message_dict):
 
 	spanish += es_translator.translate(phrase)
 
-	send_message(spanish)
-	log(f"Translated \"{phrase}\" into Spanish for {user}: it says \"{spanish}\"")
+	if "MYMEMORY WARNING: " in spanish:
+		send_message("Translation limit has been reached for today. // Se alcanzó el límite de traducción por hoy.")
+		log("Translation limit reached.")
+	else:
+		send_message(spanish)
+		log(f"Translated \"{phrase}\" into Spanish for {user}: it says \"{spanish}\"")
 
 @is_command("Translates a message from one language to another, powered by Google Translate. Languages are specified as a two-letter code, e.g. en/es/nl/fr. Syntax: !translate <source_lang> <dest_lang> <message>")
 def translate(message_dict):
@@ -936,14 +954,14 @@ def _nochat_mode():
 	check_period = 5 # secs
 	try:
 		for secs in range(0, duration, check_period):
-			if not nochat_on: #nochat mode gets turned off externally
-				raise AssertionError("Nochat mode has been turned off.") # unhandled exceptions kill the thread
+			if not nochat_on: # nochat mode gets turned off externally
+				raise AssertionError("Nochat mode has been turned off.")
 
 			sleep(check_period)
 
 		nochat_on = False # turn nochat mode off after the duration
 
-	except AttributeError:
+	except AssertionError:
 		pass # I know.. exceptions aren't control flow. Except here, where they are. Thread exits here.
 
 @is_command("Turns on nochat mode: users who mention kaywee will receive a notification that kaywee isn't looking at chat")
@@ -1001,7 +1019,7 @@ def define(message_dict):
 		send_message(f"The definitions of {word} are: \"{definitions[0]}\" OR \"{definitions[1]}\"")
 
 @is_command("Lets mods ban a user.")
-def ban(message_dict):
+def rban(message_dict):
 	user = message_dict["display-name"].lower()
 	message = message_dict["message"]
 
@@ -1010,7 +1028,7 @@ def ban(message_dict):
 	log(f"Banned user {target} in response to {user}")
 
 @is_command("Lets mods timeout a user.")
-def timeout(message_dict):
+def rtimeout(message_dict):
 	user = message_dict["display-name"].lower()
 	message = message_dict["message"]
 
@@ -1129,7 +1147,7 @@ def calculate(message_dict):
 
 	calculation = calculation.replace(" ", "")
 
-	if all(c in "0123456789+-*/()" for c in calculation): # don't allow invalid characters: unsanitised eval() is spoopy
+	if all(c in "0123456789+-*/()." for c in calculation): # don't allow invalid characters: unsanitised eval() is spoopy
 		try:
 			result = eval(calculation) # make sure this is super sanitised!
 
@@ -1137,7 +1155,7 @@ def calculate(message_dict):
 			assert -10_000_000_000 < result < 10_000_000_000
 
 			if int(result) != result: # result is not a numeric integer (may still be type float though, e.g. 10/2 = 5.0)
-				result = round(result, 2)
+				result = round(result, 6)
 			else:
 				result = int(result)
 		except:
@@ -1147,7 +1165,7 @@ def calculate(message_dict):
 			send_message(f"The result is {result}")
 			return True
 	else:
-		send_message("That calculation doesn't look right. You can use 0-9, +-*/()")
+		send_message("That calculation doesn't look right. You can only use: 0-9 +-*/().")
 		return False
 
 @is_command("Shows time left until Christmas 2020.")
@@ -1183,3 +1201,56 @@ def merrychrysler(message_dict):
 
 			send_message(f"Christmas is in {mins} {ms}! (in the UK, anyway!)")
 			log(f"Sent Christmas time as {mins} {ms}.")
+
+@is_command("Adds spaces between your letters.")
+def space(message_dict):
+	user = message_dict["display-name"].lower()
+	message = message_dict["message"]
+
+	phrase = "".join(message.split(" ")[1:]) # chop off the !command
+	target = ""
+
+	if phrase[0] == "@" and len(phrase.split(" ")) == 1: # parameter is really a username
+		phrase = phrase[1:].lower()
+		target = phrase
+		phrase = last_message.get(phrase, phrase)
+
+	spaces = " ".join(phrase)
+	send_message(spaces)
+	if target == "":
+		log(f"Added spaces to {user}'s message: {spaces}")
+	else:
+		log(f"Added spaces to {target}'s message in response to {user}: {spaces}")
+
+@is_command("Talk like that one spongebob meme.")
+def spongebob(message_dict):
+	user = message_dict["display-name"].lower()
+	message = message_dict["message"]
+
+	phrase = " ".join(message.split(" ")[1:]) # chop off the !command
+	target = ""
+
+	if phrase[0] == "@" and len(phrase.split(" ")) == 1: # parameter is really a username
+		phrase = phrase[1:].lower()
+		target = phrase
+		phrase = last_message.get(phrase, phrase)
+
+	output = "".join(a.lower()+b.upper() for a,b in list(zip(phrase[::2], phrase[1::2])))
+
+	"""
+	# the old way:
+	even = True
+	output = ""
+	for c in phrase:
+		if even:
+			output += c.lower()
+		else:
+			output += c.upper()
+		even = not even
+	"""
+
+	send_message(output)
+	if target == "":
+		log(f"Added spaces to {user}'s message: {spaces}")
+	else:
+		log(f"Added spaces to {target}'s message in response to {user}: {spaces}")
