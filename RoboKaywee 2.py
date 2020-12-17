@@ -26,8 +26,6 @@ command_lock = Lock()
 config_lock = Lock()
 subs_lock = Lock()
 
-bday_sent_ryan = False
-
 bots = {"robokaywee", "streamelements", "nightbot"}
 channel_emotes = {"kaywee1AYAYA", "kaywee1Wut", "kaywee1Dale", "kaywee1Imout", "kaywee1GASM"}
 
@@ -337,8 +335,6 @@ class permissions(IntEnum):
 def respond_message(user, message, permission):
 	#for random non-command responses/rules
 	global pink_reminder_sent
-	global bday_sent_mathias
-	global bday_sent_ryan
 
 	message_lower = message.lower()
 
@@ -358,6 +354,7 @@ def respond_message(user, message, permission):
 			log(f"Banned {user} for linking to bigfollows")
 
 	# EASTER EGGS:
+	
 	elif message[0] == "^":
 		send_message("^", suppress_colour=True)
 		log(f"Sent ^ to {user}")
@@ -380,7 +377,7 @@ def respond_message(user, message, permission):
 
 	# Scheduled Messages:
 
-	if user == "streamelements" and "kaywee is now live!" in message:
+	elif user == "streamelements" and "kaywee is now live!" in message:
 		worldday_thread = Thread(target=it_is_worldday_my_dudes)
 		worldday_thread.start()
 
@@ -462,16 +459,16 @@ if __name__ == "__main__":
 				if message_dict["message_type"] == "privmsg":
 					user	= message_dict["display-name"].lower()
 					message = message_dict["message"]
-					message_lower = message.lower()
 
 					with open("chatlog.txt", "a", encoding="utf-8") as f:
 						f.write(f"{user}: {message}\n")
+
+					message_lower = message.lower()
 
 					if message_lower in ["hello", "hi", "hey", "hola"]:
 						message = "!hello"
 
 					last_message[user] = message
-
 					user_permission = permissions.Pleb # unless assigned otherwise below:
 
 					if "badges" in message_dict:
@@ -496,7 +493,7 @@ if __name__ == "__main__":
 									if command in dir(commands_file):
 										func = getattr(commands_file, command)
 										if func.is_command:
-											if func(message_dict) != False:
+											if func(message_dict) != False: # None != False in case anything returns None
 												if "uses" in command_obj:
 													command_obj["uses"] += 1
 												else:
@@ -594,6 +591,10 @@ if __name__ == "__main__":
 							commit_subscribers()
 							log(f"{gifter} has gifted a sub to {recipient}!")
 
+							if commands_file.nochat_on:
+								send_message(f"@{gifter} thank you so much for gifting a subscription to {recipient}! Kaywee isn't looking at chat right now (!nochat) but she'll see your sub after the current game.")
+								log(f"Sent nochat to {user} for gifting a sub")
+
 						elif message_dict["msg-id"] == "sub": # USER SUBSCRIPTION
 							user = message_dict["display-name"].lower()
 							with open("chatlog.txt", "a", encoding="utf-8") as f:
@@ -602,6 +603,10 @@ if __name__ == "__main__":
 							commit_subscribers()
 							log(f"{user} has subscribed!")
 
+							if commands_file.nochat_on:
+								send_message(f"@{user} thank you so much for subscribing! Kaywee isn't looking at chat right now (!nochat) but she'll see your sub after the current game.")
+								log(f"Sent nochat to {user} for subscribing")
+
 						elif message_dict["msg-id"] == "resub": # USER RESUBSCRIPTION
 							user = message_dict["display-name"].lower()
 							with open("chatlog.txt", "a", encoding="utf-8") as f:
@@ -609,6 +614,11 @@ if __name__ == "__main__":
 							subscribers[user] = {"gifter_name":"", "is_gift":False, "subscribe_time":int(time())}
 							commit_subscribers()
 							log(f"{user} has resubscribed!")
+
+							if commands_file.nochat_on:
+								send_message(f"@{user} thank you so much for resubscribing! Kaywee isn't looking at chat right now (!nochat) but she'll see your sub after the current game.")
+								log(f"Sent nochat to {user} for resubscribing")
+
 
 						elif message_dict["msg-id"] == "anonsubgift": # ANONYMOUS GIFTED SUBSCRIPTION
 							# comes through as a gifted sub from AnAnonymousGifter ? So might not need this
@@ -628,6 +638,11 @@ if __name__ == "__main__":
 							raid_data = {"raider": raider, "viewers": viewers, "time": time()}
 							set_data("last_raid", raid_data)
 
+							if commands_file.nochat_on:
+								sleep(2)
+								send_message(f"@{raider} thank you so much for raiding! Kaywee isn't looking at chat right now (!nochat) but she'll see the raid after the current game.")
+								log(f"Sent nochat to {raider} for raiding")
+
 						elif message_dict["msg-id"] == "submysterygift":
 							gifter = message_dict["login"] # comes as lowercase
 							gifts = message_dict["msg-param-mass-gift-count"]
@@ -636,6 +651,7 @@ if __name__ == "__main__":
 								log(f"{gifter} has gifted {gifts} subscriptions to the community.")
 							else:
 								log(f"{gifter} has gifted a subscription to the community.")
+
 						elif message_dict["msg-id"] == "giftpaidupgrade":
 							subscriber = message_dict["msg-param-sender-login"] 
 
@@ -645,6 +661,11 @@ if __name__ == "__main__":
 
 							subscribers[subscriber] = {"gifter_name":"", "is_gift":False, "subscribe_time":int(time())}
 							commit_subscribers()
+
+							if commands_file.nochat_on:
+								send_message(f"@{user} thank you so much for continuing your gifted sub! Kaywee isn't looking at chat right now (!nochat) but she'll see your sub after the current game.")
+								log(f"Sent nochat to {user} for subscribing")
+
 						else:
 							with open("verbose log.txt", "a", encoding="utf-8") as f:
 								f.write("(unknown msg-id?) - " + str(message_dict) + "\n\n")
