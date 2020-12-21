@@ -29,6 +29,21 @@ subs_lock = Lock()
 bots = {"robokaywee", "streamelements", "nightbot"}
 channel_emotes = {"kaywee1AYAYA", "kaywee1Wut", "kaywee1Dale", "kaywee1Imout", "kaywee1GASM"}
 
+modwalls = {
+	15:  {"name": "Modwall",                 "emotes": "kaywee1AYAYA"},
+	30:  {"name": "MEGAmodwall",             "emotes": "SeemsGood kaywee1Wut"},
+	50:  {"name": "HYPER MODWALL",           "emotes": "TwitchLit kaywee1AYAYA kaywee1Wut"},
+	100: {"name": "U L T R A MODWALL",       "emotes": "kaywee1AYAYA PogChamp Kreygasm CurseLit"},
+	250: {"name": "G I G A M O D W A L L",   "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
+	500: {"name": "T E R R A M O D W A L L", "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
+	# I guarantee none of these will ever be naturally reached, but..
+	1000:{"name": "PETAMODWALL",             "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
+	2000:{"name": "EXAMODWALL",              "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
+	3000:{"name": "ZETTAMODWALL",            "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
+	4000:{"name": "YOTTAMODWALL",            "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
+	# also I get that the SI prefixes don't make sense with the numbers but whatever, I needed increasing prefixes
+}
+
 def log(s):
 	"""
 	Takes a string, s, and logs it to a log file on disk with a timestamp. Also prints the string to console.
@@ -331,11 +346,14 @@ class permissions(IntEnum):
 	Subscriber  = 4
 	Follower    = 2
 	Pleb        = 0
-	Flasgod     = -1_000_000
 
-def respond_message(user, message, permission):
-	#for random non-command responses/rules
+def respond_message(message_dict):
+	# For random non-command responses/rules
 	global pink_reminder_sent
+
+	user       = message_dict["display-name"].lower()
+	message    = message_dict["message"]
+	permission = message_dict["user_permission"]
 
 	message_lower = message.lower()
 
@@ -432,10 +450,11 @@ if __name__ == "__main__":
 
 	modwall_mods      = set()
 	modwall           = 0
-	modwall_size      = 15
-	supermodwall_size = 30
-	ultramodwall_size = 50
-	hypermodwall_size = 100
+	current_modwall   = None
+	#modwall_size      = 15
+	#supermodwall_size = 30
+	#ultramodwall_size = 50
+	#hypermodwall_size = 100
 
 	if date.today().weekday() == 2: # if it's Wednesday (my dudes)
 		pink_reminder_sent = get_data("pink_reminder_sent")		
@@ -481,11 +500,8 @@ if __name__ == "__main__":
 
 					last_message[user] = message
 					user_permission = permissions.Pleb # unless assigned otherwise below:
-
-					if user == "flasgod":
-						user_permission = permissions.Flasgod
 						
-					elif "badges" in message_dict:
+					if "badges" in message_dict:
 						if "broadcaster" in message_dict["badges"]:
 							user_permission = permissions.Broadcaster
 						elif "moderator" in message_dict["badges"]:
@@ -535,37 +551,39 @@ if __name__ == "__main__":
 										log(f"WARNING: Stored text command with no response: {command}")
 
 					else:
-						respond_message(user, message, user_permission)
+						respond_message(message_dict)
 
 					if user_permission >= permissions.Mod:
 						modwall_mods.add(user)
 
 						# don't send modwall unless there are at least 3 mods in the wall
-						if (    modwall <  (modwall_size-1) # few messages
-							or (modwall >= (modwall_size-1) and len(modwall_mods) >= 3) # lots of messages and at least 3 mods
+						if (    modwall <  14 # few messages
+							or (modwall >= 14 and len(modwall_mods) >= 3) # lots of messages and at least 3 mods
 							   
 							): # sadface
 
 							modwall += 1
-							if modwall == modwall_size:
-								send_message("#modwall ! kaywee1AYAYA")
-							elif modwall == supermodwall_size:
-								send_message("#MEGAmodwall! SeemsGood kaywee1Wut ")
-							elif modwall == ultramodwall_size:
-								send_message("#U L T R A MODWALL TwitchLit kaywee1AYAYA kaywee1Wut")
-							elif modwall == hypermodwall_size:
-								send_message("#H Y P E R M O D W A L L gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1AYAYA kaywee1Wut")
+							if modwall in modwalls:
+								modwall_data = modwalls[modwall]
+								current_modwall = modwall_data["name"] 
+
+								send_message(f"#{modwall_data['name']}! {modwall_data['emotes']}")
+
+							#if modwall == modwall_size:
+							#	send_message("#Modwall! kaywee1AYAYA")
+							#elif modwall == supermodwall_size:
+							#	send_message("#MEGAmodwall! SeemsGood kaywee1Wut")
+							#elif modwall == ultramodwall_size:
+							#	send_message("#U L T R A MODWALL TwitchLit kaywee1AYAYA kaywee1Wut")
+							#elif modwall == hypermodwall_size:
+							#	send_message("#H Y P E R M O D W A L L gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1AYAYA kaywee1Wut")
 					else:
-						if modwall > supermodwall_size:
-							if modwall > hypermodwall_size:
-								send_message(f"Hypermodwall has been broken by {user}! :( FeelsBadMan NotLikeThis PepeHands")
-							elif modwall > ultramodwall_size:
-								send_message(f"Ultramodwall has been broken by {user}! :( FeelsBadMan NotLikeThis")
-							else: # must be >supermodwall
-								send_message(f"Megamodwall has been broken by {user}! :( FeelsBadMan")
+						if modwall > 30:
+							send_message(f"{current_modwall} has been broken by {user}! :( FeelsBadMan NotLikeThis PepeHands")
 
 						modwall = 0
 						modwall_mods = set()
+						current_modwall = None
 
 					# future me: don't indent this (otherwise mods can't interrupt vipwalls)
 					if user_permission == permissions.VIP:
