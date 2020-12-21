@@ -331,6 +331,7 @@ class permissions(IntEnum):
 	Subscriber  = 4
 	Follower    = 2
 	Pleb        = 0
+	Flasgod     = -1_000_000
 
 def respond_message(user, message, permission):
 	#for random non-command responses/rules
@@ -374,6 +375,9 @@ def respond_message(user, message, permission):
 	elif message_lower == "hello there":
 		send_message("General Keboni")
 		log(f"Sent Kenobi to {user}")
+	elif "romper" in message_lower:
+		send_message("!romper")
+		log(f"Sent romper to {user}")
 
 	# Scheduled Messages:
 
@@ -387,19 +391,26 @@ def respond_message(user, message, permission):
 			pink_reminder_sent = True
 			set_data("pink_reminder_sent", True)
 
+update_command_data = False
+
 #check for new commands and add to database:
 for command_name in [o for o in dir(commands_file) if not(o.startswith("_") or o.endswith("_"))]:
 	try:
 		if getattr(commands_file, command_name).is_command:
 			if command_name not in commands_dict:
 				commands_dict[command_name] = {'permission': 0, 'global_cooldown': 1, 'user_cooldown': 0, 'coded': True, 'uses': 0, "description": getattr(commands_file, command_name).description}
-				write_command_data(False)
+				update_command_data = True
 			else:
 				if commands_dict[command_name]["description"] != getattr(commands_file, command_name).description:
 					commands_dict[command_name]["description"] = getattr(commands_file, command_name).description # update description
-					write_command_data(False)
+					update_command_data = True
 	except AttributeError:
 		pass
+
+if update_command_data:
+	write_command_data(False)
+
+del update_command_data
 
 if __name__ == "__main__":
 	log("Starting bot..")
@@ -471,7 +482,10 @@ if __name__ == "__main__":
 					last_message[user] = message
 					user_permission = permissions.Pleb # unless assigned otherwise below:
 
-					if "badges" in message_dict:
+					if user == "flasgod":
+						user_permission = permissions.Flasgod
+						
+					elif "badges" in message_dict:
 						if "broadcaster" in message_dict["badges"]:
 							user_permission = permissions.Broadcaster
 						elif "moderator" in message_dict["badges"]:
