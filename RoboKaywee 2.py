@@ -25,6 +25,7 @@ should be able to give any command multiple names via aliases
 command_lock = Lock()
 config_lock = Lock()
 subs_lock = Lock()
+usernames_lock = Lock()
 
 bots = {"robokaywee", "streamelements", "nightbot"}
 channel_emotes = {"kaywee1AYAYA", "kaywee1Wut", "kaywee1Dale", "kaywee1Imout", "kaywee1GASM"}
@@ -36,13 +37,16 @@ modwalls = {
 	100: {"name": "U L T R A MODWALL",       "emotes": "kaywee1AYAYA PogChamp Kreygasm CurseLit"},
 	250: {"name": "G I G A M O D W A L L",   "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
 	500: {"name": "T E R R A M O D W A L L", "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
-	# I guarantee none of these will ever be naturally reached, but..
+	# I guarantee none of these will ever be reached naturally, but..
 	1000:{"name": "PETAMODWALL",             "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
 	2000:{"name": "EXAMODWALL",              "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
 	3000:{"name": "ZETTAMODWALL",            "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
 	4000:{"name": "YOTTAMODWALL",            "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
-	# also I get that the SI prefixes don't make sense with the numbers but whatever, I needed increasing prefixes
+	# also I know that the SI prefixes don't make sense with the numbers but whatever, I needed increasing prefixes
 }
+
+with open("usernames.txt", "r", encoding="utf-8") as f:
+	usernames = set(f.read().split("\n"))
 
 def log(s):
 	"""
@@ -56,7 +60,7 @@ def log(s):
 	minute = str(current_time.tm_min).zfill(2)
 	second = str(current_time.tm_sec).zfill(2)
 	
-	log_time = day + "/" + month + " " + hour + ":" + minute + ":" + second 
+	log_time = f"{day}/{month} {hour}:{minute}:{second}"
 
 	print(s)
 	with open("log.txt", "a", encoding="utf-8") as f:
@@ -88,7 +92,7 @@ def update_commands_wiki(force_update_reddit=False):
 
 			command_lock.release()
 
-			table = "Note: all commands are now sent with /me so will display in the bot's colour.\n\n\n**Command**|**Level**|**Response/Description**|**Uses**\n---|---|---|---\n"
+			table = "**Note: all commands are now sent with /me so will display in the bot's colour.**\n\n\n**Command**|**Level**|**Response/Description**|**Uses**\n---|---|---|---\n"
 
 			for command in sorted(commands):
 				if "permission" in commands[command]:
@@ -106,12 +110,14 @@ def update_commands_wiki(force_update_reddit=False):
 
 				if commands[command]["coded"]:
 					if "description" in commands[command]:
-						table += f"{command}|{level}|Coded: {commands[command]['description']}|{uses}\n"
+						description = commands[command]['description'].replace("|", "/") # pipes break the formatting on the reddit wiki
+						table += f"{command}|{level}|Coded: {description}|{uses}\n"
 					else:
 						table += f"{command}|{level}|Coded command with no description.|{uses}\n"
 				else:
 					if "response" in commands[command]:
-						table += f"{command}|{level}|Response: {commands[command]['response']}|{uses}\n"
+						response = commands[command]['response'].replace("|", "/") # pipes break the formatting on the reddit wiki
+						table += f"{command}|{level}|Response: {response}|{uses}\n"
 					else:
 						table += f"{command}|{level}|Text command with no response.|{uses}\n"
 
@@ -140,6 +146,17 @@ def commit_subscribers():
 		command_lock.release()
 	else:
 		log("Warning: Subs Lock timed out in commit_subscribers() !!")
+
+def add_new_username(username):
+	send_message(f"Welcome to Kaywee's channel {username}! Get cosy and enjoy your stay kaywee1AYAYA  <3")
+	log(f"Welcomed new user {username}")
+
+	global usernames	
+	usernames.add(username)
+
+	with open("usernames.txt", "w", encoding="utf-8") as f:
+		f.write("\n".join(usernames))
+
 def get_title():
 	url = "https://api.twitch.tv/helix/streams?user_id=" + kaywee_channel_id
 	authorisation_header = {"Client-ID": robokaywee_client_id, "Authorization":"Bearer " + get_data("app_access_token")}
@@ -250,7 +267,7 @@ def set_data(name, value):
 		log(f"Failed to set data of {name} to {value} - File Not Found.")
 		return
 	except ValueError as ex:
-		log(f"Failed to set data of {name} to {value} - Value Error (corrupt file??)")
+		log(f"Failed to set data of {name} to {value} - Value Error (corrupt file?)")
 		return
 
 	data[name] = value
@@ -287,7 +304,7 @@ def update_app_access_token():
 
 		sleep(23*60*60) # wait 23 hours
 
-def send_message(message, add_to_chatlog=False, suppress_colour=False):
+def send_message(message, add_to_chatlog=True, suppress_colour=False):
 	"""
 	Will also be accessible from the commands file.
 	"""
@@ -403,6 +420,8 @@ def respond_message(message_dict):
 		worldday_thread = Thread(target=it_is_worldday_my_dudes)
 		worldday_thread.start()
 
+		send_message("!resetrecord", suppress_colour=True)
+
 		if date.today().weekday() == 2: # and not pink_reminder_sent
 			wednesday_thread = Thread(target=it_is_wednesday_my_dudes)
 			wednesday_thread.start()
@@ -493,6 +512,9 @@ if __name__ == "__main__":
 					with open("chatlog.txt", "a", encoding="utf-8") as f:
 						f.write(f"{user}: {message}\n")
 
+					if user not in usernames:
+						Thread(target=add_new_username,args=(user,)).start() # probably saves like.. idk 10ms? over just calling it. lol. trims reaction time though
+
 					message_lower = message.lower()
 
 					if message_lower in ["hello", "hi", "hey", "hola"]:
@@ -515,6 +537,8 @@ if __name__ == "__main__":
 
 					if message.startswith("!"):
 						command = message[1:].split(" ")[0].lower()
+						if command in ["win", "loss", "draw"]:
+							command = "toxicpoll"
 						if command in commands_dict:
 							command_obj = commands_dict[command]
 
@@ -538,7 +562,12 @@ if __name__ == "__main__":
 										log(f"WARNING: Stored coded command with no function: {command}")
 								else:
 									if "response" in command_obj:
-										send_message(command_obj["response"])
+										words = message.split(" ")
+										if len(words) == 2 and words[1].startswith("@"):
+											msg_to_send = words[1] + " " + command_obj["response"]
+										else:
+											msg_to_send = command_obj["response"]
+										send_message(msg_to_send)
 										log(f"Sent {command} in response to {user}.")
 										if "uses" in command_obj:
 											command_obj["uses"] += 1
@@ -567,7 +596,8 @@ if __name__ == "__main__":
 								modwall_data = modwalls[modwall]
 								current_modwall = modwall_data["name"] 
 
-								send_message(f"#{modwall_data['name']}! {modwall_data['emotes']}")
+								send_message(f"#{current_modwall}! {modwall_data['emotes']}")
+								log(f"{current_modwall}!")
 
 							#if modwall == modwall_size:
 							#	send_message("#Modwall! kaywee1AYAYA")
@@ -591,10 +621,13 @@ if __name__ == "__main__":
 
 						if vip_wall == 10:
 							send_message("#VIPwall! kaywee1AYAYA")
+							log("VIPwall!")
 						elif vip_wall == 20:
 							send_message("#SUPER VIPwall! PogChamp")
+							log("SUPER VIPwall!")
 						elif vip_wall == 50:
 							send_message("#MEGA VIPwall! PogChamp Kreygasm CurseLit")
+							log("MEGA VIPwall!")
 					else:
 						vip_wall = 0
 						vipwall_vips = set()
@@ -604,7 +637,7 @@ if __name__ == "__main__":
 						if "message" in message_dict:
 							message = message_dict["message"]
 							log(f"NOTICE: {id}: {message}")
-							if id != "color_changed": #gets spammy with daily colour changes and rainbows etc
+							if id != "color_changed": # gets spammy with daily colour changes and rainbows etc
 								with open("chatlog.txt", "a", encoding="utf-8") as f:
 									f.write(f"NOTICE: (msg_id {id}): {message}\n")
 						else:
@@ -671,7 +704,7 @@ if __name__ == "__main__":
 							set_data("last_raid", raid_data)
 
 							if commands_file.nochat_on:
-								sleep(2)
+								sleep(2) # sleeps on the main thread cause message processing to be delayed..
 								send_message(f"@{raider} thank you so much for raiding! Kaywee isn't looking at chat right now (!nochat) but she'll see the raid after the current game.")
 								log(f"Sent nochat to {raider} for raiding")
 
@@ -697,7 +730,11 @@ if __name__ == "__main__":
 							if commands_file.nochat_on:
 								send_message(f"@{user} thank you so much for continuing your gifted sub! Kaywee isn't looking at chat right now (!nochat) but she'll see your sub after the current game.")
 								log(f"Sent nochat to {user} for subscribing")
+						elif message_dict["msg-id"] == "rewardgift":
+							pass # for when gifted subs produce extra rewards (emotes) for other chat members
 
+						elif message_dict["msg-id"] == "communitypayforward":
+							pass # e.g. <user> is paying forward their gifted sub!
 						else:
 							with open("verbose log.txt", "a", encoding="utf-8") as f:
 								f.write("(unknown msg-id?) - " + str(message_dict) + "\n\n")
