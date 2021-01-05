@@ -9,6 +9,7 @@ from threading     import Thread
 from credentials   import kaywee_channel_id, robokaywee_client_id
 #from googletrans   import Translator #stopped working so superceded by:
 from translate import Translator
+from james import timeuntil
 
 from PyDictionary import PyDictionary
 dic = PyDictionary()
@@ -87,7 +88,9 @@ def rcommand(message_dict):
 			if not command_dict[command_name]["coded"] and "response" in command_dict[command_name]:
 				response = " ".join(params[2:])
 				if response[:4] == "/me ":
-					response = response[4:] #include the space
+					response = response[4:] # include the space
+
+				response = response.replace("|", "/") # pipes break the formatting on the reddit wiki
 
 				command_dict[command_name]["response"] = response
 
@@ -103,7 +106,7 @@ def rcommand(message_dict):
 		except IndexError:
 			send_message("Syntax error.")
 			return False
-		if option in ["globalcooldown", "cooldown"]: #assume "cooldown" means global cooldown
+		if option in ["globalcooldown", "cooldown"]: # assume "cooldown" means global cooldown
 			try:
 				cooldown = int(params[3])
 				assert 0 <= cooldown <= 300
@@ -166,6 +169,8 @@ def rcommand(message_dict):
 			else:
 				if response[:4] == "/me ":
 					response = response[4:] #include the space
+				response = response.replace("|", "/") # pipes break the formatting on the reddit wiki
+				
 				command_dict[command_name] = {'permission': 0, 'global_cooldown': 1, 'user_cooldown': 5, 'coded': False, 'uses':0, 'response': response}
 				write_command_data(True)
 				send_message("Added command " + command_name)
@@ -205,7 +210,7 @@ def rcommand(message_dict):
 	else:
 		send_message("Unrecognised action: must be add, remove, edit, options, view")
 
-@is_command("Sends a triangle of emotes. Syntax: e.g. !triangle LUL")
+@is_command("Sends a triangle of emotes. Syntax: !triangle <emote> e.g. `!triangle LUL`")
 def triangle(message_dict):
 	global all_emotes
 	user = message_dict["display-name"].lower()
@@ -256,6 +261,9 @@ def triangle(message_dict):
 
 @is_command("Begins a toxicpoll")
 def toxicpoll(message_dict):
+	global nochat_on
+	nochat_on = False # game is over so turn off nochat mode
+
 	poll_thread = Thread(target=_start_toxic_poll)
 	poll_thread.start()
 
@@ -341,8 +349,8 @@ def permission(message_dict):
 	user = message_dict["display-name"].lower()
 	user_permission = message_dict["user_permission"] 
 
-	log(f"Sent permission to {user} - their permission is {user_permission.name}")
-	send_message(f"@{user}, your maximum permission is: {user_permission.name}")
+	log(f"Sent permission to {user} - their permission is {user_permission.name} ({user_permission.value})")
+	send_message(f"@{user}, your maximum permission is: {user_permission.name} (Level {user_permission.value})")
 
 @is_command("Say hello!")
 def hello(message_dict):
@@ -352,7 +360,7 @@ def hello(message_dict):
 	send_message(f"Hello, {user}! kaywee1AYAYA")
 	log(f"Sent Hello to {user}")
 
-@is_command("Roll one or more dice. Syntax: !dice [<number>]")
+@is_command("Roll one or more dice. Syntax: !dice [<number>[d<sides>]] e.g. `!dice 4` or `!dice 3d12`")
 def dice(message_dict):
 	user = message_dict["display-name"].lower()
 	message = message_dict["message"]
@@ -497,7 +505,7 @@ def _get_currencies(base="USD", convert_to="GBP"):
 	if convert_to.upper() in rates:
 		return rates[convert_to]
 
-@is_command("Convert metric units into imperial. Syntax: !tofreedom <quantity><unit> e.g. !tofreedom 5kg")
+@is_command("Convert metric units into imperial. Syntax: !tofreedom <quantity><unit> e.g. `!tofreedom 5kg`")
 def tofreedom(message_dict):
 	user = message_dict["display-name"].lower()
 	message = message_dict["message"]
@@ -528,12 +536,15 @@ def tofreedom(message_dict):
 		send_message("Sorry, I don't recognise that metric unit. :(")
 		return False
 
-	if free_quantity == int(free_quantity): #if the float is a whole number
-		free_quantity = int(free_quantity) #convert it to an int (i.e. remove the .0)
+	if free_quantity == int(free_quantity): # if the float is a whole number
+		free_quantity = int(free_quantity) # convert it to an int (i.e. remove the .0)
+
+	if quantity == int(quantity): # ditto
+		quantity = int(quantity)
 
 	send_message(f"{quantity}{unit} in incomprehensible Freedom Units is {free_quantity}{free_unit}.")
 
-@is_command("Convert imperial units into metric. Syntax: !unfreedom <quantity><unit> e.g. !tofreedom 5lb")
+@is_command("Convert imperial units into metric. Syntax: !unfreedom <quantity><unit> e.g. `!tofreedom 5lb`")
 def unfreedom(message_dict):
 	user = message_dict["display-name"].lower()
 	message = message_dict["message"]
@@ -567,7 +578,10 @@ def unfreedom(message_dict):
 	if sensible_quantity == int(sensible_quantity): # if the float is a whole number
 		sensible_quantity = int(sensible_quantity) # convert it to an int (i.e. remove the .0)
 
-	send_message(f"{quantity}{unit} in units which actualy make sense is {sensible_quantity}{sensible_unit}.")
+	if quantity == int(quantity): # ditto
+		quantity = int(quantity) 
+
+	send_message(f"{quantity}{unit} in units which actually make sense is {sensible_quantity}{sensible_unit}.")
 
 
 @is_command("Looks up who gifted the current subscription to the given user. Syntax: !whogifted [@]kaywee")
@@ -631,37 +645,17 @@ def howmanygifts(message_dict):
 		send_message(message)
 		log(f"Sent {target} has {count} gifted subs, in response to {user}.")
 
-@is_command("Shows a timer until the username becomes available again.")
-def foster(message_dict):
-	user = message_dict["display-name"].lower()
+@is_command("Shows a timer until the end of Season 25.")
+def endofseason(message_dict):
+	#user = message_dict["display-name"].lower()
 
-	time_left = 1607292990 - time()
+	try:
+		time_left = timeuntil(1610060400)
+		send_message(f"Season 25 ends in {time_left}")
+	except ValueError:
+		send_message("Season 25 has now ended!")
 
-	if time_left <= 0:
-		send_message("Foster can now change his username back!")
-		log(f"Sent username time to {user}, showing that the username can be changed.")
-	else:
-		days = int(time_left // 86400)
-		hours = int((time_left % 86400) // 3600)
-		
-
-		if days > 0:
-			ds = "day" if days == 1 else "days"
-			hs = "hour" if hours == 1 else "hours"
-
-			send_message(f"Foster can change his username back in {days} {ds} and {hours} {hs}! (Not that he's counting though)")
-			log(f"Sent theonefoster time to {user} as {days} {ds} and {hours} {hs}")
-		elif hours > 0:
-			hs = "hour" if hours == 1 else "hours"
-
-			send_message(f"Foster can change his username back in {hours} {hs}!")
-			log(f"Sent theonefoster time to {user} as {hours} {hs}")
-		else: # hours == 0
-			mins = int(time_left // 60)
-			send_message(f"Foster can change his username back in {mins} minutes!")
-			log(f"Sent theonefoster time to {user} as {mins} minutes")
-
-@is_command("Translates a Spanish message into English. Syntax: \"!toenglish hola\" OR \"!toenglish @toniki\"")
+@is_command("Translates a Spanish message into English. Syntax: `!toenglish hola` OR `!toenglish @toniki`")
 def toenglish(message_dict):
 	user = message_dict["display-name"].lower()
 	message = message_dict["message"]
@@ -679,6 +673,9 @@ def toenglish(message_dict):
 			return False
 
 	english += en_translator.translate(phrase)
+	replacements = [("&#39;", "'"), ("&gt;", ">"), ("&lt;", "<"), ("&quot;", '"'), ("&amp;", "&")]
+	for (a, b) in replacements:
+		english = english.replace(a, b)
 
 	if "MYMEMORY WARNING: " in english:
 		send_message("Translation limit has been reached for today. // Se alcanzó el límite de traducción por hoy.")
@@ -687,7 +684,7 @@ def toenglish(message_dict):
 		send_message(english)
 		log(f"Translated \"{phrase}\" into English for {user}: it says \"{english}\"")
 
-@is_command("Translates an English message into Spanish. Syntax: \"!tospanish hello\" OR \"!tospanish @kaywee\"")
+@is_command("Translates an English message into Spanish. Syntax: `!tospanish hello` OR `!tospanish @kaywee`")
 def tospanish(message_dict):
 	user = message_dict["display-name"].lower()
 	message = message_dict["message"]
@@ -705,6 +702,9 @@ def tospanish(message_dict):
 			return False
 
 	spanish += es_translator.translate(phrase)
+	replacements = [("&#39;", "'"), ("&gt;", ">"), ("&lt;", "<"), ("&quot;", '"'), ("&amp;", "&")]
+	for (a, b) in replacements:
+		english = english.replace(a, b)
 
 	if "MYMEMORY WARNING: " in spanish:
 		send_message("Translation limit has been reached for today. // Se alcanzó el límite de traducción por hoy.")
@@ -771,7 +771,7 @@ def lastraid(message_dict):
 	send_message(f"The latest raid was by {name}, who raided with {viewers} viewer{plural} on {time_str}!")
 	log(f"Sent last raid to {user}: it was {name}, who raided with {viewers} viewer{plural} on {time_str}!")
 
-@is_command("Changes the colour of the bot's username. Syntax: !setcolour HotPink")
+@is_command("Changes the colour of the bot's username. Syntax: !setcolour [<colour>|random] e.g.`!setcolour HotPink` OR `!setcolour random`")
 def setcolour(message_dict):
 	user = message_dict["display-name"].lower()
 	message = message_dict["message"]
@@ -818,7 +818,7 @@ def setcolour(message_dict):
 	else:
 		send_message(f"@{user} That colour isn't right. Valid colours are: random, default, blue, blueviolet, cadetblue, chocolate, coral, dodgerblue, firebrick, goldenrod, green, hotpink, orangered, red, seagreen, springgreen, yellowgreen")
 
-@is_command("Rainbows the messages into the chat. (big spam warning) Syntax: !rainbow hello")
+@is_command("Rainbows the messages into the chat. (big spam warning so 12 chars max) Syntax: `!rainbow hello`")
 def rainbow(message_dict):
 	user = message_dict["display-name"].lower()
 	message = message_dict["message"]
@@ -911,7 +911,7 @@ def _start_timer(user, time_in, reminder):
 
 	log(f"{user}'s {timer_time} timer expired.")
 
-@is_command("Starts a timer, after which the bot will send a reminder message in chat. Syntax: !timer 1h2m3s <message>")
+@is_command("Starts a timer, after which the bot will send a reminder message in chat. Syntax: `!timer 1h2m3s [<message>]`")
 def timer(message_dict):
 	user = message_dict["display-name"].lower()
 	message = message_dict["message"]
@@ -929,7 +929,7 @@ def timer(message_dict):
 	timer_thread = Thread(target=_start_timer, args=(user,time_str,reminder))
 	timer_thread.start()
 
-@is_command("Shows how many times a command has been used. Syntax: !uses translate")
+@is_command("Shows how many times a command has been used. Syntax: `!uses toenglish`")
 def uses(message_dict):
 	user = message_dict["display-name"].lower()
 	message = message_dict["message"]
@@ -1018,7 +1018,7 @@ def define(message_dict):
 	else:
 		send_message(f"The definitions of {word} are: \"{definitions[0]}\" OR \"{definitions[1]}\"")
 
-@is_command("Lets mods ban a user.")
+@is_command("Lets mods ban a user, for mobile mods.")
 def rban(message_dict):
 	user = message_dict["display-name"].lower()
 	message = message_dict["message"]
@@ -1027,7 +1027,7 @@ def rban(message_dict):
 	send_message(f"/ban {target}")
 	log(f"Banned user {target} in response to {user}")
 
-@is_command("Lets mods timeout a user.")
+@is_command("Lets mods timeout a user, for mobile mods.")
 def rtimeout(message_dict):
 	user = message_dict["display-name"].lower()
 	message = message_dict["message"]
@@ -1042,14 +1042,18 @@ def rtimeout(message_dict):
 	send_message(f"/timeout {target} {duration}")
 	log(f"Timed out user {target} for {duration} seconds, in response to {user}")
 
-@is_command("Repeats the phrase in chat. Mods only so that mod commands can't be abused.")
+@is_command("Repeats the phrase in chat.")
 def echo(message_dict):
 	user = message_dict["display-name"].lower()
-	message = message_dict["message"]
 
-	phrase = " ".join(message.split(" ")[1:])
-	send_message(phrase, False, True)
-	log(f"Echoed \"{phrase}\" for {user}.")
+	if user == "theonefoster_":
+		message = message_dict["message"]
+
+		phrase = " ".join(message.split(" ")[1:])
+		send_message(phrase, False, True)
+		log(f"Echoed \"{phrase}\" for {user}.")
+	else:
+		return False
 
 @is_command("Reloads the translation object to attempt to fix errors.")
 def refreshtranslator(message_dict):
@@ -1135,7 +1139,7 @@ def autogamble(message_dict):
 	send_message(f"!gamble {amount}")
 	log(f"Gambled {amount} points in response to {user}.")
 
-@is_command("Perform maths with the supreme calculation power of the bot.")
+@is_command("Perform maths with the supreme calculation power of the bot. Syntax: !calculate [expression] e.g. `!calculate (2*3)**2-1`")
 def calculate(message_dict):
 	user = message_dict["display-name"].lower()
 	message = message_dict["message"]
@@ -1168,42 +1172,8 @@ def calculate(message_dict):
 		send_message("That calculation doesn't look right. You can only use: 0-9 +-*/().")
 		return False
 
-@is_command("Shows time left until Christmas 2020.")
-def merrychrysler(message_dict):
-	user = message_dict["display-name"].lower()
-
-	time_left = 1608854400 - time()
-
-	if time_left <= 0:
-		send_message("The countdown to Christmas is over!")
-		log(f"Sent Christmas timer to {user}, showing that Christmas is over.")
-	else:
-		days = int(time_left // 86400)
-		hours = int((time_left % 86400) // 3600)
-		mins = int((time_left % 3600) // 60)
-
-		if days > 0:
-			ds = "day" if days == 1 else "days"
-			hs = "hour" if hours == 1 else "hours"
-			ms = "min" if mins == 1 else "mins"
-
-			send_message(f"Christmas is in {days} {ds},  {hours} {hs}, and {mins} {ms}! (in the UK, anyway!)")
-			log(f"Sent Christmas time as {days} {ds}, {hours} {hs}, and {mins} {ms}.")
-		elif hours > 0:
-			hs = "hour" if hours == 1 else "hours"
-			ms = "min" if mins == 1 else "mins"
-
-			send_message(f"Christmas is in {hours} {hs} and {mins} {ms}! (in the UK, anyway!)")
-			log(f"Sent Christmas time as {hours} {hs} and {mins} {ms}.")
-		else: # hours == 0
-			mins = int((time_left // 60) % 60)
-			ms = "minute" if mins == 1 else "minutes"
-
-			send_message(f"Christmas is in {mins} {ms}! (in the UK, anyway!)")
-			log(f"Sent Christmas time as {mins} {ms}.")
-
 @is_command("Adds spaces between your letters.")
-def space(message_dict):
+def spaces(message_dict):
 	user = message_dict["display-name"].lower()
 	message = message_dict["message"]
 
@@ -1235,7 +1205,10 @@ def spongebob(message_dict):
 		target = phrase
 		phrase = last_message.get(phrase, phrase)
 
-	output = "".join(a.lower()+b.upper() for a,b in list(zip(phrase[::2], phrase[1::2])))
+	if len(phrase)%2 == 1: # length is odd
+		phrase += " " # make its length even, for the zip() below
+
+	output = "".join(a.lower()+b.upper() for a,b in zip(phrase[::2], phrase[1::2]))
 
 	"""
 	# the old way:
@@ -1251,6 +1224,41 @@ def spongebob(message_dict):
 
 	send_message(output)
 	if target == "":
-		log(f"Added spaces to {user}'s message: {spaces}")
+		log(f"Spongebobbed {user}'s message: {output}")
 	else:
-		log(f"Added spaces to {target}'s message in response to {user}: {spaces}")
+		log(f"Spongebobbed {target}'s message in response to {user}: {output}")
+
+@is_command("Gets the current weather at a specific place. Defaults to metric but can use imperial with the 'imperial' parameter. Syntax: !weather <place> [imperial]. E.g. `!weather London` or `!weather Austin imperial`")
+def weather(message_dict):
+	user = message_dict["display-name"].lower()
+	message = message_dict["message"]
+
+	if message.split(" ")[-1].lower() in ["metric", "imperial"]:
+		place = " ".join(message.split(" ")[1:-1]).title()
+		format = message.split(" ")[-1].lower() # metric or imperial
+	else:
+		place = " ".join(message.split(" ")[1:]).title()
+		format = "metric"
+
+	geocode_url = "https://geocode.xyz/{place}?json=1"
+	geo_response = requests.get(geocode_url.format(place=place)).json()
+
+	latitude, longitude = geo_response["latt"], geo_response["longt"]
+
+	weather_url = "https://api.openweathermap.org/data/2.5/onecall?lat={lat}&lon={lon}&exclude={exclude}&appid={APIkey}&units={unittype}"
+	weather_response = requests.get(weather_url.format(lat=latitude, lon=longitude, exclude="minutely,hourly,daily,alerts", APIkey="efb9294a75c99f69767f0691b0bbcc23", unittype=format)).json()
+
+	weather    = weather_response["current"]
+	temp       = round(weather["temp"], 1)
+	feels_like = round(weather["feels_like"], 1)
+	try:
+		description = weather["weather"][0]["description"]
+	except:
+		description = ""
+
+	output = f"In {place} the temperature is {temp}° (feels like {feels_like})."
+	if description:
+		output += f" Overall it is {description}."
+
+	send_message(output)
+	log(f"Sent weather report to {user} for {place}")
