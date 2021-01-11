@@ -22,9 +22,27 @@ should be able to give any command multiple names via aliases
 
 """
 
-command_lock = Lock()
-config_lock = Lock()
-subs_lock = Lock()
+def log(s):
+	"""
+	Takes a string, s, and logs it to a log file on disk with a timestamp. Also prints the string to console.
+	"""
+	current_time = localtime()
+	year   = str(current_time.tm_year)
+	month  = str(current_time.tm_mon).zfill(2)
+	day    = str(current_time.tm_mday).zfill(2)
+	hour   = str(current_time.tm_hour).zfill(2)
+	minute = str(current_time.tm_min).zfill(2)
+	second = str(current_time.tm_sec).zfill(2)
+	
+	log_time = f"{day}/{month} {hour}:{minute}:{second}"
+
+	print(s)
+	with open("log.txt", "a", encoding="utf-8") as f:
+		f.write(log_time + " - " + s + "\n")
+
+command_lock   = Lock()
+config_lock    = Lock()
+subs_lock      = Lock()
 usernames_lock = Lock()
 
 bots = {"robokaywee", "streamelements", "nightbot"}
@@ -45,36 +63,27 @@ modwalls = {
 	# also I know that the SI prefixes don't make sense with the numbers but whatever, I needed increasing prefixes
 }
 
+log("Opening usernames file..")
 with open("usernames.txt", "r", encoding="utf-8") as f:
+	log("Reading usernames..")
 	usernames = set(f.read().split("\n"))
 
-def log(s):
-	"""
-	Takes a string, s, and logs it to a log file on disk with a timestamp. Also prints the string to console.
-	"""
-	current_time = localtime()
-	year   = str(current_time.tm_year)
-	month  = str(current_time.tm_mon).zfill(2)
-	day    = str(current_time.tm_mday).zfill(2)
-	hour   = str(current_time.tm_hour).zfill(2)
-	minute = str(current_time.tm_min).zfill(2)
-	second = str(current_time.tm_sec).zfill(2)
-	
-	log_time = f"{day}/{month} {hour}:{minute}:{second}"
-
-	print(s)
-	with open("log.txt", "a", encoding="utf-8") as f:
-		f.write(log_time + " - " + s + "\n")
-
+log("Usernames complete. Opening commands file..")
 with open("commands.txt", "r", encoding="utf-8") as f:
+	log("Reading commands..")
 	commands_dict = dict(eval(f.read()))
 
+log("Commands complete. Opening Subscribers file..")
+
 with open("subscribers.txt", "r", encoding="utf-8") as f:
+	log("Reading Subscribers..")
 	try:
 		subscribers = dict(eval(f.read()))
 	except Exception as ex:
 		log("Exception creating subscriber dictionary: " + str(ex))
 		subscribers = {}
+
+log("Subscribers complete.")
 
 last_wiki_update = 0
 def update_commands_wiki(force_update_reddit=False):
@@ -224,7 +233,12 @@ def it_is_Thursday_my_dudes():
 
 def it_is_worldday_my_dudes():
 	sleep(5*60) # wait 5 mins into stream
-	commands_file.worldday({"display-name":"Timed Event"}) #have to include a message dict param
+	commands_file.worldday({"display-name":"Timed Event"}) # have to include a message dict param
+
+def wordoftheday_timer():
+	sleep(60*60) # wait 60 mins into stream
+	commands_file.wordoftheday({"display-name":"Timed Event"}) # have to include a message dict param
+
 
 def update_subs():
 	while True:
@@ -251,7 +265,7 @@ def get_data(name):
 		log(f"Failed to get data called {name} - Value Error (corrupt file??)")
 		return None
 
-	return data[name] # -> intentionally doesn't handle KeyError
+	return data.get(name, None)
 
 def set_data(name, value):
 	try:
@@ -420,6 +434,9 @@ def respond_message(message_dict):
 		worldday_thread = Thread(target=it_is_worldday_my_dudes)
 		worldday_thread.start()
 
+		word_thread = Thread(target=wordoftheday_timer)
+		word_thread.start()
+
 		send_message("!resetrecord", suppress_colour=True)
 
 		if date.today().weekday() == 2: # and not pink_reminder_sent
@@ -429,6 +446,8 @@ def respond_message(message_dict):
 			set_data("pink_reminder_sent", True)
 
 update_command_data = False
+
+log("Updating commands dict from commands.py..")
 
 #check for new commands and add to database:
 for command_name in [o for o in dir(commands_file) if not(o.startswith("_") or o.endswith("_"))]:
@@ -444,7 +463,10 @@ for command_name in [o for o in dir(commands_file) if not(o.startswith("_") or o
 	except AttributeError:
 		pass
 
+log("Update complete.")
+
 if update_command_data:
+	log("Writing updated command data..")
 	write_command_data(False)
 
 del update_command_data
@@ -455,15 +477,19 @@ if __name__ == "__main__":
 
 	user_cooldowns = {}
 
+	log("Starting access token thread..")
 	app_token_thread = Thread(target=update_app_access_token)
 	app_token_thread.start()
 
+	log("Starting update subs thread..")
 	sub_thread = Thread(target=update_subs)
 	sub_thread.start()
 
+	log("Starting colour thread..")
 	randcolour_thread = Thread(target=set_random_colour)
 	randcolour_thread.start()
 
+	log("Starting titles thread..")
 	titles_thread = Thread(target=get_title)
 	titles_thread.start()
 
@@ -512,13 +538,12 @@ if __name__ == "__main__":
 					with open("chatlog.txt", "a", encoding="utf-8") as f:
 						f.write(f"{user}: {message}\n")
 
-					if user not in usernames:
-						Thread(target=add_new_username,args=(user,)).start() # probably saves like.. idk 10ms? over just calling it. lol. trims reaction time though
-
 					message_lower = message.lower()
 
 					if message_lower in ["hello", "hi", "hey", "hola"]:
 						message = "!hello"
+					elif user not in usernames:
+						Thread(target=add_new_username,args=(user,)).start() # probably saves like.. idk 10ms? over just calling it. lol. trims reaction time though
 
 					last_message[user] = message
 					user_permission = permissions.Pleb # unless assigned otherwise below:
