@@ -63,27 +63,19 @@ modwalls = {
 	# also I know that the SI prefixes don't make sense with the numbers but whatever, I needed increasing prefixes
 }
 
-log("Opening usernames file..")
 with open("usernames.txt", "r", encoding="utf-8") as f:
-	log("Reading usernames..")
 	usernames = set(f.read().split("\n"))
 
-log("Usernames complete. Opening commands file..")
 with open("commands.txt", "r", encoding="utf-8") as f:
-	log("Reading commands..")
 	commands_dict = dict(eval(f.read()))
 
-log("Commands complete. Opening Subscribers file..")
 
 with open("subscribers.txt", "r", encoding="utf-8") as f:
-	log("Reading Subscribers..")
 	try:
 		subscribers = dict(eval(f.read()))
 	except Exception as ex:
 		log("Exception creating subscriber dictionary: " + str(ex))
 		subscribers = {}
-
-log("Subscribers complete.")
 
 last_wiki_update = 0
 def update_commands_wiki(force_update_reddit=False):
@@ -212,7 +204,7 @@ def set_random_colour():
 def it_is_wednesday_my_dudes():
 	sleep(20*60) # wait 20 mins into the stream
 	while True:
-		if date.today().weekday() == 2: # if it's stil wednesday
+		if date.today().weekday() == 2 and datetime.now().hour >= 6: # if it's wednesday and it's not earlier than 6am
 			url = "https://api.twitch.tv/helix/streams?user_id=" + kaywee_channel_id
 			authorisation_header = {"Client-ID": robokaywee_client_id, "Authorization":"Bearer " + get_data("app_access_token")}
 
@@ -226,19 +218,24 @@ def it_is_wednesday_my_dudes():
 				log("Sent Pink reminder.")
 		sleep(60*60)
 
-def it_is_Thursday_my_dudes():
+def it_is_thursday_my_dudes():
 	sleep(20*60) # wait 20 mins into the stream
 	send_message("On Thursdays we wear whatever colour we want. Set your username colour by using /color and sit with us.")
 	log("Sent UnPink reminder.")
+	set_data("unpink_reminder_sent", True)
 
 def it_is_worldday_my_dudes():
-	sleep(5*60) # wait 5 mins into stream
+	sleep(10*60) # wait 10 mins into stream
 	commands_file.worldday({"display-name":"Timed Event"}) # have to include a message dict param
 
 def wordoftheday_timer():
 	sleep(60*60) # wait 60 mins into stream
 	commands_file.wordoftheday({"display-name":"Timed Event"}) # have to include a message dict param
 
+def nochat_raid():
+	sleep(10)
+	send_message(f"@{raider} thank you so much for raiding! Kaywee isn't looking at chat right now (!nochat) but she'll see the raid after the current game.")
+	log(f"Sent nochat to {raider} for raiding")
 
 def update_subs():
 	while True:
@@ -380,7 +377,6 @@ class permissions(IntEnum):
 
 def respond_message(message_dict):
 	# For random non-command responses/rules
-	global pink_reminder_sent
 
 	user       = message_dict["display-name"].lower()
 	message    = message_dict["message"]
@@ -439,15 +435,12 @@ def respond_message(message_dict):
 
 		send_message("!resetrecord", suppress_colour=True)
 
-		if date.today().weekday() == 2: # and not pink_reminder_sent
-			wednesday_thread = Thread(target=it_is_wednesday_my_dudes)
-			wednesday_thread.start()
-			pink_reminder_sent = True
-			set_data("pink_reminder_sent", True)
+		if date.today().weekday() == 3 and not unpink_reminder_sent:
+			thursday_thread = Thread(target=it_is_thursday_my_dudes)
+			thursday_thread.start()
+
 
 update_command_data = False
-
-log("Updating commands dict from commands.py..")
 
 #check for new commands and add to database:
 for command_name in [o for o in dir(commands_file) if not(o.startswith("_") or o.endswith("_"))]:
@@ -463,57 +456,62 @@ for command_name in [o for o in dir(commands_file) if not(o.startswith("_") or o
 	except AttributeError:
 		pass
 
-log("Update complete.")
 
 if update_command_data:
-	log("Writing updated command data..")
 	write_command_data(False)
 
 del update_command_data
 
 if __name__ == "__main__":
 	log("Starting bot..")
-	bot = ChatBot(bot_name, password, channel_name, debug=False, capabilities=["tags", "commands"])
+
+	try:
+		bot = ChatBot(bot_name, password, channel_name, debug=False, capabilities=["tags", "commands"])
+	except NotInitialisedException:
+		log("Chatbot failed to initialise. Exiting.")
+		exit()
+	except Exception as ex:
+		log("Bot raised an exception while starting: " + ex.message)
+		exit()
+
 
 	user_cooldowns = {}
 
-	log("Starting access token thread..")
 	app_token_thread = Thread(target=update_app_access_token)
 	app_token_thread.start()
 
-	log("Starting update subs thread..")
 	sub_thread = Thread(target=update_subs)
 	sub_thread.start()
 
-	log("Starting colour thread..")
 	randcolour_thread = Thread(target=set_random_colour)
 	randcolour_thread.start()
 
-	log("Starting titles thread..")
 	titles_thread = Thread(target=get_title)
 	titles_thread.start()
+
+	wednesday_thread = Thread(target=it_is_wednesday_my_dudes)
+	wednesday_thread.start()
+
+	if date.today().weekday() == 3: # if it's Thursday
+		unpink_reminder_sent = get_data("unpink_reminder_sent")		
+	else: # if it's not thursday
+		set_data("unpink_reminder_sent", False)
+		unpink_reminder_sent = False
 
 	modwall_mods      = set()
 	modwall           = 0
 	current_modwall   = None
+
+	#superceded by modwalls dictionary:
 	#modwall_size      = 15
 	#supermodwall_size = 30
 	#ultramodwall_size = 50
 	#hypermodwall_size = 100
 
-	if date.today().weekday() == 2: # if it's Wednesday (my dudes)
-		pink_reminder_sent = get_data("pink_reminder_sent")		
-	else: # if it's not wednesday
-		set_data("pink_reminder_sent", False)
-		pink_reminder_sent = False
-
 	vip_wall = 0
 	vipwall_vips = set()
 
 	last_message = {}
-
-	wednesday_thread = Thread(target=it_is_wednesday_my_dudes)
-	wednesday_thread.start()
 	
 	# let commands file access key data:
 	commands_file.bot                = bot
@@ -540,10 +538,10 @@ if __name__ == "__main__":
 
 					message_lower = message.lower()
 
-					if message_lower in ["hello", "hi", "hey", "hola"]:
-						message = "!hello"
-					elif user not in usernames:
+					if user not in usernames:
 						Thread(target=add_new_username,args=(user,)).start() # probably saves like.. idk 10ms? over just calling it. lol. trims reaction time though
+					elif message_lower in ["hello", "hi", "hey", "hola"]:
+						message = "!hello"
 
 					last_message[user] = message
 					user_permission = permissions.Pleb # unless assigned otherwise below:
@@ -726,12 +724,13 @@ if __name__ == "__main__":
 							send_message(f"Wow! {raider} is raiding us with {viewers} new friends! Thank you! kaywee1AYAYA")
 							log(f"{raider} is raiding with {viewers} viewers.")
 							raid_data = {"raider": raider, "viewers": viewers, "time": time()}
+							raid_data = str(raid_data).replace("{", "{\n\t").replace(",", ",\n\t").replace("}", "\n}") # make the dict look nice in the config file
 							set_data("last_raid", raid_data)
 
 							if commands_file.nochat_on:
-								sleep(2) # sleeps on the main thread cause message processing to be delayed..
-								send_message(f"@{raider} thank you so much for raiding! Kaywee isn't looking at chat right now (!nochat) but she'll see the raid after the current game.")
-								log(f"Sent nochat to {raider} for raiding")
+								Thread(target=nochat_raid).start() 
+								# sends a message in chat after a short delay
+								# adding a sleep in the Main thread would delay message processing, so it's done on another thread
 
 						elif message_dict["msg-id"] == "submysterygift":
 							gifter = message_dict["login"] # comes as lowercase
