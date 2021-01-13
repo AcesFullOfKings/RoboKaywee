@@ -766,11 +766,10 @@ if __name__ == "__main__":
 					else:
 						with open("verbose log.txt", "a", encoding="utf-8") as f:
 							f.write("(no msg-id?) - " + str(message_dict) + "\n\n")
-
 				# does hosttarget not come through? why not?
 				elif message_dict["message_type"] == "hosttarget":
 					# OUTGOING HOST
-					host_name = message_dict["host_name"] # the user we're now hosting
+					host_name = message_dict["host_target"] # the user we're now hosting
 					viewers = message_dict["viewers"] # num viewers we've sent to them
 					with open("chatlog.txt", "a", encoding="utf-8") as f:
 						f.write(f"HOSTTARGET: now hosting {host_name} with {viewers} viewers.\n")
@@ -785,9 +784,14 @@ if __name__ == "__main__":
 					# Mostly just for colour changes which I don't care about
 					pass
 
+				elif message_dict["message_type"] == "clearmsg":
+					print(message_dict)
+
+				elif message_dict["message_type"] == "clearchat":
+					print(message_dict)
+
 				else:
 					with open("verbose log.txt", "a", encoding="utf-8") as f:
 						f.write("unknown message type: " + str(message_dict) + "\n\n")
 		except Exception as ex:
 			log("Exception in main loop: " + str(ex)) # generic catch-all (literally) to make sure bot doesn't crash
-
