@@ -6,10 +6,11 @@ import requests
 from time        import time, sleep, localtime
 from enum        import IntEnum
 from math        import ceil
+from james       import timeuntil
 from chatbot     import ChatBot # see https://github.com/theonefoster/pyTwitchChatBot
 from datetime    import date, datetime
-from threading   import Thread, Lock
-from credentials import bot_name, password, channel_name, kaywee_channel_id, bearer_token, robokaywee_client_id
+from threading   import Thread, Lock, Event
+from credentials import bot_name, password, channel_name, kaywee_channel_id, bearer_token, robokaywee_client_id, tof_channel_id
 
 import commands as commands_file
 from API_functions import get_app_access_token
@@ -45,21 +46,24 @@ config_lock    = Lock()
 subs_lock      = Lock()
 usernames_lock = Lock()
 
+channel_live    = Event()
+channel_offline = Event()
+
 bots = {"robokaywee", "streamelements", "nightbot"}
 channel_emotes = {"kaywee1AYAYA", "kaywee1Wut", "kaywee1Dale", "kaywee1Imout", "kaywee1GASM"}
 
 modwalls = {
-	15:  {"name": "Modwall",                 "emotes": "kaywee1AYAYA"},
-	30:  {"name": "MEGAmodwall",             "emotes": "SeemsGood kaywee1Wut"},
-	50:  {"name": "HYPER MODWALL",           "emotes": "TwitchLit kaywee1AYAYA kaywee1Wut"},
-	100: {"name": "U L T R A MODWALL",       "emotes": "kaywee1AYAYA PogChamp Kreygasm CurseLit"},
-	250: {"name": "G I G A M O D W A L L",   "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
-	500: {"name": "T E R R A M O D W A L L", "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
+	15:  {"name": "Modwall",                    "emotes": "kaywee1AYAYA"},
+	30:  {"name": "MEGAmodwall!",               "emotes": "SeemsGood kaywee1Wut"},
+	50:  {"name": "HYPER MODWALL!!",            "emotes": "TwitchLit kaywee1AYAYA kaywee1Wut"},
+	100: {"name": "U L T R A MODWALL!!",        "emotes": "kaywee1AYAYA PogChamp Kreygasm CurseLit"},
+	250: {"name": "G I G A M O D W A L L!!!",   "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
+	500: {"name": "T E R R A M O D W A L L!!!", "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
 	# I guarantee none of these will ever be reached naturally, but..
-	1000:{"name": "PETAMODWALL",             "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
-	2000:{"name": "EXAMODWALL",              "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
-	3000:{"name": "ZETTAMODWALL",            "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
-	4000:{"name": "YOTTAMODWALL",            "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
+	1000:{"name": "PETAMODWALL!!!!",            "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
+	2000:{"name": "EXAMODWALL!!!!",             "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
+	3000:{"name": "ZETTAMODWALL!!!!!",          "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
+	4000:{"name": "YOTTAMODWALL!!!!!!",         "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
 	# also I know that the SI prefixes don't make sense with the numbers but whatever, I needed increasing prefixes
 }
 
@@ -69,13 +73,67 @@ with open("usernames.txt", "r", encoding="utf-8") as f:
 with open("commands.txt", "r", encoding="utf-8") as f:
 	commands_dict = dict(eval(f.read()))
 
-
 with open("subscribers.txt", "r", encoding="utf-8") as f:
 	try:
 		subscribers = dict(eval(f.read()))
 	except Exception as ex:
 		log("Exception creating subscriber dictionary: " + str(ex))
 		subscribers = {}
+
+with open("titles.txt", "r", encoding="utf-8") as f:
+	titles = f.read().split("\n")
+
+def channel_events():
+	# checks the channel every period. If channel goes live or goes offline, global Thread events are triggered
+	global channel_live
+	global channel_offline
+
+	period = 2*60 # check every 2 minutes
+
+	try:
+		online_time = int(get_data("online_time"))
+	except TypeError:
+		online_time = None
+
+	url = "https://api.twitch.tv/helix/streams?user_id=" + kaywee_channel_id
+	global authorisation_header
+	
+	while True:
+		try:
+			# if this call succeeds, streamer is Live. Exceptions imply streamer is offline (as no stream title exists)
+			title = requests.get(url, headers=authorisation_header).json()["data"][0]["title"]
+
+		# streamer is offline:
+		except (IndexError, KeyError): 
+			if channel_live.is_set() and online_time is not None: # streamer went offline in last period
+				uptime = int(time() - online_time)
+
+				hours   = int((uptime % 86400) // 3600)
+				mins    = int((uptime % 3600) // 60)
+				seconds = int (uptime % 60)
+
+				log(f"{channel_name} went offline. Uptime was {hours} hours, {mins} mins, and {seconds} secs.")
+
+				online_time = None
+				set_data("online_time", None)
+
+			channel_live.clear()
+			channel_offline.set()
+
+		# streamer is online:
+		else: 
+			if not channel_live.is_set() and online_time is None: # streamer CAME online in last period (online_time is None allows restarting the bot while stream is online)
+				online_time = time()
+
+				log(f"{channel_name} came online.")
+				set_data("online_time", online_time)
+				
+			channel_offline.clear()
+			channel_live.set()
+
+			add_seen_title(title) # save unique stream title
+
+		sleep(period)
 
 last_wiki_update = 0
 def update_commands_wiki(force_update_reddit=False):
@@ -158,26 +216,13 @@ def add_new_username(username):
 	with open("usernames.txt", "w", encoding="utf-8") as f:
 		f.write("\n".join(usernames))
 
-def get_title():
-	url = "https://api.twitch.tv/helix/streams?user_id=" + kaywee_channel_id
-	authorisation_header = {"Client-ID": robokaywee_client_id, "Authorization":"Bearer " + get_data("app_access_token")}
-	
-	while True:
-		try:
-			title = requests.get(url, headers=authorisation_header).json()["data"][0]["title"]
+def add_seen_title(title):
+	global titles
 
-		except (IndexError, KeyError): # streamer isn't live
-			pass
-		else:
-			with open("titles.txt", "r", encoding="utf-8") as f:
-				titles = f.read().split("\n")
-
-			if title not in titles: # only unique titles
-				titles.append(title)
-				with open("titles.txt", "w", encoding="utf-8") as f:
-					f.write("\n".join(titles))
-
-		sleep(60*60) # once per hour
+	if title not in titles: # only unique titles
+		titles.append(title)
+		with open("titles.txt", "w", encoding="utf-8") as f:
+			f.write("\n".join(titles))
 
 def set_random_colour():
 	days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -203,26 +248,21 @@ def set_random_colour():
 
 def it_is_wednesday_my_dudes():
 	sleep(20*60) # wait 20 mins into the stream
-	while True:
-		if date.today().weekday() == 2 and datetime.now().hour >= 6: # if it's wednesday and it's not earlier than 6am
-			url = "https://api.twitch.tv/helix/streams?user_id=" + kaywee_channel_id
-			authorisation_header = {"Client-ID": robokaywee_client_id, "Authorization":"Bearer " + get_data("app_access_token")}
 
-			try:
-				# try getting the title of the stream to test if streamer is live:
-				title = requests.get(url, headers=authorisation_header).json()["data"][0]["title"]
-			except (IndexError, KeyError): # streamer isn't live
-				pass
-			else:
-				send_message("On Wednesdays we wear pink. If you want to sit with us type /color HotPink to update your username colour.")
-				log("Sent Pink reminder.")
+	url = "https://api.twitch.tv/helix/streams?user_id=" + kaywee_channel_id
+	global authorisation_header 
+
+	while True:
+		channel_live.wait() # if channel goes offline, wait for it to come back online
+		if date.today().weekday() == 2 and datetime.now().hour >= 6: # if it's wednesday and it's not earlier than 6am
+			send_message("On Wednesdays we wear pink. If you want to sit with us type /color HotPink to update your username colour.")
+			log("Sent Pink reminder.")
 		sleep(60*60)
 
 def it_is_thursday_my_dudes():
 	sleep(20*60) # wait 20 mins into the stream
 	send_message("On Thursdays we wear whatever colour we want. Set your username colour by using /color and sit with us.")
 	log("Sent UnPink reminder.")
-	set_data("unpink_reminder_sent", True)
 
 def it_is_worldday_my_dudes():
 	sleep(10*60) # wait 10 mins into stream
@@ -231,6 +271,22 @@ def it_is_worldday_my_dudes():
 def wordoftheday_timer():
 	sleep(60*60) # wait 60 mins into stream
 	commands_file.wordoftheday({"display-name":"Timed Event"}) # have to include a message dict param
+
+def channel_live_messages():
+	global channel_live
+
+	channel_live.wait() # wait for channel to go live
+
+	send_message("!resetrecord", suppress_colour=True)
+
+	Thread(target=it_is_worldday_my_dudes).start()
+	Thread(target=wordoftheday_timer).start()
+
+	weekday_num = date.today().weekday()
+	if weekday_num == 3:
+		Thread(target=it_is_thursday_my_dudes).start()
+	elif weekday_num == 2:
+		Thread(target=it_is_wednesday_my_dudes).start()
 
 def nochat_raid():
 	sleep(10)
@@ -292,15 +348,14 @@ def set_data(name, value):
 		return
 
 def update_app_access_token():
-	while True:
-		url = "https://id.twitch.tv/oauth2/validate"
+	global authorisation_header
+	url = "https://id.twitch.tv/oauth2/validate"
 
+	while True:
 		try:
 			current_token = get_data("app_access_token")
 			assert current_token is not None
 
-			authorisation_header = {"Client-ID": robokaywee_client_id, "Authorization":"Bearer " + current_token}
-			
 			response = requests.get(url, headers=authorisation_header).json()
 			expires_in = response["expires_in"]
 		except AssertionError:
@@ -388,12 +443,12 @@ def respond_message(message_dict):
 		send_message(f"@{user} I'm a bot, so I can't reply. Try talking to one of the helpful human mods instead.")
 		log(f"Sent \"I'm a bot\" to {user}")
 
-	elif commands_file.nochat_on and "kaywee" in message_lower and user not in bots and all(emote not in message for emote in channel_emotes):
+	elif commands_file.nochat_on and "kaywee" in message_lower.replace("robokaywee", "") and user not in bots and all(emote not in message for emote in channel_emotes):
 		if "nochat" in commands_dict and "response" in commands_dict["nochat"]:
 			send_message(f"@{user} {commands_dict['nochat']['response']}")
 			log(f"Sent nochat to {user} in response to @kaywee during nochat mode.")
 
-	elif permission < permissions.Subscriber: #works in 2.0
+	elif permission < permissions.Subscriber: # works in 2.0
 		msg_without_spaces = message_lower.replace(" ", "")
 		if any(x in msg_without_spaces for x in ["bigfollows.com", "bigfollows*com", "bigfollowsdotcom"]):
 			send_message(f"/ban {user}")
@@ -423,22 +478,6 @@ def respond_message(message_dict):
 	elif "romper" in message_lower:
 		send_message("!romper")
 		log(f"Sent romper to {user}")
-
-	# Scheduled Messages:
-
-	elif user == "streamelements" and "kaywee is now live!" in message:
-		worldday_thread = Thread(target=it_is_worldday_my_dudes)
-		worldday_thread.start()
-
-		word_thread = Thread(target=wordoftheday_timer)
-		word_thread.start()
-
-		send_message("!resetrecord", suppress_colour=True)
-
-		if date.today().weekday() == 3 and not unpink_reminder_sent:
-			thursday_thread = Thread(target=it_is_thursday_my_dudes)
-			thursday_thread.start()
-
 
 update_command_data = False
 
@@ -471,42 +510,21 @@ if __name__ == "__main__":
 		log("Chatbot failed to initialise. Exiting.")
 		exit()
 	except Exception as ex:
-		log("Bot raised an exception while starting: " + ex.message)
+		log("Bot raised an exception while starting: " + str(ex))
 		exit()
 
+	authorisation_header = {"Client-ID": robokaywee_client_id, "Authorization":"Bearer " + get_data("app_access_token")}
 
-	user_cooldowns = {}
+	Thread(target=update_app_access_token).start()
+	Thread(target=update_subs).start()	
+	Thread(target=set_random_colour).start()
+	Thread(target=channel_live_messages).start()
+	Thread(target=channel_events).start()
 
-	app_token_thread = Thread(target=update_app_access_token)
-	app_token_thread.start()
-
-	sub_thread = Thread(target=update_subs)
-	sub_thread.start()
-
-	randcolour_thread = Thread(target=set_random_colour)
-	randcolour_thread.start()
-
-	titles_thread = Thread(target=get_title)
-	titles_thread.start()
-
-	wednesday_thread = Thread(target=it_is_wednesday_my_dudes)
-	wednesday_thread.start()
-
-	if date.today().weekday() == 3: # if it's Thursday
-		unpink_reminder_sent = get_data("unpink_reminder_sent")		
-	else: # if it's not thursday
-		set_data("unpink_reminder_sent", False)
-		unpink_reminder_sent = False
-
+	user_cooldowns    = {}
 	modwall_mods      = set()
 	modwall           = 0
 	current_modwall   = None
-
-	#superceded by modwalls dictionary:
-	#modwall_size      = 15
-	#supermodwall_size = 30
-	#ultramodwall_size = 50
-	#hypermodwall_size = 100
 
 	vip_wall = 0
 	vipwall_vips = set()
@@ -609,30 +627,24 @@ if __name__ == "__main__":
 						modwall_mods.add(user)
 
 						# don't send modwall unless there are at least 3 mods in the wall
-						if (    modwall <  14 # few messages
-							or (modwall >= 14 and len(modwall_mods) >= 3) # lots of messages and at least 3 mods
-							   
-							): # sadface
+						if  (    modwall <  14 # few messages
+							 or (modwall >= 14 and len(modwall_mods) >= 3) # lots of messages and at least 3 mods
+							): # sadface 
 
 							modwall += 1
 							if modwall in modwalls:
 								modwall_data = modwalls[modwall]
-								current_modwall = modwall_data["name"] 
+								current_modwall = modwall_data["name"]
 
 								send_message(f"#{current_modwall}! {modwall_data['emotes']}")
 								log(f"{current_modwall}!")
-
-							#if modwall == modwall_size:
-							#	send_message("#Modwall! kaywee1AYAYA")
-							#elif modwall == supermodwall_size:
-							#	send_message("#MEGAmodwall! SeemsGood kaywee1Wut")
-							#elif modwall == ultramodwall_size:
-							#	send_message("#U L T R A MODWALL TwitchLit kaywee1AYAYA kaywee1Wut")
-							#elif modwall == hypermodwall_size:
-							#	send_message("#H Y P E R M O D W A L L gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1AYAYA kaywee1Wut")
+							if modwall >= 5:
+								set_data("modwall", modwall)
 					else:
 						if modwall > 30:
 							send_message(f"{current_modwall} has been broken by {user}! :( FeelsBadMan NotLikeThis PepeHands")
+						if modwall >= 5:
+							set_data("modwall", 0)
 
 						modwall = 0
 						modwall_mods = set()
@@ -651,6 +663,9 @@ if __name__ == "__main__":
 						elif vip_wall == 50:
 							send_message("#MEGA VIPwall! PogChamp Kreygasm CurseLit")
 							log("MEGA VIPwall!")
+						elif vip_wall == 100:
+							send_message("#U L T R A VIPwall! PogChamp Kreygasm CurseLit FootGoal kaywee1Wut")
+							log("U L T R A VIPwall!")
 					else:
 						vip_wall = 0
 						vipwall_vips = set()
