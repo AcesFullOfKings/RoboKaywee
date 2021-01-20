@@ -20,7 +20,6 @@ TODO:
 
 should be able to add counters and variables to text commands
 should be able to give any command multiple names via aliases
-
 """
 
 def log(s):
@@ -48,9 +47,11 @@ usernames_lock = Lock()
 
 channel_live    = Event()
 channel_offline = Event()
+live_status_checked = Event()
+live_status_checked.clear()
 
 bots = {"robokaywee", "streamelements", "nightbot"}
-channel_emotes = {"kaywee1AYAYA", "kaywee1Wut", "kaywee1Dale", "kaywee1Imout", "kaywee1GASM"}
+channel_emotes = {"kaywee1AYAYA", "kaywee1Wut", "kaywee1Dale", "kaywee1Imout", "kaywee1GASM", "KKaywee"}
 
 modwalls = {
 	15:  {"name": "Modwall",                    "emotes": "kaywee1AYAYA"},
@@ -84,21 +85,21 @@ with open("titles.txt", "r", encoding="utf-8") as f:
 	titles = f.read().split("\n")
 
 def channel_events():
-	# checks the channel every period. If channel goes live or goes offline, global Thread events are triggered
+	""" 
+	Checks the channel every period. If channel goes live or goes offline, global Thread events are triggered
+	"""
+
 	global channel_live
 	global channel_offline
+	global live_status_checked
 
 	period = 2*60 # check every 2 minutes
+	online_time = 0
 
-	try:
-		online_time = int(get_data("online_time"))
-	except TypeError:
-		online_time = None
-
-	url = "https://api.twitch.tv/helix/streams?user_id=" + kaywee_channel_id
-	global authorisation_header
-	
-	while True:
+	def check_live_status():
+		nonlocal online_time  # -> thank you to K900_ https://redd.it/l1i2o5
+		print(period)
+		print(online_time)
 		try:
 			# if this call succeeds, streamer is Live. Exceptions imply streamer is offline (as no stream title exists)
 			title = requests.get(url, headers=authorisation_header).json()["data"][0]["title"]
@@ -121,18 +122,37 @@ def channel_events():
 			channel_offline.set()
 
 		# streamer is online:
-		else: 
-			if not channel_live.is_set() and online_time is None: # streamer CAME online in last period (online_time is None allows restarting the bot while stream is online)
-				online_time = time()
-
-				log(f"{channel_name} came online.")
+		else:
+			if online_time is None:
+				online_time = time() # set first time seen online
 				set_data("online_time", online_time)
+
+			if not channel_live.is_set(): # streamer CAME online in last period
+				log(f"{channel_name} came online.")				
 				
 			channel_offline.clear()
 			channel_live.set()
 
 			add_seen_title(title) # save unique stream title
 
+	try:
+		online_time = get_data("online_time")
+		period = 120
+	except Exception as ex:
+		log("Exception reading online_time: " + str(ex))
+		online_time = None
+		period = 120
+
+	url = "https://api.twitch.tv/helix/streams?user_id=" + kaywee_channel_id
+	global authorisation_header
+	
+	print(f"online time is {online_time}")
+
+	check_live_status()
+	live_status_checked.set() # signal to other threads that first run is complete
+
+	while True:
+		check_live_status()
 		sleep(period)
 
 last_wiki_update = 0
@@ -274,19 +294,23 @@ def wordoftheday_timer():
 
 def channel_live_messages():
 	global channel_live
+	global live_status_checked
 
-	channel_live.wait() # wait for channel to go live
+	live_status_checked.wait() # wait for check_live_status to run once
 
-	send_message("!resetrecord", suppress_colour=True)
+	if not channel_live.is_set():
+		channel_live.wait()        # wait for channel to go live
 
-	Thread(target=it_is_worldday_my_dudes).start()
-	Thread(target=wordoftheday_timer).start()
+		send_message("!resetrecord", suppress_colour=True)
 
-	weekday_num = date.today().weekday()
-	if weekday_num == 3:
-		Thread(target=it_is_thursday_my_dudes).start()
-	elif weekday_num == 2:
-		Thread(target=it_is_wednesday_my_dudes).start()
+		Thread(target=it_is_worldday_my_dudes).start()
+		Thread(target=wordoftheday_timer).start()
+
+		weekday_num = date.today().weekday()
+		if weekday_num == 3:
+			Thread(target=it_is_thursday_my_dudes).start()
+		elif weekday_num == 2:
+			Thread(target=it_is_wednesday_my_dudes).start()
 
 def nochat_raid():
 	sleep(10)
@@ -307,7 +331,8 @@ def get_data(name):
 			with open("config.txt", "r") as f:
 				file = f.read()
 				data = dict(eval(file))
-				config_lock.release()
+
+			config_lock.release()
 		else:
 			log("WARNING: config_lock timed out in get_data() !!")
 			return None
@@ -326,7 +351,8 @@ def set_data(name, value):
 			with open("config.txt", "r") as f:
 				file = f.read()
 				data = dict(eval(file))
-				config_lock.release()
+
+			config_lock.release()
 		else:
 			log("WARNING: config_lock timed out (while reading) in set_data() !!")
 			return
@@ -515,12 +541,12 @@ if __name__ == "__main__":
 
 	authorisation_header = {"Client-ID": robokaywee_client_id, "Authorization":"Bearer " + get_data("app_access_token")}
 
+	Thread(target=channel_events).start()
 	Thread(target=update_app_access_token).start()
 	Thread(target=update_subs).start()	
 	Thread(target=set_random_colour).start()
 	Thread(target=channel_live_messages).start()
-	Thread(target=channel_events).start()
-
+	
 	user_cooldowns    = {}
 	modwall_mods      = set()
 	modwall           = 0
@@ -695,7 +721,7 @@ if __name__ == "__main__":
 							log(f"{gifter} has gifted a sub to {recipient}!")
 
 							if commands_file.nochat_on:
-								send_message(f"@{gifter} thank you so much for gifting a subscription to {recipient}! Kaywee isn't looking at chat right now (!nochat) but she'll see your sub after the current game.")
+								send_message(f"@{gifter} thank you so much for gifting a subscription to {recipient}! Kaywee isn't looking at chat right now (!nochat) but she'll see your gift after the current game.")
 								log(f"Sent nochat to {user} for gifting a sub")
 
 						elif message_dict["msg-id"] == "sub": # USER SUBSCRIPTION
@@ -733,13 +759,13 @@ if __name__ == "__main__":
 
 						elif message_dict["msg-id"] == "raid": # RAID
 							raider = message_dict["msg-param-displayName"]
-							viewers = message_dict["msg-param-viewerCount"]
+							viewer_count = message_dict["msg-param-viewerCount"]
 							with open("chatlog.txt", "a", encoding="utf-8") as f:
-								f.write(f"USERNOTICE: {raider} is raiding with {viewers} viewers!\n")
-							send_message(f"Wow! {raider} is raiding us with {viewers} new friends! Thank you! kaywee1AYAYA")
-							log(f"{raider} is raiding with {viewers} viewers.")
-							raid_data = {"raider": raider, "viewers": viewers, "time": time()}
-							raid_data = str(raid_data).replace("{", "{\n\t").replace(",", ",\n\t").replace("}", "\n}") # make the dict look nice in the config file
+								f.write(f"USERNOTICE: {raider} is raiding with {viewer_count} viewers!\n")
+							send_message(f"Wow! {raider} is raiding us with {viewer_count} new friends! Thank you! kaywee1AYAYA")
+							log(f"{raider} is raiding with {viewer_count} viewers.")
+							raid_data = {"raider": raider, "viewers": viewer_count, "time": time()}
+							raid_data = str(raid_data).replace(", ", ",") # set_data() replaces ", " with ",\n", but I don't want that to apply to this dict, so removing the space stops it being picked up by that .replace()
 							set_data("last_raid", raid_data)
 
 							if commands_file.nochat_on:
@@ -800,9 +826,11 @@ if __name__ == "__main__":
 					pass
 
 				elif message_dict["message_type"] == "clearmsg":
+					# single message was deleted
 					print(message_dict)
 
 				elif message_dict["message_type"] == "clearchat":
+					# cleared all messages from user
 					print(message_dict)
 
 				else:
