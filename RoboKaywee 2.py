@@ -86,52 +86,82 @@ with open("titles.txt", "r", encoding="utf-8") as f:
 
 def channel_events():
 	""" 
-	Checks the channel every period. If channel goes live or goes offline, global Thread events are triggered
+	Checks the channel every period. If channel goes live or goes offline, global Thread events are triggered.
+	Dont you dare judge my code quality in this function flasgod. It's a mess but we do what we gotta do to survive.
 	"""
 
 	global channel_live
 	global channel_offline
 	global live_status_checked
 
-	period = 2*60 # check every 2 minutes
-	online_time = 0
-
-	def check_live_status():
-		nonlocal online_time  # -> thank you to K900_ https://redd.it/l1i2o5
-		print(period)
-		print(online_time)
+	def check_live_status_first():
+		nonlocal online_time 
 		try:
 			# if this call succeeds, streamer is Live. Exceptions imply streamer is offline (as no stream title exists)
 			title = requests.get(url, headers=authorisation_header).json()["data"][0]["title"]
 
 		# streamer is offline:
 		except (IndexError, KeyError): 
-			if channel_live.is_set() and online_time is not None: # streamer went offline in last period
+			if online_time is not None: # streamer went offline while bot was offline
 				uptime = int(time() - online_time)
 
 				hours   = int((uptime % 86400) // 3600)
 				mins    = int((uptime % 3600) // 60)
-				seconds = int (uptime % 60)
+				# seconds = int (uptime % 60)
 
-				log(f"{channel_name} went offline. Uptime was {hours} hours, {mins} mins, and {seconds} secs.")
+				log(f"{channel_name} went offline. Uptime was {hours} hours and {mins} mins.")
 
 				online_time = None
 				set_data("online_time", None)
 
-			channel_live.clear()
 			channel_offline.set()
 
 		# streamer is online:
 		else:
-			if online_time is None:
+			if online_time is None: # streamer came online while bot was offline
+				log(f"{channel_name} is online.")
 				online_time = time() # set first time seen online
 				set_data("online_time", online_time)
-
-			if not channel_live.is_set(): # streamer CAME online in last period
-				log(f"{channel_name} came online.")				
 				
-			channel_offline.clear()
 			channel_live.set()
+
+			add_seen_title(title) # save unique stream title
+
+	def check_live_status_subsequent():
+		nonlocal online_time 
+		try:
+			# if this call succeeds, streamer is Live. Exceptions imply streamer is offline (as no stream title exists)
+			title = requests.get(url, headers=authorisation_header).json()["data"][0]["title"]
+
+		# streamer is offline:
+		except (IndexError, KeyError): 
+			if channel_live.is_set(): # streamer went offline in last period
+				uptime = int(time() - online_time)
+
+				hours   = int((uptime % 86400) // 3600)
+				mins    = int((uptime % 3600) // 60)
+				# seconds = int (uptime % 60)
+
+				uptime_string = f"{channel_name} went offline. Uptime was approximately {hours} hours and {mins} mins."
+
+				log(uptime_string)
+				send_message(uptime_string)
+
+				online_time = None
+				set_data("online_time", None)
+
+				channel_live.clear()
+				channel_offline.set()
+
+		# streamer is online:
+		else:
+			if not channel_live.is_set(): # streamer CAME online in last period
+				log(f"{channel_name} came online.")
+				online_time = time() # set first time seen online
+				set_data("online_time", online_time)
+				
+				channel_offline.clear()
+				channel_live.set()
 
 			add_seen_title(title) # save unique stream title
 
@@ -145,14 +175,12 @@ def channel_events():
 
 	url = "https://api.twitch.tv/helix/streams?user_id=" + kaywee_channel_id
 	global authorisation_header
-	
-	print(f"online time is {online_time}")
 
-	check_live_status()
+	check_live_status_first()
 	live_status_checked.set() # signal to other threads that first run is complete
 
 	while True:
-		check_live_status()
+		check_live_status_subsequent()
 		sleep(period)
 
 last_wiki_update = 0
@@ -298,7 +326,7 @@ def channel_live_messages():
 
 	live_status_checked.wait() # wait for check_live_status to run once
 
-	if not channel_live.is_set():
+	if not channel_live.is_set():  # if channels isn't already live when bot starts
 		channel_live.wait()        # wait for channel to go live
 
 		send_message("!resetrecord", suppress_colour=True)
@@ -306,11 +334,13 @@ def channel_live_messages():
 		Thread(target=it_is_worldday_my_dudes).start()
 		Thread(target=wordoftheday_timer).start()
 
-		weekday_num = date.today().weekday()
-		if weekday_num == 3:
-			Thread(target=it_is_thursday_my_dudes).start()
-		elif weekday_num == 2:
-			Thread(target=it_is_wednesday_my_dudes).start()
+	# these will start right away if channel is already live
+	# or if channel is offline, they will wait for channel to go live then start
+	weekday_num = date.today().weekday()
+	if weekday_num == 3:
+		Thread(target=it_is_thursday_my_dudes).start()
+	elif weekday_num == 2:
+		Thread(target=it_is_wednesday_my_dudes).start()
 
 def nochat_raid():
 	sleep(10)
