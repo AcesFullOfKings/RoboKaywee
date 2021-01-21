@@ -105,8 +105,8 @@ def channel_events():
 			if online_time is not None: # streamer went offline while bot was offline
 				uptime = int(time() - online_time)
 
-				hours   = int((uptime % 86400) // 3600)
-				mins    = int((uptime % 3600) // 60)
+				hours = int((uptime % 86400) // 3600)
+				mins  = int((uptime % 3600) // 60)
 				# seconds = int (uptime % 60)
 
 				log(f"{channel_name} went offline. Uptime was {hours} hours and {mins} mins.")
@@ -138,8 +138,8 @@ def channel_events():
 			if channel_live.is_set(): # streamer went offline in last period
 				uptime = int(time() - online_time)
 
-				hours   = int((uptime % 86400) // 3600)
-				mins    = int((uptime % 3600) // 60)
+				hours = int((uptime % 86400) // 3600)
+				mins  = int((uptime % 3600) // 60)
 				# seconds = int (uptime % 60)
 
 				uptime_string = f"{channel_name} went offline. Uptime was approximately {hours} hours and {mins} mins."
