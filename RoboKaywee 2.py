@@ -164,7 +164,6 @@ def channel_events():
 				channel_live.set()
 
 			add_seen_title(title) # save unique stream title
-
 	try:
 		online_time = get_data("online_time")
 		period = 120
@@ -328,7 +327,8 @@ def channel_live_messages():
 
 	if not channel_live.is_set():  # if channels isn't already live when bot starts
 		channel_live.wait()        # wait for channel to go live
-
+		send_message("FIRST lol", suppress_colour=True)
+		sleep(2)
 		send_message("!resetrecord", suppress_colour=True)
 
 		Thread(target=it_is_worldday_my_dudes).start()
@@ -586,6 +586,8 @@ if __name__ == "__main__":
 	vipwall_vips = set()
 
 	last_message = {}
+
+	dropoff = 1
 	
 	# let commands file access key data:
 	commands_file.bot                = bot
@@ -710,16 +712,16 @@ if __name__ == "__main__":
 					if user_permission == permissions.VIP:
 						vip_wall += 1
 
-						if vip_wall == 10:
+						if vip_wall == 15:
 							send_message("#VIPwall! kaywee1AYAYA")
 							log("VIPwall!")
-						elif vip_wall == 20:
+						elif vip_wall == 30:
 							send_message("#SUPER VIPwall! PogChamp")
 							log("SUPER VIPwall!")
-						elif vip_wall == 50:
+						elif vip_wall == 60:
 							send_message("#MEGA VIPwall! PogChamp Kreygasm CurseLit")
 							log("MEGA VIPwall!")
-						elif vip_wall == 100:
+						elif vip_wall == 120:
 							send_message("#U L T R A VIPwall! PogChamp Kreygasm CurseLit FootGoal kaywee1Wut")
 							log("U L T R A VIPwall!")
 					else:
@@ -729,9 +731,9 @@ if __name__ == "__main__":
 					if "msg_id" in message_dict: # yes.. it's msg_id here but msg-id everywhere else. Why? Who knows. Why be consistent?
 						id = message_dict["msg_id"]
 						if "message" in message_dict:
-							message = message_dict["message"]
-							log(f"NOTICE: {id}: {message}")
 							if id != "color_changed": # gets spammy with daily colour changes and rainbows etc
+								message = message_dict["message"]
+								log(f"NOTICE: {id}: {message}")
 								with open("chatlog.txt", "a", encoding="utf-8") as f:
 									f.write(f"NOTICE: (msg_id {id}): {message}\n")
 						else:
@@ -845,7 +847,8 @@ if __name__ == "__main__":
 					with open("chatlog.txt", "a", encoding="utf-8") as f:
 						f.write(f"HOSTTARGET: now hosting {host_name} with {viewers} viewers.\n")
 					log(f"Now hosting {host_name} with {viewers} viewers.")
-					send_message(f"Now hosting {host_name} with {viewers} viewers.")
+					if int(viewers) > 1:
+						send_message(f"Now hosting {host_name} with {viewers} viewers.")
 					
 				elif message_dict["message_type"] == "reconnect":
 					send_message("Stream is back online!")
@@ -861,10 +864,19 @@ if __name__ == "__main__":
 
 				elif message_dict["message_type"] == "clearchat":
 					# cleared all messages from user
+					user_id = message_dict["target-user-id"] # this is the User ID, not the username. It's a str-formatted number.
 					print(message_dict)
 
 				else:
 					with open("verbose log.txt", "a", encoding="utf-8") as f:
 						f.write("unknown message type: " + str(message_dict) + "\n\n")
+			dropoff = 1
 		except Exception as ex:
-			log("Exception in main loop: " + str(ex)) # generic catch-all (literally) to make sure bot doesn't crash
+			if "An existing connection was forcibly closed" in str(ex):
+				dropoff *= 1.5 # exponential dropoff, decay factor 1.5
+				log(f"Connection was closed - will try again in {int(dropoff)}s..")
+				sleep(dropoff)
+				log("Re-creating bot object..")
+				bot = ChatBot(bot_name, password, channel_name, debug=False, capabilities=["tags", "commands"])
+			else:
+				log("Exception in main loop: " + str(ex)) # generic catch-all (literally) to make sure bot doesn't crash
