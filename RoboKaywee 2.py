@@ -28,11 +28,11 @@ def log(s):
 	"""
 	current_time = localtime()
 	year   = str(current_time.tm_year)
-	month  = str(current_time.tm_mon).zfill(2)
+	month  = str(current_time.tm_mon ).zfill(2)
 	day    = str(current_time.tm_mday).zfill(2)
 	hour   = str(current_time.tm_hour).zfill(2)
-	minute = str(current_time.tm_min).zfill(2)
-	second = str(current_time.tm_sec).zfill(2)
+	minute = str(current_time.tm_min ).zfill(2)
+	second = str(current_time.tm_sec ).zfill(2)
 	
 	log_time = f"{day}/{month} {hour}:{minute}:{second}"
 
@@ -107,7 +107,7 @@ def channel_events():
 
 				hours = int((uptime % 86400) // 3600)
 				mins  = int((uptime % 3600) // 60)
-				# seconds = int (uptime % 60)
+				# seconds = int (uptime % 60) # uptime isn't precise enough to justify sending the seconds
 
 				log(f"{channel_name} went offline. Uptime was {hours} hours and {mins} mins.")
 
@@ -327,8 +327,6 @@ def channel_live_messages():
 
 	if not channel_live.is_set():  # if channels isn't already live when bot starts
 		channel_live.wait()        # wait for channel to go live
-		send_message("FIRST lol", suppress_colour=True)
-		sleep(2)
 		send_message("!resetrecord", suppress_colour=True)
 
 		Thread(target=it_is_worldday_my_dudes).start()
@@ -499,8 +497,11 @@ def respond_message(message_dict):
 		send_message(f"@{user} I'm a bot, so I can't reply. Try talking to one of the helpful human mods instead.")
 		log(f"Sent \"I'm a bot\" to {user}")
 
-	elif commands_file.nochat_on and "kaywee" in message_lower.replace("robokaywee", "") and user not in bots and all(emote not in message for emote in channel_emotes):
-		if "nochat" in commands_dict and "response" in commands_dict["nochat"]:
+	elif commands_file.nochat_on and user not in bots and "kaywee" in message_lower: # and all(emote not in message for emote in channel_emotes):
+		msg_words = [word for word in message_lower.split(" ") if "kaywee1" not in word] # remove channel emotes, including unknown emotes with the right prefix
+		message_lower = " ".join(msg_words).replace("robokaywee", "") # stitch message back together and remove robokaywee
+
+		if "kaywee" in message_lower and "nochat" in commands_dict and "response" in commands_dict["nochat"]:
 			send_message(f"@{user} {commands_dict['nochat']['response']}")
 			log(f"Sent nochat to {user} in response to @kaywee during nochat mode.")
 
@@ -615,9 +616,12 @@ if __name__ == "__main__":
 					message_lower = message.lower()
 
 					if user not in usernames:
-						Thread(target=add_new_username,args=(user,)).start() # probably saves like.. idk 10ms? over just calling it. lol. trims reaction time though
+						Thread(target=add_new_username,args=(user,)).start() # probably saves like.. idk 10ms? over just calling it.. trims reaction time though
 					elif message_lower in ["hello", "hi", "hey", "hola"]:
-						message = "!hello"
+						if user.lower() == "littlehummingbird":
+							send_message("HELLO MADDIE THIS IS NOT A SASSY MESSAGE BUT HI")
+						else:
+							message = "!hello"
 
 					last_message[user] = message
 					user_permission = permissions.Pleb # unless assigned otherwise below:
@@ -732,6 +736,8 @@ if __name__ == "__main__":
 						id = message_dict["msg_id"]
 						if "message" in message_dict:
 							if id != "color_changed": # gets spammy with daily colour changes and rainbows etc
+								if id == "host_on":
+									
 								message = message_dict["message"]
 								log(f"NOTICE: {id}: {message}")
 								with open("chatlog.txt", "a", encoding="utf-8") as f:
