@@ -1,12 +1,15 @@
 #import sqlite3 # one day maybe I'll use an actual database LOL
+import os
 import praw
 import random
 import requests
 
+from os          import getcwd
 from time        import time, sleep, localtime
 from enum        import IntEnum
 from math        import ceil
 from james       import timeuntil
+from shutil      import copy2 as copy_with_metadata
 from chatbot     import ChatBot # see https://github.com/theonefoster/pyTwitchChatBot
 from datetime    import date, datetime
 from threading   import Thread, Lock, Event
@@ -17,9 +20,10 @@ from API_functions import get_app_access_token
 
 """
 TODO:
-
 should be able to add counters and variables to text commands
 should be able to give any command multiple names via aliases
+when host_on notice is received, channel_live should be set to false
+rework how live detection works
 """
 
 def log(s):
@@ -254,7 +258,7 @@ def commit_subscribers():
 		log("Warning: Subs Lock timed out in commit_subscribers() !!")
 
 def add_new_username(username):
-	send_message(f"Welcome to Kaywee's channel {username}! Get cosy and enjoy your stay kaywee1AYAYA  <3")
+	send_message(f"Welcome to Kaywee's channel {username}! Get cosy and enjoy your stay kaywee1AYAYA <3")
 	log(f"Welcomed new user {username}")
 
 	global usernames	
@@ -401,6 +405,37 @@ def set_data(name, value):
 		log("WARNING: config_lock timed out (while writing) in set_data() !!")
 		return
 
+def automatic_backup():
+	"""
+	Autmatically makes a backup of all bot files once per week. Does not delete old files.
+	"""
+	
+	backup_period  = 86400 * 7 # backup once per week
+	check_interval = 60*60    # check once per hour
+
+	while True:
+		if get_data("last_backup") < time() - backup_period:
+			today_dt = datetime.today()
+			year = str(today_dt.year)[-2:]
+			month = str(today_dt.month).zfill(2)
+			day = str(today_dt.day).zfill(2)
+
+			fdate = f"{year}{month}{day}"
+			folder_name = getcwd() + f"\\backups\\Backup - {fdate}"
+
+			if not os.path.exists(folder_name):
+				os.mkdir(folder_name)
+
+			for filename in os.listdir(getcwd()):
+				if any(filename.endswith(ext) for ext in [".txt", ".py"]):
+					full_src = getcwd()    + f"\\{filename}" # source file full path
+					full_dst = folder_name + f"\\{filename}" # dest file full path
+					copy_with_metadata(full_src, full_dst)
+
+			set_data("last_backup", int(time()))
+
+		sleep(60*60) # check once per hour
+
 def update_app_access_token():
 	global authorisation_header
 	url = "https://id.twitch.tv/oauth2/validate"
@@ -546,7 +581,7 @@ for command_name in [o for o in dir(commands_file) if not(o.startswith("_") or o
 				commands_dict[command_name] = {'permission': 0, 'global_cooldown': 1, 'user_cooldown': 0, 'coded': True, 'uses': 0, "description": getattr(commands_file, command_name).description}
 				update_command_data = True
 			else:
-				if commands_dict[command_name]["description"] != getattr(commands_file, command_name).description:
+				if "description" not in commands_dict[command_name] or commands_dict[command_name]["description"] != getattr(commands_file, command_name).description:
 					commands_dict[command_name]["description"] = getattr(commands_file, command_name).description # update description
 					update_command_data = True
 	except AttributeError:
@@ -577,6 +612,7 @@ if __name__ == "__main__":
 	Thread(target=update_subs).start()	
 	Thread(target=set_random_colour).start()
 	Thread(target=channel_live_messages).start()
+	Thread(target=automatic_backup).start()
 	
 	user_cooldowns    = {}
 	modwall_mods      = set()
@@ -626,7 +662,7 @@ if __name__ == "__main__":
 					last_message[user] = message
 					user_permission = permissions.Pleb # unless assigned otherwise below:
 						
-					if "badges" in message_dict:
+					if "badges" in message_dict: # twitch recommends using badges instead of the deprecated user-type tag
 						if "broadcaster" in message_dict["badges"]:
 							user_permission = permissions.Broadcaster
 						elif "moderator" in message_dict["badges"]:
@@ -737,6 +773,7 @@ if __name__ == "__main__":
 						if "message" in message_dict:
 							if id != "color_changed": # gets spammy with daily colour changes and rainbows etc
 								if id == "host_on":
+									pass # trigger end of stream events?
 									
 								message = message_dict["message"]
 								log(f"NOTICE: {id}: {message}")
@@ -758,7 +795,10 @@ if __name__ == "__main__":
 							commit_subscribers()
 							log(f"{gifter} has gifted a sub to {recipient}!")
 
-							if commands_file.nochat_on:
+							if recipient == "robokaywee":
+								sleep(1)
+								send_message(f"OMG {gifter}!! Thank you so much, you're the best!! <3 <3 kaywee1AYAYA")
+							elif commands_file.nochat_on:
 								send_message(f"@{gifter} thank you so much for gifting a subscription to {recipient}! Kaywee isn't looking at chat right now (!nochat) but she'll see your gift after the current game.")
 								log(f"Sent nochat to {user} for gifting a sub")
 
@@ -862,7 +902,40 @@ if __name__ == "__main__":
 
 				elif message_dict["message_type"] == "userstate":
 					# Mostly just for colour changes which I don't care about
-					pass
+					user       = message_dict.get("display-name", None) # username, case-sensitive
+					colour     = message_dict.get("color"       , None) # Hexadecimal RGB color code
+					badge_info = message_dict.get("badge-info"  , None) # Metadata related to chat badges. Details subscription length in months
+					badges     = message_dict.get("badges"      , None) # comma-separated list of chat badges
+					emote_sets = message_dict.get("emote-sets"  , None) # list of ints
+					mod        = message_dict.get("mod"         , None) # 1 iff user has mod badge, else 0
+
+				elif message_dict["message_type"] == "roomstate":
+					# If the chat mode changes, e.g. entering or leaving subs-only or emote-only mode
+
+					continue # skip the following code.. might use it in the future though
+
+					if "emote-only" in message_dict:
+						enabled_str = "enabled" if int(message_dict["emote-only"]) else "disabled"
+						send_message(f"Emote-only mode is now {enabled_str}")
+
+					elif "followers-only" in message_dict:
+						duration = message_dict["followers-only"]
+						if duration == "-1":
+							send_message(f"Followers-only mode is now disabled")
+						else:
+							send_message(f"Followers-only mode is now set to {duration} minutes.")
+
+					elif "r9k" in message_dict:
+						enabled_str = "enabled" if int(message_dict["r9k"]) else "disabled"
+						send_message(f"r9k mode is now {enabled_str}")
+
+					elif "slow" in message_dict:
+						duration = int(message_dict["slow"])
+						send_message(f"Slow mode is now set to {duration} seconds.")
+
+					elif "subs-only" in message_dict:
+						enabled_str = "enabled" if int(message_dict["subs-only"]) else "disabled"
+						send_message(f"Subs-only mode is now {enabled_str}")
 
 				elif message_dict["message_type"] == "clearmsg":
 					# single message was deleted
@@ -875,7 +948,7 @@ if __name__ == "__main__":
 
 				else:
 					with open("verbose log.txt", "a", encoding="utf-8") as f:
-						f.write("unknown message type: " + str(message_dict) + "\n\n")
+						f.write("Robokaywee - unknown message type: " + str(message_dict) + "\n\n")
 			dropoff = 1
 		except Exception as ex:
 			if "An existing connection was forcibly closed" in str(ex):
