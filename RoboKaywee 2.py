@@ -49,8 +49,8 @@ config_lock    = Lock()
 subs_lock      = Lock()
 usernames_lock = Lock()
 
-channel_live    = Event()
-channel_offline = Event()
+channel_live        = Event()
+channel_offline     = Event()
 live_status_checked = Event()
 live_status_checked.clear()
 
@@ -411,7 +411,7 @@ def automatic_backup():
 	"""
 	
 	backup_period  = 86400 * 7 # backup once per week
-	check_interval = 60*60    # check once per hour
+	check_interval = 60*60     # check once per hour
 
 	while True:
 		if get_data("last_backup") < time() - backup_period:
@@ -571,7 +571,7 @@ def respond_message(message_dict):
 		send_message("!romper")
 		log(f"Sent romper to {user}")
 
-update_command_data = False
+update_command_data = False # does command data on disk/wiki need to be updated?
 
 #check for new commands and add to database:
 for command_name in [o for o in dir(commands_file) if not(o.startswith("_") or o.endswith("_"))]:
@@ -582,7 +582,7 @@ for command_name in [o for o in dir(commands_file) if not(o.startswith("_") or o
 				update_command_data = True
 			else:
 				if "description" not in commands_dict[command_name] or commands_dict[command_name]["description"] != getattr(commands_file, command_name).description:
-					commands_dict[command_name]["description"] = getattr(commands_file, command_name).description # update description
+					commands_dict[command_name]["description"] = getattr(commands_file, command_name).description # add/update description
 					update_command_data = True
 	except AttributeError:
 		pass
@@ -614,29 +614,26 @@ if __name__ == "__main__":
 	Thread(target=channel_live_messages).start()
 	Thread(target=automatic_backup).start()
 	
-	user_cooldowns    = {}
-	modwall_mods      = set()
-	modwall           = 0
-	current_modwall   = None
-
-	vip_wall = 0
-	vipwall_vips = set()
-
-	last_message = {}
-
-	dropoff = 1
+	user_cooldowns  = {}
+	modwall_mods    = set()
+	modwall         = get_data("modwall")
+	current_modwall = None
+	vip_wall        = 0
+	vipwall_vips    = set()
+	last_message    = {}
+	dropoff         = 1
 	
-	# let commands file access key data:
+	# let commands file access key objects:
 	commands_file.bot                = bot
-	commands_file.send_message       = send_message
 	commands_file.log                = log
-	commands_file.command_dict       = commands_dict
-	commands_file.write_command_data = write_command_data
 	commands_file.get_data           = get_data
 	commands_file.set_data           = set_data
-	commands_file.last_message       = last_message
 	commands_file.nochat_on          = False
 	commands_file.permissions        = permissions
+	commands_file.send_message       = send_message
+	commands_file.command_dict       = commands_dict
+	commands_file.last_message       = last_message
+	commands_file.write_command_data = write_command_data
 
 	while True:
 		try:
@@ -652,12 +649,13 @@ if __name__ == "__main__":
 					message_lower = message.lower()
 
 					if user not in usernames:
-						Thread(target=add_new_username,args=(user,)).start() # probably saves like.. idk 10ms? over just calling it.. trims reaction time though
+						Thread(target=add_new_username,args=(user,)).start() # probably saves like.. idk 50ms? over just calling it.. trims reaction time though
 					elif message_lower in ["hello", "hi", "hey", "hola"]:
 						if user.lower() == "littlehummingbird":
-							send_message("HELLO MADDIE THIS IS NOT A SASSY MESSAGE BUT HI")
+							send_message("HELLO MADDIE THIS IS NOT A SASSY MESSAGE BUT HI") # little easter egg for maddie :)
+							log("Said Hello to Maddie, but in a totally not-sassy way")
 						else:
-							message = "!hello"
+							message = "!hello" # react as if they used the command
 
 					last_message[user] = message
 					user_permission = permissions.Pleb # unless assigned otherwise below:
@@ -686,7 +684,7 @@ if __name__ == "__main__":
 									if command in dir(commands_file):
 										func = getattr(commands_file, command)
 										if func.is_command:
-											if func(message_dict) != False: # None != False in case anything returns None
+											if func(message_dict) != False: # commands can return True/None on success (None != False)
 												if "uses" in command_obj:
 													command_obj["uses"] += 1
 												else:
