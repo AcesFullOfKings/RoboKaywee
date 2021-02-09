@@ -8,8 +8,8 @@ from fortunes      import fortunes
 from threading     import Thread
 from credentials   import kaywee_channel_id, robokaywee_client_id
 #from googletrans   import Translator #stopped working so superceded by:
-from translate import Translator
 from james import timeuntil
+from james import translate as j_translate
 
 from PyDictionary import PyDictionary
 dic = PyDictionary()
@@ -41,9 +41,6 @@ toxic_poll = False
 toxic_votes = 0
 nottoxic_votes = 0
 voters = set()
-
-en_translator = Translator(to_lang="en", from_lang="es")
-es_translator = Translator(to_lang="es")
 
 with open("subscribers.txt", "r", encoding="utf-8") as f:
 	try:
@@ -171,7 +168,7 @@ def rcommand(message_dict):
 					response = response[4:] #include the space
 				response = response.replace("|", "/") # pipes break the formatting on the reddit wiki
 				
-				command_dict[command_name] = {'permission': 0, 'global_cooldown': 1, 'user_cooldown': 5, 'coded': False, 'uses':0, 'response': response}
+				command_dict[command_name] = {'permission': 0, 'global_cooldown': 1, 'user_cooldown': 0, 'coded': False, 'uses':0, 'response': response}
 				write_command_data(True)
 				send_message("Added command " + command_name)
 				log(f"{user} added command {command_name}")
@@ -200,12 +197,16 @@ def rcommand(message_dict):
 		permission   = view_command.get("permission", 0)
 		response     = view_command.get("response", "")
 
-		permission = {0:"Pleb", 2:"Follower", 4:"Subscriber", 6:"VIP", 8:"Mod", 10:"Broadcaster"}[permission]
+		permission_name = "Unknown"
+
+		for enum in permissions:
+			if enum.value == permission:
+				permission_name = enum.name
 
 		if coded or response == "":
-			send_message(f"{command_name}: Permission: {permission}; Global Cooldown: {cooldown}; User Cooldown: {usercooldown}")
+			send_message(f"{command_name}: Permission: {permission_name}; Global Cooldown: {cooldown}; User Cooldown: {usercooldown}")
 		else:
-			send_message(f"{command_name}: Permission: {permission}; Global Cooldown: {cooldown}; User Cooldown: {usercooldown}; Response: {response}")
+			send_message(f"{command_name}: Permission: {permission_name}; Global Cooldown: {cooldown}; User Cooldown: {usercooldown}; Response: {response}")
 
 	else:
 		send_message("Unrecognised action: must be add, remove, edit, options, view")
@@ -310,39 +311,40 @@ def _start_toxic_poll():
 	send_message("Poll starting! Type !votetoxic or !votenice to vote on whether the previous game was toxic or nice. Results in 60 seconds.")
 	toxic_poll = True
 	sleep(60)
-	toxic_poll = False
-	if nottoxic_votes > 0 and toxic_votes > 0:
-		toxic_percent    =    toxic_votes / (toxic_votes + nottoxic_votes)
-		nottoxic_percent = nottoxic_votes / (toxic_votes + nottoxic_votes)
-	else:
-		if toxic_votes > 0:
-			toxic_percent = 1
-			nottoxic_percent = 0
+	if toxicpoll: # toxicpoll can be cancelled externally, so only proceed if it wasn't
+		toxic_poll = False
+		if nottoxic_votes > 0 and toxic_votes > 0:
+			toxic_percent    =    toxic_votes / (toxic_votes + nottoxic_votes)
+			nottoxic_percent = nottoxic_votes / (toxic_votes + nottoxic_votes)
 		else:
-			toxic_percent = 0
-			nottoxic_percent = 0
+			if toxic_votes > 0:
+				toxic_percent = 1
+				nottoxic_percent = 0
+			else:
+				toxic_percent = 0
+				nottoxic_percent = 0
 
-	toxic_percent = round(100*toxic_percent)
-	nottoxic_percent = round(100*nottoxic_percent)
+		toxic_percent = round(100*toxic_percent)
+		nottoxic_percent = round(100*nottoxic_percent)
 
-	message = f"Toxicpoll results are in! Toxic: {toxic_votes} votes ({toxic_percent}%) - Nice: {nottoxic_votes} votes ({nottoxic_percent}%). "
-	
-	if nottoxic_votes > toxic_votes:
-		send_message(message + "Chat votes that the game was NOT toxic! FeelsGoodMan ")
-		send_message("!untoxic")
-		log(f"Poll result: not toxic. Toxic: {toxic_votes} votes ({toxic_percent}%) - Nice: {nottoxic_votes} votes ({nottoxic_percent}%)")
+		message = f"Toxicpoll results are in! Toxic: {toxic_votes} votes ({toxic_percent}%) - Nice: {nottoxic_votes} votes ({nottoxic_percent}%). "
+		
+		if nottoxic_votes > toxic_votes:
+			send_message(message + "Chat votes that the game was NOT toxic! FeelsGoodMan ")
+			send_message("!untoxic")
+			log(f"Poll result: not toxic. Toxic: {toxic_votes} votes ({toxic_percent}%) - Nice: {nottoxic_votes} votes ({nottoxic_percent}%)")
 
-	elif toxic_votes > nottoxic_votes:
-		send_message(message + "Chat votes that the game was TOXIC! FeelsBadMan ")
-		send_message("!toxic")
-		log(f"Poll result: TOXIC. Toxic: {toxic_votes} votes ({toxic_percent}%) - Nice: {nottoxic_votes} votes ({nottoxic_percent}%)")
-	else:
-		send_message(message + "Poll was a draw! Chat can't make up its mind! kaywee1Wut ")
-		log(f"Poll result: undecided. Toxic: {toxic_votes} votes ({toxic_percent}%) - Nice: {nottoxic_votes} votes ({nottoxic_percent}%)")
+		elif toxic_votes > nottoxic_votes:
+			send_message(message + "Chat votes that the game was TOXIC! FeelsBadMan ")
+			send_message("!toxic")
+			log(f"Poll result: TOXIC. Toxic: {toxic_votes} votes ({toxic_percent}%) - Nice: {nottoxic_votes} votes ({nottoxic_percent}%)")
+		else:
+			send_message(message + "Poll was a draw! Chat can't make up its mind! kaywee1Wut ")
+			log(f"Poll result: undecided. Toxic: {toxic_votes} votes ({toxic_percent}%) - Nice: {nottoxic_votes} votes ({nottoxic_percent}%)")
 
-	voters = set()
-	toxic_votes = 0
-	nottoxic_votes = 0
+		voters = set()
+		toxic_votes = 0
+		nottoxic_votes = 0
 
 @is_command("Lets a user view their current permission")
 def permission(message_dict):
@@ -583,7 +585,6 @@ def unfreedom(message_dict):
 
 	send_message(f"{quantity}{unit} in units which actually make sense is {sensible_quantity}{sensible_unit}.")
 
-
 @is_command("Looks up who gifted the current subscription to the given user. Syntax: !whogifted [@]kaywee")
 def whogifted(message_dict):
 	user = message_dict["display-name"].lower()
@@ -612,6 +613,7 @@ def whogifted(message_dict):
 			log(f"Sent whogifted ({target} subbed on their own) in response to {user}.")
 	else:
 		send_message(f"@{target} is not a subscriber. FeelsBadMan")
+		log(f"Sent whogifted ({target} is not a subscriber) in response to {user}.")
 
 @is_command("Looks up how many of the currently-active subscriptions were gifted by the given user. Syntax: !howmanygifts [@]kaywee")
 def howmanygifts(message_dict):
@@ -660,7 +662,8 @@ def toenglish(message_dict):
 	user = message_dict["display-name"].lower()
 	message = message_dict["message"]
 
-	phrase = " ".join(message.split(" ")[1:])
+	phrase = " ".join(message.split(" ")[1:]).replace(".", ",").replace("?", ",").replace("!", ",")
+
 	english = ""
 	if phrase.lower() in ["robokaywee", user, "@" + user, ""]:
 		return False
@@ -672,24 +675,29 @@ def toenglish(message_dict):
 		except KeyError:
 			return False
 
-	english += en_translator.translate(phrase)
-	replacements = [("&#39;", "'"), ("&gt;", ">"), ("&lt;", "<"), ("&quot;", '"'), ("&amp;", "&")]
-	for (a, b) in replacements:
-		english = english.replace(a, b)
+	# phrase = phrase.replace(".", ";").replace("?", ";").replace("!", ";") # for some reason it only translates the first sentence
+	english += j_translate(phrase, dest_lang="en")
 
-	if "MYMEMORY WARNING: " in english:
-		send_message("Translation limit has been reached for today. // Se alcanzó el límite de traducción por hoy.")
-		log("Translation limit reached.")
-	else:
-		send_message(english)
-		log(f"Translated \"{phrase}\" into English for {user}: it says \"{english}\"")
+	# the below is needed from the crappy library:
+
+	#replacements = [("&#39;", "'"), ("&gt;", ">"), ("&lt;", "<"), ("&quot;", '"'), ("&amp;", "&")]
+	#for (a, b) in replacements:
+	#	english = english.replace(a, b)
+
+	#if "MYMEMORY WARNING: " in english:
+	#	send_message("Translation limit has been reached for today. // Se alcanzó el límite de traducción por hoy.")
+	#	log("Translation limit reached.")
+	#else:
+	send_message(english)
+	log(f"Translated \"{phrase}\" into English for {user}: it says \"{english}\"")
 
 @is_command("Translates an English message into Spanish. Syntax: `!tospanish hello` OR `!tospanish @kaywee`")
 def tospanish(message_dict):
 	user = message_dict["display-name"].lower()
 	message = message_dict["message"]
 
-	phrase = " ".join(message.split(" ")[1:])
+	phrase = " ".join(message.split(" ")[1:]).replace(".", ",").replace("?", ",").replace("!", ",")
+
 	spanish = ""
 	if phrase.lower() in ["robokaywee", user, "@" + user, ""]:
 		return False
@@ -701,17 +709,21 @@ def tospanish(message_dict):
 		except KeyError:
 			return False
 
-	spanish += es_translator.translate(phrase)
-	replacements = [("&#39;", "'"), ("&gt;", ">"), ("&lt;", "<"), ("&quot;", '"'), ("&amp;", "&")]
-	for (a, b) in replacements:
-		english = english.replace(a, b)
+	# phrase = phrase.replace(".", ";").replace("?", ";").replace("!", ";") # for some reason it only translates the first sentence
+	spanish += j_translate(phrase, source_lang="auto", dest_lang="es")
 
-	if "MYMEMORY WARNING: " in spanish:
-		send_message("Translation limit has been reached for today. // Se alcanzó el límite de traducción por hoy.")
-		log("Translation limit reached.")
-	else:
-		send_message(spanish)
-		log(f"Translated \"{phrase}\" into Spanish for {user}: it says \"{spanish}\"")
+	# the below is needed from the crappy library:
+
+	#replacements = [("&#39;", "'"), ("&gt;", ">"), ("&lt;", "<"), ("&quot;", '"'), ("&amp;", "&")]
+	#for (a, b) in replacements:
+	#	english = english.replace(a, b)
+
+	#if "MYMEMORY WARNING: " in spanish:
+	#	send_message("Translation limit has been reached for today. // Se alcanzó el límite de traducción por hoy.")
+	#	log("Translation limit reached.")
+	#else:
+	send_message(spanish)
+	log(f"Translated \"{phrase}\" into Spanish for {user}: it says \"{spanish}\"")
 
 @is_command("Translates a message from one language to another, powered by Google Translate. Languages are specified as a two-letter code, e.g. en/es/nl/fr. Syntax: !translate <source_lang> <dest_lang> <message>")
 def translate(message_dict):
@@ -721,9 +733,9 @@ def translate(message_dict):
 	try:
 		source = message.split(" ")[1]
 		dest = message.split(" ")[2]
-		phrase = " ".join(message.split(" ")[3:])
+		phrase = " ".join(message.split(" ")[3:]).replace(".", ",").replace("?", ",").replace("!", ",")
 	except IndexError:
-		send_message("Syntax Error. Usage: !translate <sourc_lang> <dest_lang> <text>")
+		send_message("Syntax Error. Usage: !translate <source_lang> <dest_lang> <text>")
 	
 	output = ""
 	if phrase.lower() in ["robokaywee", user, "@" + user, ""]:
@@ -736,8 +748,9 @@ def translate(message_dict):
 		except KeyError:
 			return False
 	try:
-		output += translator.translate(phrase, source=source, dest=dest).text
-		send_message(" " + output)
+		# phrase = phrase.replace(".", ";").replace("?", ";").replace("!", ";") # for some reason it only translates the first sentence
+		output += j_translate(phrase, source_lang=source, dest_lang=dest)
+		send_message(output)
 		log(f"Translated \"{phrase}\" into {dest} for {user}: it says \"{output}\"")
 	except Exception as ex:
 		send_message("Translation failed. FeelsBadMan")
@@ -747,13 +760,13 @@ def translate(message_dict):
 def lastraid(message_dict):
 	user = message_dict["display-name"].lower()
 
-	raid_data = get_data("last_raid")
+	raid_data = eval(get_data("last_raid"))
 
 	name    = raid_data["raider"]
 	viewers = raid_data["viewers"]
 	time    = raid_data["time"]
 
-	date_num = datetime.utcfromtimestamp(time).strftime('%d')
+	date_num = datetime.utcfromtimestamp(time).strftime('%d') # returns a string with current date number, e.g. "19"
 	if date_num in ["1", "21", "31"]:
 		suffix = "st"
 	elif date_num in ["2", "22"]:
@@ -950,7 +963,7 @@ def _nochat_mode():
 	global nochat_on
 	nochat_on = True
 
-	duration = 10*60 # 10 mins
+	duration = 12*60 # 10 mins
 	check_period = 5 # secs
 	try:
 		for secs in range(0, duration, check_period):
@@ -1006,17 +1019,20 @@ def define(message_dict):
 		return False
 
 	definitions = dic.meaning(word)
-	nouns = definitions.get("Noun", [])
-	adjs = definitions.get("Adjective", [])
-	vers = definitions.get("Verb", [])
-	advs = definitions.get("Adverb", [])
-
-	definitions = list(adjs+vers+advs+nouns)
-
-	if len(definitions) == 1:
-		send_message(f"The definition of {word} is: {definitions[0]}")
+	try:
+		nouns = definitions.get("Noun", [])
+		adjs = definitions.get("Adjective", [])
+		vers = definitions.get("Verb", [])
+		advs = definitions.get("Adverb", [])
+	except AttributeError:
+		send_message("I don't know that word.")
 	else:
-		send_message(f"The definitions of {word} are: \"{definitions[0]}\" OR \"{definitions[1]}\"")
+		definitions = list(adjs+vers+advs+nouns)
+
+		if len(definitions) == 1:
+			send_message(f"The definition of {word} is: {definitions[0]}")
+		else:
+			send_message(f"The definitions of {word} are: \"{definitions[0]}\" OR \"{definitions[1]}\"")
 
 @is_command("Lets mods ban a user, for mobile mods.")
 def rban(message_dict):
@@ -1149,7 +1165,7 @@ def calculate(message_dict):
 	except (IndexError):
 		return False
 
-	calculation = calculation.replace(" ", "")
+	calculation = calculation.replace(" ", "").replace("x", "*")
 
 	if all(c in "0123456789+-*/()." for c in calculation): # don't allow invalid characters: unsanitised eval() is spoopy
 		try:
@@ -1235,18 +1251,21 @@ def weather(message_dict):
 
 	if message.split(" ")[-1].lower() in ["metric", "imperial"]:
 		place = " ".join(message.split(" ")[1:-1]).title()
-		format = message.split(" ")[-1].lower() # metric or imperial
+		units = message.split(" ")[-1].lower() # metric or imperial
 	else:
 		place = " ".join(message.split(" ")[1:]).title()
-		format = "metric"
+		units = "metric"
 
+	"""
 	geocode_url = "https://geocode.xyz/{place}?json=1"
 	geo_response = requests.get(geocode_url.format(place=place)).json()
 
 	latitude, longitude = geo_response["latt"], geo_response["longt"]
+	"""
+	latitude, longitude = memoise_place_name(place) # get coordinates from place name
 
 	weather_url = "https://api.openweathermap.org/data/2.5/onecall?lat={lat}&lon={lon}&exclude={exclude}&appid={APIkey}&units={unittype}"
-	weather_response = requests.get(weather_url.format(lat=latitude, lon=longitude, exclude="minutely,hourly,daily,alerts", APIkey="efb9294a75c99f69767f0691b0bbcc23", unittype=format)).json()
+	weather_response = requests.get(weather_url.format(lat=latitude, lon=longitude, exclude="minutely,hourly,daily,alerts", APIkey="efb9294a75c99f69767f0691b0bbcc23", unittype=units)).json()
 
 	weather    = weather_response["current"]
 	temp       = round(weather["temp"], 1)
@@ -1256,9 +1275,186 @@ def weather(message_dict):
 	except:
 		description = ""
 
-	output = f"In {place} the temperature is {temp}° (feels like {feels_like})."
+	unit = "C" if units == "metric" else "F"
+
+	output = f"In {place} the current temperature is {temp}°{unit} (feels like {feels_like}{unit})."
 	if description:
-		output += f" Overall it is {description}."
+		output += f" Overall: {description}."
 
 	send_message(output)
 	log(f"Sent weather report to {user} for {place}")
+
+def memoise_place_name(place):
+	# memoisation function to only call the geo api for new place names.
+	# if a new place name is seen, the coordinates are looked up from the api
+	# if that name is seen in future, it is recalled from the memo cache
+
+	with open("places.txt", "r", encoding="utf-8") as f:
+		places = dict(eval(f.read()))
+
+	if place not in places:
+
+		print(f"Looking up new place name {place}")
+
+		geocode_url = "https://geocode.xyz/{place}?json=1"
+		geo_response = requests.get(geocode_url.format(place=place)).json()
+
+		places[place] = geo_response["latt"], geo_response["longt"]
+
+		with open("places.txt", "w", encoding="utf-8") as f:
+			f.write(str(places))
+
+	return places[place]
+
+
+@is_command("Cancels a Toxicpoll")
+def cancelpoll(message_dict):
+	user = message_dict["display-name"]
+
+	global toxic_poll
+
+	if toxic_poll:
+		global voters
+		global toxic_votes
+		global nottoxic_votes
+
+		toxic_poll = False
+		voters = set()
+		toxic_votes = 0
+		nottoxic_votes = 0
+
+		send_message("Toxicpoll cancelled.")
+		log("Cancelled toxicpoll in response to {user}")
+	else:
+		send_message("There is no toxicpoll currently active.")
+		return False
+
+@is_command("Show the Spanish Word of the Day")
+def wordoftheday(message_dict):
+	user = message_dict["display-name"]
+
+	with open("spanish.txt", "r", encoding="utf-8") as f:
+		words = eval(f.read())
+
+	wotd_time = get_data("wordoftheday_time")
+
+	if wotd_time is None or wotd_time < time()-12*60*60 or get_data("wordoftheday_index") is None:
+		set_data("wordoftheday_time", time())
+		word_num = random.randint(0, len(words))
+		set_data("wordoftheday_index", word_num)
+	else:
+		word_num = get_data("wordoftheday_index")
+
+	spa, eng = words[word_num]
+	if user == "Timed Event":
+		tag = "@kaywee "
+	else:
+		tag = ""
+
+	send_message(f"{tag}The Spanish Word of the Day is \"{spa}\", which means \"{eng}\"")
+	log(f"Sent word of the Day to {user}: {spa} means {eng}")
+
+@is_command("Show the price of bitcoin")
+def btc(message_dict):
+    try:
+        result = requests.get("https://api.coinbase.com/v2/prices/BTC-USD/spot").content
+        value = float(str(result[49:57])[2:-2])
+    except:
+        return False
+    
+    send_message(f"Bitcoin is currently worth ${value:,}")
+
+@is_command("Show the price of etherium")
+def eth(message_dict):
+    try:
+        result = requests.get("https://api.coinbase.com/v2/prices/ETH-USD/spot").content
+        value = float(str(result[49:57])[2:-2])
+    except:
+        return False
+    
+    send_message(f"Ethereum is currently worth ${value:,}")
+
+@is_command("Display Kaywee's real biological age")
+def age(message_dict):
+	ages = list(range(19,24)) + list(range(36,43))
+	true_age = random.choice(ages)
+	send_message(f"Kaywee is {true_age} years old.")
+
+@is_command("Show how long you've been following")
+def followage(message_dict):
+	user = message_dict["display-name"].lower()
+
+	try:
+		target = message_dict["message"].split(" ")[1].lower().replace("@", "")
+	except (KeyError, IndexError):
+		target = user
+
+	with open("followers.txt", "r", encoding="utf-8") as f:
+		try:
+			followers = dict(eval(f.read()))
+		except Exception as ex:
+			log("Exception reading followers in followage command: " + str(ex))
+			followers = {}
+
+	if target in followers:
+		follow_time = time() - datetime.strptime(followers[target], "%Y-%m-%dT%H:%M:%SZ").timestamp()
+
+
+		days = int(follow_time // 86400)
+		hours = int((follow_time % 86400) // 3600)
+		mins = int((follow_time % 3600) // 60)
+		seconds = int(follow_time % 60)
+
+		send_message(f"{target} followed at: {follow_time}")
+	else:
+		send_message(f"{target} is not following Kaywee. FeelsBadMan")
+
+@is_command("Add or edit a variable. Usage: `!variable [add|edit] <variable name> <value>`")
+def variable(message_dict):
+	user = message_dict["display-name"].lower()
+	message = message_dict["message"]
+
+	params = message.split(" ")[1:]
+	try:
+		action = params[0]
+		name = params[1].lower()
+		value = " ".join(params[2:])
+		assert "{" not in value and "}" not in value # no recursive variables!
+	except (IndexError, AssertionError):
+		send_message("Syntax error. Use !variable [add|edit] <name> <value>.")
+		return False
+
+	with open("variables.txt", "r", encoding="utf-8") as f:
+		variables = dict(eval(f.read()))
+
+	if action == "add":
+		if name not in variables:
+			try:
+				value = int(value)
+			except ValueError:
+				pass # value is a string
+
+			variables[name] = value
+			with open("variables.txt", "w", encoding="utf-8") as f:
+				f.write(str(variables))
+			send_message(f"Created variable {name} as: {value}.")
+		else:
+			send_message(f"A variable with the name {name} already exists.")
+	elif action == "edit":
+		if name in variables:
+			try:
+				value = int(value)
+			except ValueError:
+				pass # value is a string
+
+			variables[name] = value
+
+			with open("variables.txt", "w", encoding="utf-8") as f:
+				f.write(str(variables))
+			send_message(f"Updated variable {name} to: {value}.")
+		else:
+			send_message(f"A variable with the name {name} does not exist.")
+	else:
+		send_message(f"Unknown action: {action}")
+
+	# maybe deletion isn't supported?
