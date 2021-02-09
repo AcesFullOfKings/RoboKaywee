@@ -1,5 +1,6 @@
 #import sqlite3 # one day maybe I'll use an actual database LOL
 import os
+import re
 import praw
 import random
 import requests
@@ -16,7 +17,7 @@ from threading   import Thread, Lock, Event
 from credentials import bot_name, password, channel_name, kaywee_channel_id, bearer_token, robokaywee_client_id, tof_channel_id
 
 import commands as commands_file
-from API_functions import get_app_access_token
+from API_functions import get_app_access_token, get_name_from_user_ID, get_followers
 
 """
 TODO:
@@ -48,20 +49,25 @@ command_lock   = Lock()
 config_lock    = Lock()
 subs_lock      = Lock()
 usernames_lock = Lock()
+wiki_lock      = Lock()
 
 channel_live        = Event()
 channel_offline     = Event()
 live_status_checked = Event()
 live_status_checked.clear()
 
+variable_regex = re.compile("{[^{}]*}")
+
 bots = {"robokaywee", "streamelements", "nightbot"}
 channel_emotes = {"kaywee1AYAYA", "kaywee1Wut", "kaywee1Dale", "kaywee1Imout", "kaywee1GASM", "KKaywee"}
+
+bot = None
 
 modwalls = {
 	15:  {"name": "Modwall",                    "emotes": "kaywee1AYAYA"},
 	30:  {"name": "MEGAmodwall!",               "emotes": "SeemsGood kaywee1Wut"},
-	50:  {"name": "HYPER MODWALL!!",            "emotes": "TwitchLit kaywee1AYAYA kaywee1Wut"},
-	100: {"name": "U L T R A MODWALL!!",        "emotes": "kaywee1AYAYA PogChamp Kreygasm CurseLit"},
+	60:  {"name": "HYPER MODWALL!!",            "emotes": "TwitchLit kaywee1AYAYA kaywee1Wut"},
+	120: {"name": "U L T R A MODWALL!!",        "emotes": "kaywee1AYAYA PogChamp Kreygasm CurseLit"},
 	250: {"name": "G I G A M O D W A L L!!!",   "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
 	500: {"name": "T E R R A M O D W A L L!!!", "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
 	# I guarantee none of these will ever be reached naturally, but..
@@ -85,13 +91,20 @@ with open("subscribers.txt", "r", encoding="utf-8") as f:
 		log("Exception creating subscriber dictionary: " + str(ex))
 		subscribers = {}
 
+with open("followers.txt", "r", encoding="utf-8") as f:
+	try:
+		followers = dict(eval(f.read()))
+	except Exception as ex:
+		log("Exception creating follower dictionary: " + str(ex))
+		followers = {}
+
 with open("titles.txt", "r", encoding="utf-8") as f:
 	titles = f.read().split("\n")
 
 def channel_events():
 	""" 
 	Checks the channel every period. If channel goes live or goes offline, global Thread events are triggered.
-	Dont you dare judge my code quality in this function flasgod. It's a mess but we do what we gotta do to survive.
+	Dont you dare judge my code quality in this function Flasgod. It's a mess but we do what we gotta do to survive.
 	"""
 
 	global channel_live
@@ -189,7 +202,7 @@ def channel_events():
 last_wiki_update = 0
 def update_commands_wiki(force_update_reddit=False):
 	global last_wiki_update
-	
+
 	if force_update_reddit or last_wiki_update < time() - 60*30: # don't update more often than 30 mins unless forced
 		permissions = {0:"Pleb", 2:"Follower", 4:"Subscriber", 6:"VIP", 8:"Mod", 10:"Broadcaster", 12:"Disabled"}
 
@@ -202,7 +215,7 @@ def update_commands_wiki(force_update_reddit=False):
 
 			command_lock.release()
 
-			table = "**Note: all commands are now sent with /me so will display in the bot's colour.**\n\n\n**Command**|**Level**|**Response/Description**|**Uses**\n---|---|---|---\n"
+			table = "**Note: all commands are sent with /me so will display in the bot's colour.**\n\n\n**Command**|**Level**|**Response/Description**|**Uses**\n---|---|---|---\n"
 
 			for command in sorted(commands):
 				if "permission" in commands[command]:
@@ -244,8 +257,7 @@ def write_command_data(force_update_reddit=False):
 			f.write(str(commands_dict).replace("},", "},\n"))
 		command_lock.release()
 
-		update_thread = Thread(target=update_commands_wiki, args=(force_update_reddit,))
-		update_thread.start()
+		Thread(target=update_commands_wiki, args=(force_update_reddit,)).start()
 	else:
 		log("Warning: Command Lock timed out on write_command_data() !!")
 
@@ -357,6 +369,33 @@ def update_subs():
 		commit_subscribers()
 		sleep(30*60)
 
+def update_followers():
+	global followers 
+	global authorisation_header
+
+	while True:
+		url = "https://api.twitch.tv/helix/users/follows?to_id=" + kaywee_channel_id
+
+		# first check total follow count from twitch:
+		try:
+			data = requests.get(url, headers=authorisation_header).json()
+			follower_count = data["total"]
+		except Exception as ex:
+			log("Exception while requesting followers: " + str(ex))
+
+		# only update followers if total follow count has changed: 
+		# (this might mean e.g. one unfollowed and one followed so the count stayed the same but the list changed.. but oh well)
+		if follower_count != len(followers):
+			followers = get_followers()
+			try:
+				with open("followers.txt", "w", encoding="utf-8") as f:
+					f.write(str(followers))
+			except Exception as ex:
+				log("Exception writing followers: " + str(ex))
+				followers = {}
+
+		sleep(10*60)
+
 def get_data(name):
 	try:
 		if config_lock.acquire(timeout=3):
@@ -454,8 +493,10 @@ def update_app_access_token():
 			log("Exception when fetching App Access Token: " + str(ex))
 			expires_in = 0
 
-		if expires_in < 48*60*60: #if token expires in the next 48h
-			set_data("app_access_token", get_app_access_token()) # get a new one
+		if expires_in < 48*60*60: # if token expires in the next 48h
+			new_token = get_app_access_token(log)
+			set_data("app_access_token", new_token) # get a new one
+			authorisation_header = {"Client-ID": robokaywee_client_id, "Authorization":"Bearer " + new_token}
 
 		sleep(23*60*60) # wait 23 hours
 
@@ -463,10 +504,6 @@ def send_message(message, add_to_chatlog=True, suppress_colour=False):
 	"""
 	Will also be accessible from the commands file.
 	"""
-
-	#if False: # -> allows me to run the bot silently during testing
-	#	print("SEND_MESASGE FUNCTION IS DISABLED!")
-	#	return
 
 	if message.startswith("/") or suppress_colour:
 		bot.send_message(message)
@@ -510,14 +547,13 @@ def check_cooldown(command_name, user):
 	else:
 		return check_user_cooldown()
 
-class permissions(IntEnum):
-	Disabled    = 12
-	Broadcaster = 10
-	Mod	        = 8
-	VIP	        = 6
-	Subscriber  = 4
-	Follower    = 2
-	Pleb        = 0
+def create_bot():
+	global bot
+	if bot is not None:
+		log("Re-creating bot object..")
+
+	bot = ChatBot(bot_name, password, channel_name, debug=False, capabilities=["tags", "commands"])
+	commands_file.bot = bot
 
 def respond_message(message_dict):
 	# For random non-command responses/rules
@@ -532,7 +568,7 @@ def respond_message(message_dict):
 		send_message(f"@{user} I'm a bot, so I can't reply. Try talking to one of the helpful human mods instead.")
 		log(f"Sent \"I'm a bot\" to {user}")
 
-	elif commands_file.nochat_on and user not in bots and "kaywee" in message_lower: # and all(emote not in message for emote in channel_emotes):
+	elif commands_file.nochat_on and user not in bots and "kaywee" in message_lower:
 		msg_words = [word for word in message_lower.split(" ") if "kaywee1" not in word] # remove channel emotes, including unknown emotes with the right prefix
 		message_lower = " ".join(msg_words).replace("robokaywee", "") # stitch message back together and remove robokaywee
 
@@ -540,7 +576,7 @@ def respond_message(message_dict):
 			send_message(f"@{user} {commands_dict['nochat']['response']}")
 			log(f"Sent nochat to {user} in response to @kaywee during nochat mode.")
 
-	elif permission < permissions.Subscriber: # works in 2.0
+	elif permission < permissions.Subscriber:
 		msg_without_spaces = message_lower.replace(" ", "")
 		if any(x in msg_without_spaces for x in ["bigfollows.com", "bigfollows*com", "bigfollowsdotcom"]):
 			send_message(f"/ban {user}")
@@ -567,16 +603,70 @@ def respond_message(message_dict):
 	elif message_lower == "hello there":
 		send_message("General Keboni")
 		log(f"Sent Kenobi to {user}")
+
 	elif "romper" in message_lower:
 		send_message("!romper")
 		log(f"Sent romper to {user}")
+
+def replace_variables(message):
+	updated = False
+
+	result = re.search(variable_regex, message)
+	while result is not None:
+		with open("variables.txt", "r", encoding="utf-8") as f:
+			variables = dict(eval(f.read()))
+
+		text = result.group(0)
+		params = text[1:-1].split(" ")
+
+		if len(params) == 1:
+			message = message.replace(text, variables[params[0]])
+		elif len(params) == 2:
+			try:
+				var = params[0]
+				sign = params[1][0]
+				increment = params[1][1:]
+				assert sign in "+-"
+
+				increment = int(increment)
+				value = int(variables[var])
+				value = value+increment if sign=="+" else value-increment
+
+				variables[var] = value
+
+				with open("variables.txt", "w", encoding="utf-8") as f:
+					f.write(str(variables))
+
+				message = message.replace(text, str(value)) 
+				updated = True
+			except (ValueError, IndexError, AssertionError):
+				message = message.replace(text, "") # fail the replacement
+		else:
+			message = message.replace(text, "") # fail the replacement
+
+		result = re.search(variable_regex, message)
+
+	if updated:
+		with open("variables.txt", "w", encoding="utf-8") as f:
+			f.write(str(variables))
+			
+	return message
+
+class permissions(IntEnum):
+	Disabled    = 12
+	Broadcaster = 10
+	Mod	        = 8
+	VIP	        = 6
+	Subscriber  = 4
+	Follower    = 2 # never used; can't detect this yet
+	Pleb        = 0
 
 update_command_data = False # does command data on disk/wiki need to be updated?
 
 #check for new commands and add to database:
 for command_name in [o for o in dir(commands_file) if not(o.startswith("_") or o.endswith("_"))]:
 	try:
-		if getattr(commands_file, command_name).is_command:
+		if getattr(commands_file, command_name).is_command is True:
 			if command_name not in commands_dict:
 				commands_dict[command_name] = {'permission': 0, 'global_cooldown': 1, 'user_cooldown': 0, 'coded': True, 'uses': 0, "description": getattr(commands_file, command_name).description}
 				update_command_data = True
@@ -597,22 +687,20 @@ if __name__ == "__main__":
 	log("Starting bot..")
 
 	try:
-		bot = ChatBot(bot_name, password, channel_name, debug=False, capabilities=["tags", "commands"])
-	except NotInitialisedException:
-		log("Chatbot failed to initialise. Exiting.")
-		exit()
+		create_bot()
 	except Exception as ex:
 		log("Bot raised an exception while starting: " + str(ex))
 		exit()
 
 	authorisation_header = {"Client-ID": robokaywee_client_id, "Authorization":"Bearer " + get_data("app_access_token")}
 
-	Thread(target=channel_events).start()
-	Thread(target=update_app_access_token).start()
-	Thread(target=update_subs).start()	
-	Thread(target=set_random_colour).start()
-	Thread(target=channel_live_messages).start()
-	Thread(target=automatic_backup).start()
+	Thread(target=channel_events,          name="Channel Events").start()
+	Thread(target=update_app_access_token, name="Access Token Updater").start()
+	Thread(target=update_subs,             name="Subscriber Updater").start()	
+	Thread(target=update_followers,        name="Followers Updater").start()
+	Thread(target=set_random_colour,       name="Colour Updater").start()
+	Thread(target=channel_live_messages,   name="Channel Live Messages").start()
+	Thread(target=automatic_backup,        name="Automatic Backup").start()
 	
 	user_cooldowns  = {}
 	modwall_mods    = set()
@@ -639,7 +727,7 @@ if __name__ == "__main__":
 		try:
 			messages = bot.get_messages()
 			for message_dict in messages:
-				if message_dict["message_type"] == "privmsg":
+				if message_dict["message_type"] == "privmsg": # chat message
 					user	= message_dict["display-name"].lower()
 					message = message_dict["message"]
 
@@ -669,6 +757,8 @@ if __name__ == "__main__":
 							user_permission = permissions.VIP
 						elif "subscriber" in message_dict["badges"]:
 							user_permission = permissions.Subscriber
+						elif user in followers:
+							user_permission = permissions.Follower
 
 					message_dict["user_permission"] = user_permission
 
@@ -683,7 +773,7 @@ if __name__ == "__main__":
 								if command_obj["coded"]:
 									if command in dir(commands_file):
 										func = getattr(commands_file, command)
-										if func.is_command:
+										if func.is_command is True: # "is" stops truthy values from proceeding. It needs to be explicitly True to pass
 											if func(message_dict) != False: # commands can return True/None on success (None != False)
 												if "uses" in command_obj:
 													command_obj["uses"] += 1
@@ -700,12 +790,16 @@ if __name__ == "__main__":
 								else:
 									if "response" in command_obj:
 										words = message.split(" ")
+										response = replace_variables(command_obj["response"])
+
 										if len(words) == 2 and words[1].startswith("@"):
-											msg_to_send = words[1] + " " + command_obj["response"]
+											msg_to_send = words[1] + " " + response
 										else:
-											msg_to_send = command_obj["response"]
+											msg_to_send = response
+
 										send_message(msg_to_send)
 										log(f"Sent {command} in response to {user}.")
+
 										if "uses" in command_obj:
 											command_obj["uses"] += 1
 										else:
@@ -723,7 +817,7 @@ if __name__ == "__main__":
 						modwall_mods.add(user)
 
 						# don't send modwall unless there are at least 3 mods in the wall
-						if  (    modwall <  14 # few messages
+						if  (    modwall <  14                             # few messages, OR
 							 or (modwall >= 14 and len(modwall_mods) >= 3) # lots of messages and at least 3 mods
 							): # sadface 
 
@@ -737,8 +831,14 @@ if __name__ == "__main__":
 							if modwall >= 5:
 								set_data("modwall", modwall)
 					else:
-						if modwall > 30:
-							send_message(f"{current_modwall} has been broken by {user}! :( FeelsBadMan NotLikeThis PepeHands")
+						if modwall >= 30:
+							if modwall < 60:
+								send_message(f"{current_modwall} has been broken by {user}! :( FeelsBadMan")
+							elif modwall < 120: # >= 60 is implied
+								send_message(f"{current_modwall} has been broken by {user}! :( FeelsBadMan NotLikeThis")
+							elif modwall >= 120:
+								send_message(f"{current_modwall} has been broken by {user}! :( FeelsBadMan NotLikeThis PepeHands")
+
 						if modwall >= 5:
 							set_data("modwall", 0)
 
@@ -893,10 +993,11 @@ if __name__ == "__main__":
 					log(f"Now hosting {host_name} with {viewers} viewers.")
 					if int(viewers) > 1:
 						send_message(f"Now hosting {host_name} with {viewers} viewers.")
-					
-				elif message_dict["message_type"] == "reconnect":
-					send_message("Stream is back online!")
-					log(f"Stream is back online!")
+				
+				# REMOVED: this is now dealt with in the Bot object itself.	
+				#elif message_dict["message_type"] == "reconnect":
+				#	log("RECONNECT received")
+				#	create_bot() # chat is restarting; re-create bot object.
 
 				elif message_dict["message_type"] == "userstate":
 					# Mostly just for colour changes which I don't care about
@@ -913,7 +1014,7 @@ if __name__ == "__main__":
 					continue # skip the following code.. might use it in the future though
 
 					if "emote-only" in message_dict:
-						enabled_str = "enabled" if int(message_dict["emote-only"]) else "disabled"
+						enabled_str = "enabled" if int(message_dict.get("emote-only", 0)) else "disabled"
 						send_message(f"Emote-only mode is now {enabled_str}")
 
 					elif "followers-only" in message_dict:
@@ -924,7 +1025,7 @@ if __name__ == "__main__":
 							send_message(f"Followers-only mode is now set to {duration} minutes.")
 
 					elif "r9k" in message_dict:
-						enabled_str = "enabled" if int(message_dict["r9k"]) else "disabled"
+						enabled_str = "enabled" if int(message_dict.get("r9k", 0)) else "disabled"
 						send_message(f"r9k mode is now {enabled_str}")
 
 					elif "slow" in message_dict:
@@ -932,18 +1033,19 @@ if __name__ == "__main__":
 						send_message(f"Slow mode is now set to {duration} seconds.")
 
 					elif "subs-only" in message_dict:
-						enabled_str = "enabled" if int(message_dict["subs-only"]) else "disabled"
+						enabled_str = "enabled" if int(message_dict.get("subs-only", 0)) else "disabled"
 						send_message(f"Subs-only mode is now {enabled_str}")
 
 				elif message_dict["message_type"] == "clearmsg":
 					# single message was deleted
+					target = message_dict["login"] # the user whose message was deleted ?
 					print(message_dict)
 
 				elif message_dict["message_type"] == "clearchat":
 					# cleared all messages from user
-					user_id = message_dict["target-user-id"] # this is the User ID, not the username. It's a str-formatted number.
 					print(message_dict)
-
+					user_id = message_dict.get("target-user-id", None) # this is the User ID, not the username. It's a str-formatted number.
+					# username = get_name_from_user_ID(user_id)
 				else:
 					with open("verbose log.txt", "a", encoding="utf-8") as f:
 						f.write("Robokaywee - unknown message type: " + str(message_dict) + "\n\n")
@@ -953,7 +1055,6 @@ if __name__ == "__main__":
 				dropoff *= 1.5 # exponential dropoff, decay factor 1.5
 				log(f"Connection was closed - will try again in {int(dropoff)}s..")
 				sleep(dropoff)
-				log("Re-creating bot object..")
-				bot = ChatBot(bot_name, password, channel_name, debug=False, capabilities=["tags", "commands"])
+				create_bot() # re-create bot object (to reconnect to twitch)
 			else:
 				log("Exception in main loop: " + str(ex)) # generic catch-all (literally) to make sure bot doesn't crash
