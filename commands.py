@@ -1,6 +1,7 @@
 import random
 import requests
 import re
+import subprocess
 
 from time          import sleep, time
 from datetime      import date, datetime
@@ -1357,8 +1358,8 @@ def wordoftheday(message_dict):
 @is_command("Show the price of bitcoin")
 def btc(message_dict):
     try:
-        result = requests.get("https://api.coinbase.com/v2/prices/BTC-USD/spot").content
-        value = float(str(result[49:57])[2:-2])
+        result = requests.get("https://api.coinbase.com/v2/prices/BTC-USD/spot").json()
+        value = float(result["data"]["amount"])
     except:
         return False
     
@@ -1367,8 +1368,8 @@ def btc(message_dict):
 @is_command("Show the price of etherium")
 def eth(message_dict):
     try:
-        result = requests.get("https://api.coinbase.com/v2/prices/ETH-USD/spot").content
-        value = float(str(result[49:57])[2:-2])
+        result = requests.get("https://api.coinbase.com/v2/prices/ETH-USD/spot").json()
+        value = float(result["data"]["amount"])
     except:
         return False
     
