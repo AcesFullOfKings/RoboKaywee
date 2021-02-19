@@ -663,7 +663,7 @@ def toenglish(message_dict):
 	user = message_dict["display-name"].lower()
 	message = message_dict["message"]
 
-	phrase = " ".join(message.split(" ")[1:]).replace(".", ",").replace("?", ",").replace("!", ",")
+	phrase = " ".join(message.split(" ")[1:])
 
 	english = ""
 	if phrase.lower() in ["robokaywee", user, "@" + user, ""]:
@@ -675,6 +675,8 @@ def toenglish(message_dict):
 			english = target + ": "
 		except KeyError:
 			return False
+
+	phrase = phrase.replace(".", ",").replace("?", ",").replace("!", ",")
 
 	# phrase = phrase.replace(".", ";").replace("?", ";").replace("!", ";") # for some reason it only translates the first sentence
 	english += j_translate(phrase, dest_lang="en")
@@ -697,7 +699,7 @@ def tospanish(message_dict):
 	user = message_dict["display-name"].lower()
 	message = message_dict["message"]
 
-	phrase = " ".join(message.split(" ")[1:]).replace(".", ",").replace("?", ",").replace("!", ",")
+	phrase = " ".join(message.split(" ")[1:])
 
 	spanish = ""
 	if phrase.lower() in ["robokaywee", user, "@" + user, ""]:
@@ -709,6 +711,8 @@ def tospanish(message_dict):
 			spanish = target + ": "
 		except KeyError:
 			return False
+
+	phrase = phrase.replace(".", ",").replace("?", ",").replace("!", ",")
 
 	# phrase = phrase.replace(".", ";").replace("?", ";").replace("!", ";") # for some reason it only translates the first sentence
 	spanish += j_translate(phrase, source_lang="auto", dest_lang="es")
@@ -1459,3 +1463,14 @@ def variable(message_dict):
 		send_message(f"Unknown action: {action}")
 
 	# maybe deletion isn't supported?
+
+@is_command("Predict how OW2 will be.")
+def ow2(message_dict):
+	user = message_dict["display-name"].lower()
+
+	with open("ow2.txt", "r") as f:
+		lines = f.read().split("\n")
+
+	ow2_prediction = random.choice(lines)
+	send_message(ow2_prediction)
+	log(f"Sent OW2 in response to {user}: {ow2_prediction}")
