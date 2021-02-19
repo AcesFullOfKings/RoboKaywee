@@ -21,7 +21,6 @@ from API_functions import get_app_access_token, get_name_from_user_ID, get_follo
 
 """
 TODO:
-should be able to add counters and variables to text commands
 should be able to give any command multiple names via aliases
 when host_on notice is received, channel_live should be set to false
 rework how live detection works
@@ -41,7 +40,7 @@ def log(s):
 	
 	log_time = f"{day}/{month} {hour}:{minute}:{second}"
 
-	print(s)
+	print(f"{hour}:{minute} - {s}")
 	with open("log.txt", "a", encoding="utf-8") as f:
 		f.write(log_time + " - " + s + "\n")
 
@@ -62,6 +61,7 @@ bots = {"robokaywee", "streamelements", "nightbot"}
 channel_emotes = {"kaywee1AYAYA", "kaywee1Wut", "kaywee1Dale", "kaywee1Imout", "kaywee1GASM", "KKaywee"}
 
 bot = None
+shutdown_on_offline = False
 
 modwalls = {
 	15:  {"name": "Modwall",                    "emotes": "kaywee1AYAYA"},
@@ -110,6 +110,7 @@ def channel_events():
 	global channel_live
 	global channel_offline
 	global live_status_checked
+	global shutdown_on_offline
 
 	def check_live_status_first():
 		nonlocal online_time 
@@ -145,7 +146,8 @@ def channel_events():
 			add_seen_title(title) # save unique stream title
 
 	def check_live_status_subsequent():
-		nonlocal online_time 
+		nonlocal online_time
+		global shutdown_on_offline
 		try:
 			# if this call succeeds, streamer is Live. Exceptions imply streamer is offline (as no stream title exists)
 			title = requests.get(url, headers=authorisation_header).json()["data"][0]["title"]
@@ -169,6 +171,10 @@ def channel_events():
 
 				channel_live.clear()
 				channel_offline.set()
+
+				if shutdown_on_offline:
+					log("Shutting down the PC..")
+					subprocess.run("Shutdown /s /f")
 
 		# streamer is online:
 		else:
@@ -292,16 +298,16 @@ def set_random_colour():
 	
 	while True:
 		today_name = days[date.today().weekday()]
-		lastday = get_data("lastday")
+		last_colour_change = get_data("lastcolourchange")
 		
-		if lastday is None or lastday != today_name:
-			set_data("lastday", today_name)
+		if last_colour_change is None or last_colour_change != today_name:
+			set_data("lastcolourchange", today_name)
 			if today_name == "Wednesday":
 				send_message("/color HotPink", False)
 				set_data("current_colour", "HotPink")
 				log(f"Colour was updated to HotPink in response to Timed Event")
 			else:
-				colours = ["blue","blueviolet","cadetblue","chocolate","coral","dodgerblue","firebrick","goldenrod","green","hotpink","orangered","red","seagreen","springgreen","yellowgreen"]
+				colours = ["blue","blueviolet","cadetblue","chocolate","coral","dodgerblue","firebrick","goldenrod","green","orangered","red","seagreen","springgreen","yellowgreen"]
 				new_colour = random.choice(colours)
 				send_message("/color " + new_colour, False)
 				set_data("current_colour", new_colour)
@@ -449,7 +455,7 @@ def automatic_backup():
 	Autmatically makes a backup of all bot files once per week. Does not delete old files.
 	"""
 	
-	backup_period  = 86400 * 7 # backup once per week
+	backup_period  = 86400 * 7 # backup once per 7 days
 	check_interval = 60*60     # check once per hour
 
 	while True:
@@ -607,6 +613,14 @@ def respond_message(message_dict):
 	elif "romper" in message_lower:
 		send_message("!romper")
 		log(f"Sent romper to {user}")
+
+	elif user == "theonefoster_" and message_lower == "*sd":
+		shutdown_on_offline = True
+		log("Will now shutdown when Kaywee goes offline")
+
+	elif user == "nightroad2593" and "ow2" in message_lower:
+		with open("ow2.txt", "a") as f:
+			f.write(message_lower + "\n")
 
 def replace_variables(message):
 	updated = False
@@ -768,8 +782,8 @@ if __name__ == "__main__":
 							command = "toxicpoll"
 						if command in commands_dict:
 							command_obj = commands_dict[command]
-
-							if user_permission >= command_obj["permission"] and check_cooldown(command, user):
+                                                                                # cooldowns now only apply to non-mods. bc fuck those guys
+							if user_permission >= command_obj["permission"] and (user_permission >= permissions.Mod or check_cooldown(command, user)):
 								if command_obj["coded"]:
 									if command in dir(commands_file):
 										func = getattr(commands_file, command)
@@ -1001,18 +1015,20 @@ if __name__ == "__main__":
 
 				elif message_dict["message_type"] == "userstate":
 					# Mostly just for colour changes which I don't care about
+					# update: It's not even for colour changes.. one seems to come through every time I use /me
+					pass
+
+					"""
 					user       = message_dict.get("display-name", None) # username, case-sensitive
 					colour     = message_dict.get("color"       , None) # Hexadecimal RGB color code
 					badge_info = message_dict.get("badge-info"  , None) # Metadata related to chat badges. Details subscription length in months
 					badges     = message_dict.get("badges"      , None) # comma-separated list of chat badges
 					emote_sets = message_dict.get("emote-sets"  , None) # list of ints
 					mod        = message_dict.get("mod"         , None) # 1 iff user has mod badge, else 0
+					"""
 
 				elif message_dict["message_type"] == "roomstate":
 					# If the chat mode changes, e.g. entering or leaving subs-only or emote-only mode
-
-					continue # skip the following code.. might use it in the future though
-
 					if "emote-only" in message_dict:
 						enabled_str = "enabled" if int(message_dict.get("emote-only", 0)) else "disabled"
 						send_message(f"Emote-only mode is now {enabled_str}")
@@ -1038,6 +1054,7 @@ if __name__ == "__main__":
 
 				elif message_dict["message_type"] == "clearmsg":
 					# single message was deleted
+					# e.g {'message_type': 'clearmsg', 'login': 'nacho_888', 'room-id': '', 'target-msg-id': '4e2100ba-f5fe-4338-85a1-cccc191375c7', 'tmi-sent-ts': '1613065616305'}
 					target = message_dict["login"] # the user whose message was deleted ?
 					print(message_dict)
 
