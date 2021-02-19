@@ -618,7 +618,7 @@ def respond_message(message_dict):
 		shutdown_on_offline = True
 		log("Will now shutdown when Kaywee goes offline")
 
-	elif user == "nightroad2593" and "ow2" in message_lower:
+	elif user == "nightroad2593" and "in ow2" in message_lower:
 		with open("ow2.txt", "a") as f:
 			f.write(message_lower + "\n")
 
