@@ -174,6 +174,7 @@ def channel_events():
 
 				if shutdown_on_offline:
 					log("Shutting down the PC..")
+					sleep(1)
 					subprocess.run("Shutdown /s /f")
 
 		# streamer is online:
@@ -340,6 +341,12 @@ def it_is_worldday_my_dudes():
 def wordoftheday_timer():
 	sleep(60*60) # wait 60 mins into stream
 	commands_file.wordoftheday({"display-name":"Timed Event"}) # have to include a message dict param
+
+def ow2_msgs():
+	while True:
+		sleep(random.randint(15*60, 45*60)) # random wait between 15 and 45 mins
+		channel_live.wait()
+		commands_file.ow2({"display-name": "Timed Event"})
 
 def channel_live_messages():
 	global channel_live
@@ -619,8 +626,11 @@ def respond_message(message_dict):
 		log("Will now shutdown when Kaywee goes offline")
 
 	elif user == "nightroad2593" and "in ow2" in message_lower:
+		log(f"Saved new ow2 prediction: {message_lower}")
 		with open("ow2.txt", "a") as f:
-			f.write(message_lower + "\n")
+			f.write(message + "\n")
+	elif user in ["gothmom_", "ncal_babygirl24"] and "lucio" in message_lower:
+		send_message("IS UR MAN HERE??")
 
 def replace_variables(message):
 	updated = False
@@ -715,6 +725,7 @@ if __name__ == "__main__":
 	Thread(target=set_random_colour,       name="Colour Updater").start()
 	Thread(target=channel_live_messages,   name="Channel Live Messages").start()
 	Thread(target=automatic_backup,        name="Automatic Backup").start()
+	Thread(target=ow2_msgs,                name="OW2 messages").start()
 	
 	user_cooldowns  = {}
 	modwall_mods    = set()
@@ -739,7 +750,8 @@ if __name__ == "__main__":
 
 	while True:
 		try:
-			messages = bot.get_messages()
+			#messages = [{"message_type":"privmsg", "display-name": "theonefoster_", "message": "!ffz", "badges": "moderator"}] 
+			messages =  bot.get_messages()
 			for message_dict in messages:
 				if message_dict["message_type"] == "privmsg": # chat message
 					user	= message_dict["display-name"].lower()
@@ -779,7 +791,7 @@ if __name__ == "__main__":
 					if message.startswith("!"):
 						command = message[1:].split(" ")[0].lower()
 						if command in ["win", "loss", "draw"]:
-							command = "toxicpoll"
+							command = "toxicpoll" # start a toxicpoll when the SE result commands are seen
 						if command in commands_dict:
 							command_obj = commands_dict[command]
                                                                                 # cooldowns now only apply to non-mods. bc fuck those guys
@@ -909,10 +921,10 @@ if __name__ == "__main__":
 
 							if recipient == "robokaywee":
 								sleep(1)
-								send_message(f"OMG {gifter}!! Thank you so much, you're the best!! <3 <3 kaywee1AYAYA")
+								send_message(f"OMG {gifter}!! Thank you so much for my gifted sub, you're the best!! <3 <3 kaywee1AYAYA")
 							elif commands_file.nochat_on:
 								send_message(f"@{gifter} thank you so much for gifting a subscription to {recipient}! Kaywee isn't looking at chat right now (!nochat) but she'll see your gift after the current game.")
-								log(f"Sent nochat to {user} for gifting a sub")
+								log(f"Sent nochat to {gifter} for gifting a sub")
 
 						elif message_dict["msg-id"] == "sub": # USER SUBSCRIPTION
 							user = message_dict["display-name"].lower()
@@ -997,7 +1009,6 @@ if __name__ == "__main__":
 					else:
 						with open("verbose log.txt", "a", encoding="utf-8") as f:
 							f.write("(no msg-id?) - " + str(message_dict) + "\n\n")
-				# does hosttarget not come through? why not?
 				elif message_dict["message_type"] == "hosttarget":
 					# OUTGOING HOST
 					host_name = message_dict["host_target"] # the user we're now hosting
@@ -1007,15 +1018,10 @@ if __name__ == "__main__":
 					log(f"Now hosting {host_name} with {viewers} viewers.")
 					if int(viewers) > 1:
 						send_message(f"Now hosting {host_name} with {viewers} viewers.")
-				
-				# REMOVED: this is now dealt with in the Bot object itself.	
-				#elif message_dict["message_type"] == "reconnect":
-				#	log("RECONNECT received")
-				#	create_bot() # chat is restarting; re-create bot object.
 
 				elif message_dict["message_type"] == "userstate":
 					# Mostly just for colour changes which I don't care about
-					# update: It's not even for colour changes.. one seems to come through every time I use /me
+					# update: It's not even for colour changes.. one seems to come through every time I use /me.. what does this mean?? docs don't help :/
 					pass
 
 					"""
