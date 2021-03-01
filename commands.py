@@ -33,10 +33,8 @@ All replies will be sent in the bot's colour, using /me.
 currencies = {'CAD', 'HKD', 'ISK', 'PHP', 'DKK', 'HUF', 'CZK', 'GBP', 'RON', 'SEK', 'IDR', 'INR', 'BRL', 'RUB', 'HRK', 'JPY', 'THB', 'CHF', 'EUR', 'MYR', 'BGN', 'TRY', 'CNY', 'NOK', 'NZD', 'ZAR', 'USD', 'MXN', 'SGD', 'AUD', 'ILS', 'KRW', 'PLN'}
 
 # there must be a way to fetch these lists..?
-bttv_global = {'PedoBear', 'RebeccaBlack', ':tf:', 'CiGrip', 'DatSauce', 'ForeverAlone', 'GabeN', 'HailHelix', 'HerbPerve', 'iDog', 'rStrike', 'ShoopDaWhoop', 'SwedSwag', 'M&Mjc', 'bttvNice', 'TopHam', 'TwaT', 'WatChuSay', 'SavageJerky', 'Zappa', 'tehPoleCat', 'AngelThump', 'HHydro', 'TaxiBro', 'BroBalt', 'ButterSauce', 'BaconEffect', 'SuchFraud', 'CandianRage', "She'llBeRight", 'D:', 'VisLaud', 'KaRappa', 'YetiZ', 'miniJulia', 'FishMoley', 'Hhhehehe', 'KKona', 'PoleDoge', 'sosGame', 'CruW', 'RarePepe', 'iamsocal', 'haHAA', 'FeelsBirthdayMan', 'RonSmug', 'KappaCool', 'FeelsBadMan', 'BasedGod', 'bUrself', 'ConcernDoge', 'FeelsGoodMan', 'FireSpeed', 'NaM', 'SourPls', 'LuL', 'SaltyCorn', 'FCreep', 'monkaS', 'VapeNation', 'ariW', 'notsquishY', 'FeelsAmazingMan', 'DuckerZ', 'SqShy', 'Wowee', 'WubTF', 'cvR', 'cvL', 'cvHazmat', 'cvMask'}
-bttv_local = {'ppCircle', 'KayWeird', 'PepeHands', 'monkaS', 'POGGERS', 'PepoDance', 'HYPERS', 'BongoCat', 'RareParrot', 'BIGWOW', '5Head', 'WeirdChamp', 'PepeJam', 'KEKWHD', 'widepeepoHappyRightHeart', 'gachiHYPER', 'peepoNuggie', 'MonkaTOS', 'KKool', 'OMEGALUL', 'monkaSHAKE', 'PogUU', 'Clap', 'AYAYA', 'CuteDog', 'weSmart', 'DogePls', 'REEEE', 'BBoomer', 'HAhaa', 'FeelsLitMan', 'POGSLIDE', 'CCOGGERS', 'peepoPANTIES', 'PartyParrot', 'monkaX', 'widepeepoSadBrokenHeart', 'KoolDoge', 'TriDance', 'PepePls', 'gachiBASS', 'pepeLaugh', 'whatBlink', 'FeelsSadMan'}
-
-all_emotes = bttv_local | bttv_global
+# bttv_global = {'PedoBear', 'RebeccaBlack', ':tf:', 'CiGrip', 'DatSauce', 'ForeverAlone', 'GabeN', 'HailHelix', 'HerbPerve', 'iDog', 'rStrike', 'ShoopDaWhoop', 'SwedSwag', 'M&Mjc', 'bttvNice', 'TopHam', 'TwaT', 'WatChuSay', 'SavageJerky', 'Zappa', 'tehPoleCat', 'AngelThump', 'HHydro', 'TaxiBro', 'BroBalt', 'ButterSauce', 'BaconEffect', 'SuchFraud', 'CandianRage', "She'llBeRight", 'D:', 'VisLaud', 'KaRappa', 'YetiZ', 'miniJulia', 'FishMoley', 'Hhhehehe', 'KKona', 'PoleDoge', 'sosGame', 'CruW', 'RarePepe', 'iamsocal', 'haHAA', 'FeelsBirthdayMan', 'RonSmug', 'KappaCool', 'FeelsBadMan', 'BasedGod', 'bUrself', 'ConcernDoge', 'FeelsGoodMan', 'FireSpeed', 'NaM', 'SourPls', 'LuL', 'SaltyCorn', 'FCreep', 'monkaS', 'VapeNation', 'ariW', 'notsquishY', 'FeelsAmazingMan', 'DuckerZ', 'SqShy', 'Wowee', 'WubTF', 'cvR', 'cvL', 'cvHazmat', 'cvMask'}
+# bttv_local = {'ppCircle', 'KayWeird', 'PepeHands', 'monkaS', 'POGGERS', 'PepoDance', 'HYPERS', 'BongoCat', 'RareParrot', 'BIGWOW', '5Head', 'WeirdChamp', 'PepeJam', 'KEKWHD', 'widepeepoHappyRightHeart', 'gachiHYPER', 'peepoNuggie', 'MonkaTOS', 'KKool', 'OMEGALUL', 'monkaSHAKE', 'PogUU', 'Clap', 'AYAYA', 'CuteDog', 'weSmart', 'DogePls', 'REEEE', 'BBoomer', 'HAhaa', 'FeelsLitMan', 'POGSLIDE', 'CCOGGERS', 'peepoPANTIES', 'PartyParrot', 'monkaX', 'widepeepoSadBrokenHeart', 'KoolDoge', 'TriDance', 'PepePls', 'gachiBASS', 'pepeLaugh', 'whatBlink', 'FeelsSadMan'}
 
 toxic_poll = False
 toxic_votes = 0
@@ -189,7 +187,7 @@ def rcommand(message_dict):
 			send_message(f"No command exists with name {command_name}.")
 	#elif action == "alias": # ???
 	#	pass
-	elif action == "view":
+	elif action in ["view", "show"]:
 		view_command = command_dict[command_name]
 
 		usercooldown = view_command.get("user_cooldown", 0)
@@ -653,10 +651,10 @@ def endofseason(message_dict):
 	#user = message_dict["display-name"].lower()
 
 	try:
-		time_left = timeuntil(1610060400)
-		send_message(f"Season 25 ends in {time_left}")
+		time_left = timeuntil(1614880800)
+		send_message(f"Season 26 ends in {time_left}")
 	except ValueError:
-		send_message("Season 25 has now ended!")
+		send_message("Season 26 has now ended!")
 
 @is_command("Translates a Spanish message into English. Syntax: `!toenglish hola` OR `!toenglish @toniki`")
 def toenglish(message_dict):
@@ -952,17 +950,25 @@ def uses(message_dict):
 	user = message_dict["display-name"].lower()
 	message = message_dict["message"]
 
-	command = message.split(" ")[1]
-	if command in command_dict:
-		times_used = command_dict[command].get("uses", 0)
+	thing = message.split(" ")[1]
+
+	# thing is a command?
+	if thing in command_dict:
+		times_used = command_dict[thing].get("uses", 0)
 		if times_used > 1:
-			send_message(f"The {command} command has been used {times_used} times.")
-			log(f"Sent uses to {user}: command {command} has been used {times_used} times.")
+			send_message(f"The {thing} command has been used {times_used} times.")
+			log(f"Sent uses to {user}: command {thing} has been used {times_used} times.")
 		else:
-			send_message(f"The {command} command has been used {times_used} time.")
-			log(f"Sent uses to {user}: command {command} has been used {times_used} time.")
+			send_message(f"The {thing} command has been used {times_used} time.")
+			log(f"Sent uses to {user}: command {thing} has been used {times_used} time.")
 	else:
-		send_message("Command not recognised.")
+		# thing is an emote?
+		emote_uses = _emote_uses(thing)
+		if emote_uses > 0:
+			send_message(f"The {thing} emote has been used {emote_uses:,} times.")
+			log(f"Sent uses to {user}: emote {thing} has been used {emote_uses:,} times.")
+		else:
+			send_message(f"{thing} is not recognised.")
 
 def _nochat_mode():
 	global nochat_on
@@ -1464,7 +1470,7 @@ def variable(message_dict):
 
 	# maybe deletion isn't supported?
 
-@is_command("Predict how OW2 will be.")
+@is_command("Predict how OW2 will work.")
 def ow2(message_dict):
 	user = message_dict["display-name"].lower()
 
@@ -1474,3 +1480,148 @@ def ow2(message_dict):
 	ow2_prediction = random.choice(lines)
 	send_message(ow2_prediction)
 	log(f"Sent OW2 in response to {user}: {ow2_prediction}")
+
+@is_command("Look up the top definition of a word on Urban Dictionary")
+def urban(message_dict):
+	message = message_dict["message"]
+	user = message_dict["display-name"]
+
+	try:
+		term = " ".join(message.split(" ")[1:])
+	except:
+		send_message("Syntax error.")
+		log(f"Syntax error in Urban: message was {message}")
+		return False
+
+	try:
+		result = requests.get(f"http://api.urbandictionary.com/v0/define?term={term}")
+		definition = result.json()["list"][0]["definition"]
+		assert definition != ""
+	except:
+		send_message("No definition found :( FeelsBadMan")
+		log(f"No Urban definition found for {term} in response to {user}")
+		return False
+
+	definition = definition.replace("[", "").replace("]", "")
+
+	# url looks like https://www.urbandictionary.com/define.php?term=term
+	# but this is shorter and works too: www.urbandictionary.com/term
+	real_url = f"www.urbandictionary.com/{term}"
+	suffix = f". - Source: {real_url}"
+	max_len = 500-len(suffix)
+
+	send_message(f"{definition[:max_len]}{suffix}")
+	log(f"Sent Urban definition of {term} to {user} - it means {definition}")
+
+def _chatstats(key):
+	# valkid keys:
+	assert key in ['channel', 'totalMessages', 'chatters', 'hashtags', 'commands', 'bttvEmotes', 'ffzEmotes', 'twitchEmotes']
+
+	url = "https://api.streamelements.com/kappa/v2/chatstats/kaywee/stats"
+	result = requests.get(url).json()
+
+	return result[key]
+
+@is_command("Show the total number of messages ever sent in Kaywee's chat")
+def totalmessages(message_dict):
+	user = message_dict["display-name"].lower()
+
+	messages = int(_chatstats("totalMessages"))
+	send_message(f"There have been {messages:,} messages sent to Kaywee's chat.")
+	log(f"Sent totalmessages of {messages:,} to {user}")
+
+@is_command("Show the total number of messages ever sent in Kaywee's chat")
+def chats(message_dict):
+	user = message_dict["display-name"].lower()
+
+	try:
+		target = message_dict["message"].split(" ")[1].lower().replace("@", "")
+	except (KeyError, IndexError):
+		target = user
+
+	chatters = _chatstats("chatters")
+
+	for chatter in chatters:
+		name, chats = chatter["name"], chatter["amount"]
+		if name == target:
+			break
+	else: # name not found
+		send_message(f"User not found in top 100 chatters - use !chatstats for full info.")
+		return True
+
+	send_message(f"{target} has sent {chats:,} messages in Kaywee's channel!")
+	log(f"Sent {target}'s chat count of {chats:,} to {user}")
+
+@is_command("Show the current BTTV emotes.")
+def bttv(message_dict):
+	user = message_dict["display-name"].lower()
+	bttv_emotes = _chatstats("bttvEmotes")
+	emotes = [emoteinfo["emote"] for emoteinfo in bttv_emotes]
+	
+	first_500 = ""
+	last_500 = ""
+
+	for emote in emotes:
+		# these show up in the API for some reason, but they're not valid emotes.. so exclude them here
+		if emote not in ['BasedGod', 'Zappa', 'FeelsPumpkinMan', 'PedoBear', 'COGGERS', 'SillyChamp', 'monkaX', 'CCOGGERS', '5Head', 'TriDance', 'RebeccaBlack', 'peepoPANTIES']:
+			if len(first_500 + " " + emote) < 500:
+				if first_500:
+					first_500 = first_500 + " " + emote
+				else:
+					first_500 = emote
+			else:
+				if last_500:
+					last_500 = last_500 + " " + emote
+				else:
+					last_500 = emote
+
+	send_message("The BTTV emotes in this channel are: ")
+	send_message(first_500, suppress_colour=True)
+	if last_500:
+		send_message(last_500, suppress_colour=True)
+	log(f"Sent BTTV emotes to {user}")
+
+@is_command("Show the current FFZ emotes.")
+def ffz(message_dict):
+	user = message_dict["display-name"].lower()
+	bttv_emotes = _chatstats("ffzEmotes")
+	emotes = [emoteinfo["emote"] for emoteinfo in bttv_emotes]
+	
+	first_500 = ""
+	last_500 = ""
+
+	for emote in emotes:
+		if len(first_500 + " " + emote) < 500:
+			if first_500:
+				first_500 = first_500 + " " + emote
+			else:
+				first_500 = emote
+		else:
+			if last_500:
+				last_500 = last_500 + " " + emote
+			else:
+				last_500 = emote
+
+	send_message("The FFZ emotes in this channel are: ")
+	send_message(first_500, suppress_colour=True)
+	if last_500:
+		send_message(last_500, suppress_colour=True)
+	log(f"Sent BTTV emotes to {user}")
+
+def _get_all_emotes():
+	url = "https://api.streamelements.com/kappa/v2/chatstats/kaywee/stats"
+	result = requests.get(url).json()
+
+	return result["bttvEmotes"] + result["ffzEmotes"] + result["twitchEmotes"]
+
+# nearly a year later.. turns out there is! :D
+all_emotes = _get_all_emotes()
+
+def _emote_uses(emote):
+	emotes = _get_all_emotes()
+	emotes_dict = {}
+
+	for e in emotes:
+		emotes_dict[e["emote"]] = e["amount"]
+
+	return emotes_dict.get(emote, 0)
