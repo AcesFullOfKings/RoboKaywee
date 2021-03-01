@@ -631,6 +631,7 @@ def respond_message(message_dict):
 			f.write(message + "\n")
 	elif user in ["gothmom_", "ncal_babygirl24"] and "lucio" in message_lower:
 		send_message("IS UR MAN HERE??")
+		log(f"Sent \"Is your man here?\" to {user}")
 
 def replace_variables(message):
 	updated = False
