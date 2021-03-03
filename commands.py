@@ -32,10 +32,6 @@ All replies will be sent in the bot's colour, using /me.
 
 currencies = {'CAD', 'HKD', 'ISK', 'PHP', 'DKK', 'HUF', 'CZK', 'GBP', 'RON', 'SEK', 'IDR', 'INR', 'BRL', 'RUB', 'HRK', 'JPY', 'THB', 'CHF', 'EUR', 'MYR', 'BGN', 'TRY', 'CNY', 'NOK', 'NZD', 'ZAR', 'USD', 'MXN', 'SGD', 'AUD', 'ILS', 'KRW', 'PLN'}
 
-# there must be a way to fetch these lists..?
-# bttv_global = {'PedoBear', 'RebeccaBlack', ':tf:', 'CiGrip', 'DatSauce', 'ForeverAlone', 'GabeN', 'HailHelix', 'HerbPerve', 'iDog', 'rStrike', 'ShoopDaWhoop', 'SwedSwag', 'M&Mjc', 'bttvNice', 'TopHam', 'TwaT', 'WatChuSay', 'SavageJerky', 'Zappa', 'tehPoleCat', 'AngelThump', 'HHydro', 'TaxiBro', 'BroBalt', 'ButterSauce', 'BaconEffect', 'SuchFraud', 'CandianRage', "She'llBeRight", 'D:', 'VisLaud', 'KaRappa', 'YetiZ', 'miniJulia', 'FishMoley', 'Hhhehehe', 'KKona', 'PoleDoge', 'sosGame', 'CruW', 'RarePepe', 'iamsocal', 'haHAA', 'FeelsBirthdayMan', 'RonSmug', 'KappaCool', 'FeelsBadMan', 'BasedGod', 'bUrself', 'ConcernDoge', 'FeelsGoodMan', 'FireSpeed', 'NaM', 'SourPls', 'LuL', 'SaltyCorn', 'FCreep', 'monkaS', 'VapeNation', 'ariW', 'notsquishY', 'FeelsAmazingMan', 'DuckerZ', 'SqShy', 'Wowee', 'WubTF', 'cvR', 'cvL', 'cvHazmat', 'cvMask'}
-# bttv_local = {'ppCircle', 'KayWeird', 'PepeHands', 'monkaS', 'POGGERS', 'PepoDance', 'HYPERS', 'BongoCat', 'RareParrot', 'BIGWOW', '5Head', 'WeirdChamp', 'PepeJam', 'KEKWHD', 'widepeepoHappyRightHeart', 'gachiHYPER', 'peepoNuggie', 'MonkaTOS', 'KKool', 'OMEGALUL', 'monkaSHAKE', 'PogUU', 'Clap', 'AYAYA', 'CuteDog', 'weSmart', 'DogePls', 'REEEE', 'BBoomer', 'HAhaa', 'FeelsLitMan', 'POGSLIDE', 'CCOGGERS', 'peepoPANTIES', 'PartyParrot', 'monkaX', 'widepeepoSadBrokenHeart', 'KoolDoge', 'TriDance', 'PepePls', 'gachiBASS', 'pepeLaugh', 'whatBlink', 'FeelsSadMan'}
-
 toxic_poll = False
 toxic_votes = 0
 nottoxic_votes = 0
@@ -646,12 +642,12 @@ def howmanygifts(message_dict):
 		send_message(message)
 		log(f"Sent {target} has {count} gifted subs, in response to {user}.")
 
-@is_command("Shows a timer until the end of Season 25.")
+@is_command("Shows a timer until the end of Season 26.")
 def endofseason(message_dict):
 	#user = message_dict["display-name"].lower()
 
 	try:
-		time_left = timeuntil(1614880800)
+		time_left = timeuntil(1614884400)
 		send_message(f"Season 26 ends in {time_left}")
 	except ValueError:
 		send_message("Season 26 has now ended!")
@@ -674,21 +670,10 @@ def toenglish(message_dict):
 		except KeyError:
 			return False
 
-	phrase = phrase.replace(".", ",").replace("?", ",").replace("!", ",")
+	phrase = phrase.replace(".", ",").replace("?", ",").replace("!", ",") # for some reason it only translates the first sentence
 
-	# phrase = phrase.replace(".", ";").replace("?", ";").replace("!", ";") # for some reason it only translates the first sentence
 	english += j_translate(phrase, dest_lang="en")
 
-	# the below is needed from the crappy library:
-
-	#replacements = [("&#39;", "'"), ("&gt;", ">"), ("&lt;", "<"), ("&quot;", '"'), ("&amp;", "&")]
-	#for (a, b) in replacements:
-	#	english = english.replace(a, b)
-
-	#if "MYMEMORY WARNING: " in english:
-	#	send_message("Translation limit has been reached for today. // Se alcanzó el límite de traducción por hoy.")
-	#	log("Translation limit reached.")
-	#else:
 	send_message(english)
 	log(f"Translated \"{phrase}\" into English for {user}: it says \"{english}\"")
 
@@ -710,21 +695,11 @@ def tospanish(message_dict):
 		except KeyError:
 			return False
 
-	phrase = phrase.replace(".", ",").replace("?", ",").replace("!", ",")
+	phrase = phrase.replace(".", ",").replace("?", ",").replace("!", ",") # for some reason it only translates the first sentence
 
-	# phrase = phrase.replace(".", ";").replace("?", ";").replace("!", ";") # for some reason it only translates the first sentence
+	# phrase = phrase.replace(".", ";").replace("?", ";").replace("!", ";") 
 	spanish += j_translate(phrase, source_lang="auto", dest_lang="es")
 
-	# the below is needed from the crappy library:
-
-	#replacements = [("&#39;", "'"), ("&gt;", ">"), ("&lt;", "<"), ("&quot;", '"'), ("&amp;", "&")]
-	#for (a, b) in replacements:
-	#	english = english.replace(a, b)
-
-	#if "MYMEMORY WARNING: " in spanish:
-	#	send_message("Translation limit has been reached for today. // Se alcanzó el límite de traducción por hoy.")
-	#	log("Translation limit reached.")
-	#else:
 	send_message(spanish)
 	log(f"Translated \"{phrase}\" into Spanish for {user}: it says \"{spanish}\"")
 
@@ -1267,13 +1242,11 @@ def weather(message_dict):
 		place = " ".join(message.split(" ")[1:]).title()
 		units = "metric"
 
-	"""
-	geocode_url = "https://geocode.xyz/{place}?json=1"
-	geo_response = requests.get(geocode_url.format(place=place)).json()
-
-	latitude, longitude = geo_response["latt"], geo_response["longt"]
-	"""
 	latitude, longitude = memoise_place_name(place) # get coordinates from place name
+
+	if latitude is None or longitude is None:
+		send_message("That place name wasn't found.")
+		return False
 
 	weather_url = "https://api.openweathermap.org/data/2.5/onecall?lat={lat}&lon={lon}&exclude={exclude}&appid={APIkey}&units={unittype}"
 	weather_response = requests.get(weather_url.format(lat=latitude, lon=longitude, exclude="minutely,hourly,daily,alerts", APIkey="efb9294a75c99f69767f0691b0bbcc23", unittype=units)).json()
@@ -1309,6 +1282,9 @@ def memoise_place_name(place):
 
 		geocode_url = "https://geocode.xyz/{place}?json=1"
 		geo_response = requests.get(geocode_url.format(place=place)).json()
+
+		if not ("latt" in geo_response and "longt" in geo_response):
+			return (None, None)
 
 		places[place] = geo_response["latt"], geo_response["longt"]
 
@@ -1514,7 +1490,7 @@ def urban(message_dict):
 	log(f"Sent Urban definition of {term} to {user} - it means {definition}")
 
 def _chatstats(key):
-	# valkid keys:
+	# valid keys:
 	assert key in ['channel', 'totalMessages', 'chatters', 'hashtags', 'commands', 'bttvEmotes', 'ffzEmotes', 'twitchEmotes']
 
 	url = "https://api.streamelements.com/kappa/v2/chatstats/kaywee/stats"
