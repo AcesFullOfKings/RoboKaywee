@@ -1,7 +1,8 @@
 #import sqlite3 # one day maybe I'll use an actual database LOL
 import os
 import re
-import praw
+import praw # takes 0.33s to import!
+import ctypes
 import random
 import requests
 
@@ -9,14 +10,15 @@ from os          import getcwd
 from time        import time, sleep, localtime
 from enum        import IntEnum
 from math        import ceil
-from james       import timeuntil
+from string      import ascii_lowercase
+from james       import timeuntil, is_haiku # takes 0.4s to import!
 from shutil      import copy2 as copy_with_metadata
 from chatbot     import ChatBot # see https://github.com/theonefoster/pyTwitchChatBot
 from datetime    import date, datetime
 from threading   import Thread, Lock, Event
-from credentials import bot_name, password, channel_name, kaywee_channel_id, bearer_token, robokaywee_client_id, tof_channel_id
+from credentials import bot_name, password, channel_name, kaywee_channel_id, robokaywee_client_id, tof_channel_id
 
-import commands as commands_file
+import commands as commands_file # takes 0.3s to import!
 from API_functions import get_app_access_token, get_name_from_user_ID, get_followers
 
 """
@@ -25,6 +27,8 @@ should be able to give any command multiple names via aliases
 when host_on notice is received, channel_live should be set to false
 rework how live detection works
 """
+
+ctypes.windll.kernel32.SetConsoleTitleW("RoboKaywee")
 
 def log(s):
 	"""
@@ -55,26 +59,27 @@ channel_offline     = Event()
 live_status_checked = Event()
 live_status_checked.clear()
 
-variable_regex = re.compile("{[^{}]*}")
-
 bots = {"robokaywee", "streamelements", "nightbot"}
 channel_emotes = {"kaywee1AYAYA", "kaywee1Wut", "kaywee1Dale", "kaywee1Imout", "kaywee1GASM", "KKaywee"}
 
 bot = None
 shutdown_on_offline = False
 
+ayy_re   = re.compile("a*y*")
+hello_re = re.compile("h*i*|h*e*y*|h*e*l*o*|h*o*l*a*|h*i*y*a*")
+
 modwalls = {
 	15:  {"name": "Modwall",                    "emotes": "kaywee1AYAYA"},
-	30:  {"name": "MEGAmodwall!",               "emotes": "SeemsGood kaywee1Wut"},
-	60:  {"name": "HYPER MODWALL!!",            "emotes": "TwitchLit kaywee1AYAYA kaywee1Wut"},
-	120: {"name": "U L T R A MODWALL!!",        "emotes": "kaywee1AYAYA PogChamp Kreygasm CurseLit"},
-	250: {"name": "G I G A M O D W A L L!!!",   "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
-	500: {"name": "T E R R A M O D W A L L!!!", "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
+	30:  {"name": "Supermodwall!",              "emotes": "SeemsGood kaywee1Wut"},
+	60:  {"name": "MEGA MODWALL!!",             "emotes": "TwitchLit kaywee1AYAYA kaywee1Wut"},
+	120: {"name": "H Y P E R MODWALL!!",        "emotes": "kaywee1AYAYA PogChamp Kreygasm CurseLit"},
+	250: {"name": "U L T R A M O D W A L L!!!", "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
+	500: {"name": "GIGAMODWALL!!!",             "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
 	# I guarantee none of these will ever be reached naturally, but..
 	1000:{"name": "PETAMODWALL!!!!",            "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
-	2000:{"name": "EXAMODWALL!!!!",             "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
-	3000:{"name": "ZETTAMODWALL!!!!!",          "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
-	4000:{"name": "YOTTAMODWALL!!!!!!",         "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
+	2000:{"name": "EXAMODWALL!!!!!",            "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
+	3000:{"name": "ZETTAMODWALL!!!!!!",         "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
+	4000:{"name": "YOTTAMODWALL!!!!!!!",        "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
 	# also I know that the SI prefixes don't make sense with the numbers but whatever, I needed increasing prefixes
 }
 
@@ -140,6 +145,8 @@ def channel_events():
 				log(f"{channel_name} is online.")
 				online_time = time() # set first time seen online
 				set_data("online_time", online_time)
+				bUrself_sent = False
+				set_data("bUrself_sent", False)
 				
 			channel_live.set()
 
@@ -186,6 +193,9 @@ def channel_events():
 				
 				channel_offline.clear()
 				channel_live.set()
+
+				bUrself_sent = False
+				set_data("bUrself_sent", False)
 
 			add_seen_title(title) # save unique stream title
 	try:
@@ -356,7 +366,7 @@ def channel_live_messages():
 
 	if not channel_live.is_set():  # if channels isn't already live when bot starts
 		channel_live.wait()        # wait for channel to go live
-		send_message("!resetrecord", suppress_colour=True)
+		#send_message("!resetrecord", suppress_colour=True)
 
 		Thread(target=it_is_worldday_my_dudes).start()
 		Thread(target=wordoftheday_timer).start()
@@ -472,14 +482,14 @@ def automatic_backup():
 			month = str(today_dt.month).zfill(2)
 			day = str(today_dt.day).zfill(2)
 
-			fdate = f"{year}{month}{day}"
+			fdate = f"{year}.{month}.{day}"
 			folder_name = getcwd() + f"\\backups\\Backup - {fdate}"
 
 			if not os.path.exists(folder_name):
 				os.mkdir(folder_name)
 
 			for filename in os.listdir(getcwd()):
-				if any(filename.endswith(ext) for ext in [".txt", ".py"]):
+				if any(filename.endswith(ext) for ext in [".txt", ".py", ".json"]):
 					full_src = getcwd()    + f"\\{filename}" # source file full path
 					full_dst = folder_name + f"\\{filename}" # dest file full path
 					copy_with_metadata(full_src, full_dst)
@@ -503,7 +513,7 @@ def update_app_access_token():
 			log("No Access Token was found in config.txt. Fetching a new one..")
 			expires_in = 0
 		except Exception as ex:
-			log("Exception when fetching App Access Token: " + str(ex))
+			log("Exception when checking App Access Token: " + str(ex))
 			expires_in = 0
 
 		if expires_in < 48*60*60: # if token expires in the next 48h
@@ -571,13 +581,15 @@ def create_bot():
 def respond_message(message_dict):
 	# For random non-command responses/rules
 
+	global bUrself_sent
+
 	user       = message_dict["display-name"].lower()
 	message    = message_dict["message"]
 	permission = message_dict["user_permission"]
 
 	message_lower = message.lower()
 
-	if "@robokaywee" in message_lower:
+	if "@robokaywee" in message_lower and user not in bots:
 		send_message(f"@{user} I'm a bot, so I can't reply. Try talking to one of the helpful human mods instead.")
 		log(f"Sent \"I'm a bot\" to {user}")
 
@@ -585,7 +597,7 @@ def respond_message(message_dict):
 		msg_words = [word for word in message_lower.split(" ") if "kaywee1" not in word] # remove channel emotes, including unknown emotes with the right prefix
 		message_lower = " ".join(msg_words).replace("robokaywee", "") # stitch message back together and remove robokaywee
 
-		if "kaywee" in message_lower and "nochat" in commands_dict and "response" in commands_dict["nochat"]:
+		if "kaywee" in message_lower:
 			send_message(f"@{user} {commands_dict['nochat']['response']}")
 			log(f"Sent nochat to {user} in response to @kaywee during nochat mode.")
 
@@ -597,11 +609,11 @@ def respond_message(message_dict):
 
 	# EASTER EGGS:
 	
-	elif message[0] == "^":
+	if message[0] == "^":
 		send_message("^", suppress_colour=True)
 		log(f"Sent ^ to {user}")
 
-	elif message_lower in ["ayy", "ayyy", "ayyyy", "ayyyyy"]:
+	elif ayy_re.fullmatch(message_lower):
 		send_message("lmao")
 		log(f"Sent lmao to {user}")
 
@@ -623,9 +635,9 @@ def respond_message(message_dict):
 
 	elif user == "theonefoster_" and message_lower == "*sd":
 		shutdown_on_offline = True
-		log("Will now shutdown when Kaywee goes offline")
+		log("Will now shutdown when Kaywee goes offline.")
 
-	elif user == "nightroad2593" and "in ow2" in message_lower:
+	elif user == "nightroad2593" and message_lower.startswith("in ow2"):
 		log(f"Saved new ow2 prediction: {message_lower}")
 		with open("ow2.txt", "a") as f:
 			f.write(message + "\n")
@@ -633,57 +645,34 @@ def respond_message(message_dict):
 		send_message("IS UR MAN HERE??")
 		log(f"Sent \"Is your man here?\" to {user}")
 
-def replace_variables(message):
-	updated = False
-
-	result = re.search(variable_regex, message)
-	while result is not None:
-		with open("variables.txt", "r", encoding="utf-8") as f:
-			variables = dict(eval(f.read()))
-
-		text = result.group(0)
-		params = text[1:-1].split(" ")
-
-		if len(params) == 1:
-			message = message.replace(text, variables[params[0]])
-		elif len(params) == 2:
-			try:
-				var = params[0]
-				sign = params[1][0]
-				increment = params[1][1:]
-				assert sign in "+-"
-
-				increment = int(increment)
-				value = int(variables[var])
-				value = value+increment if sign=="+" else value-increment
-
-				variables[var] = value
-
-				with open("variables.txt", "w", encoding="utf-8") as f:
-					f.write(str(variables))
-
-				message = message.replace(text, str(value)) 
-				updated = True
-			except (ValueError, IndexError, AssertionError):
-				message = message.replace(text, "") # fail the replacement
-		else:
-			message = message.replace(text, "") # fail the replacement
-
-		result = re.search(variable_regex, message)
-
-	if updated:
-		with open("variables.txt", "w", encoding="utf-8") as f:
-			f.write(str(variables))
-			
-	return message
+	elif "".join(c for c in message_lower if c in ascii_lowercase+" ") == "alexa play despacito":
+		send_message("Now playing Despacito by Luis Fonsi.")
+		log(f"Now playing Despacito for {user}")
+	elif "".join(c for c in message_lower if c in ascii_lowercase+" ") == "alexa stop":
+		send_message("Now stopping.")
+		log(f"Stopping Alexia for {user}")
+	elif len(message_lower.split()) == 2 and message_lower.split()[0] in ["im", "i'm"]:
+		send_message(f"Hi {message.split()[1]}, I'm dad!")
+		log(f"Sent Dad to {user}")
+	elif not bUrself_sent and user == "billneethesciencebee":
+		send_message("bUrself")
+		bUrself_sent = True
+		set_data("bUrself_sent", True)
+	
+	#else:
+	#	haiku = is_haiku(message_lower)
+	#	if haiku:
+	#		send_message(f"@{user} That was a haiku!! {' // '.join(haiku)}")
+	#		log(f"Sent Haiku to {user}: {str(haiku)}")
 
 class permissions(IntEnum):
 	Disabled    = 12
 	Broadcaster = 10
+	Owner       = 9
 	Mod	        = 8
 	VIP	        = 6
 	Subscriber  = 4
-	Follower    = 2 # never used; can't detect this yet
+	Follower    = 2
 	Pleb        = 0
 
 update_command_data = False # does command data on disk/wiki need to be updated?
@@ -702,7 +691,6 @@ for command_name in [o for o in dir(commands_file) if not(o.startswith("_") or o
 	except AttributeError:
 		pass
 
-
 if update_command_data:
 	write_command_data(False)
 
@@ -711,11 +699,17 @@ del update_command_data
 if __name__ == "__main__":
 	log("Starting bot..")
 
-	try:
-		create_bot()
-	except Exception as ex:
-		log("Bot raised an exception while starting: " + str(ex))
-		exit()
+	success = False
+	dropoff = 1
+
+	while not success:
+		try:
+			create_bot()
+			success = True
+		except Exception as ex:
+			log(f"Bot raised an exception while starting: {str(ex)}. Waiting {dropoff}s.")
+			sleep(dropoff)
+			dropoff *= 2
 
 	authorisation_header = {"Client-ID": robokaywee_client_id, "Authorization":"Bearer " + get_data("app_access_token")}
 
@@ -726,7 +720,7 @@ if __name__ == "__main__":
 	Thread(target=set_random_colour,       name="Colour Updater").start()
 	Thread(target=channel_live_messages,   name="Channel Live Messages").start()
 	Thread(target=automatic_backup,        name="Automatic Backup").start()
-	Thread(target=ow2_msgs,                name="OW2 messages").start()
+	#Thread(target=ow2_msgs,                name="OW2 messages").start()
 	
 	user_cooldowns  = {}
 	modwall_mods    = set()
@@ -736,6 +730,7 @@ if __name__ == "__main__":
 	vipwall_vips    = set()
 	last_message    = {}
 	dropoff         = 1
+	bUrself_sent = get_data("bUrself_sent")
 	
 	# let commands file access key objects:
 	commands_file.bot                = bot
@@ -743,6 +738,7 @@ if __name__ == "__main__":
 	commands_file.get_data           = get_data
 	commands_file.set_data           = set_data
 	commands_file.nochat_on          = False
+	commands_file.subscribers        = subscribers
 	commands_file.permissions        = permissions
 	commands_file.send_message       = send_message
 	commands_file.command_dict       = commands_dict
@@ -751,21 +747,20 @@ if __name__ == "__main__":
 
 	while True:
 		try:
-			#messages = [{"message_type":"privmsg", "display-name": "theonefoster_", "message": "!ffz", "badges": "moderator"}] 
-			messages =  bot.get_messages()
+			#messages = [{"message_type":"privmsg", "display-name":"theonefoster", "message":"!translate en de this is a test!", "badges":["moderator"]}]
+			messages = bot.get_messages()
 			for message_dict in messages:
 				if message_dict["message_type"] == "privmsg": # chat message
 					user	= message_dict["display-name"].lower()
 					message = message_dict["message"]
+					message_lower = message.lower()
 
 					with open("chatlog.txt", "a", encoding="utf-8") as f:
 						f.write(f"{user}: {message}\n")
 
-					message_lower = message.lower()
-
 					if user not in usernames:
 						Thread(target=add_new_username,args=(user,)).start() # probably saves like.. idk 50ms? over just calling it.. trims reaction time though
-					elif message_lower in ["hello", "hi", "hey", "hola"]:
+					elif hello_re.fullmatch(message_lower):
 						if user.lower() == "littlehummingbird":
 							send_message("HELLO MADDIE THIS IS NOT A SASSY MESSAGE BUT HI") # little easter egg for maddie :)
 							log("Said Hello to Maddie, but in a totally not-sassy way")
@@ -775,7 +770,9 @@ if __name__ == "__main__":
 					last_message[user] = message
 					user_permission = permissions.Pleb # unless assigned otherwise below:
 						
-					if "badges" in message_dict: # twitch recommends using badges instead of the deprecated user-type tag
+					if user == "theonefoster":
+						user_permission = permissions.Owner
+					elif "badges" in message_dict: # twitch recommends using badges instead of the deprecated user-type tag
 						if "broadcaster" in message_dict["badges"]:
 							user_permission = permissions.Broadcaster
 						elif "moderator" in message_dict["badges"]:
@@ -789,18 +786,24 @@ if __name__ == "__main__":
 
 					message_dict["user_permission"] = user_permission
 
+					if message_lower.startswith("alexa "):
+						message_letters = "".join(char for char in message_lower if char in ascii_lowercase+" ")
+						if message_letters not in ["alexa play despacito", "alexa stop"]:
+							message = "!" + message[6:]
+							message_dict["message"] = message
+
 					if message.startswith("!"):
 						command = message[1:].split(" ")[0].lower()
 						if command in ["win", "loss", "draw"]:
 							command = "toxicpoll" # start a toxicpoll when the SE result commands are seen
 						if command in commands_dict:
 							command_obj = commands_dict[command]
-                                                                                # cooldowns now only apply to non-mods. bc fuck those guys
+							                                                     # cooldowns now only apply to non-mods. bc fuck those guys
 							if user_permission >= command_obj["permission"] and (user_permission >= permissions.Mod or check_cooldown(command, user)):
 								if command_obj["coded"]:
 									if command in dir(commands_file):
 										func = getattr(commands_file, command)
-										if func.is_command is True: # "is" stops truthy values from proceeding. It needs to be explicitly True to pass
+										if func.is_command is True: # "is" stops "truthy" values from proceeding. It needs to be explicitly True to pass
 											if func(message_dict) != False: # commands can return True/None on success (None != False)
 												if "uses" in command_obj:
 													command_obj["uses"] += 1
@@ -817,7 +820,7 @@ if __name__ == "__main__":
 								else:
 									if "response" in command_obj:
 										words = message.split(" ")
-										response = replace_variables(command_obj["response"])
+										response = command_obj["response"]
 
 										if len(words) == 2 and words[1].startswith("@"):
 											msg_to_send = words[1] + " " + response
