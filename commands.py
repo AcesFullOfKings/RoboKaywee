@@ -7,10 +7,10 @@ from time          import sleep, time
 from datetime      import date, datetime
 from fortunes      import fortunes
 from threading     import Thread
-from credentials   import kaywee_channel_id, robokaywee_client_id
-#from googletrans   import Translator #stopped working so superceded by:
-from james import timeuntil
-from james import translate as j_translate
+from credentials   import kaywee_channel_id, robokaywee_client_id, exchange_API_key
+from googletrans   import Translator #stopped working so superceded by:
+from james         import seconds_to_duration
+#from james import translate as j_translate
 
 from PyDictionary import PyDictionary
 dic = PyDictionary()
@@ -36,13 +36,8 @@ toxic_poll = False
 toxic_votes = 0
 nottoxic_votes = 0
 voters = set()
-
-with open("subscribers.txt", "r", encoding="utf-8") as f:
-	try:
-		subscribers = dict(eval(f.read()))
-	except Exception as ex:
-		print("Exception creating subscriber dictionary: " + str(ex))
-		subscribers = dict()
+translator = Translator(service_urls=['translate.googleapis.com','translate.google.com','translate.google.co.kr'])
+all_emotes = [] # populated below
 
 @is_command("Allows mods to add and edit existing commands. Syntax: !rcommand [add/edit/delete/options] <command name> <add/edit: <command text> // options: <[cooldown/usercooldown/permission]>>")
 def rcommand(message_dict):
@@ -129,7 +124,7 @@ def rcommand(message_dict):
 			try:
 				permission = int(params[3])
 			except (ValueError, IndexError):
-				send_message("Permission must be an integer: 0=All, 4=Subscriber, 6=VIP, 8=Moderator, 10=Broadcaster, 12=Disabled")
+				send_message("Permission must be an integer: 0=All, 4=Subscriber, 6=VIP, 8=Moderator, 10=Broadcaster, 11=Owner, 12=Disabled")
 				return False
 
 			if command_name in command_dict:
@@ -141,9 +136,8 @@ def rcommand(message_dict):
 						log(f"{user} updated permission on command {command_name} to {enum.name}")
 						return True # also exits the for-loop
 				else:
-					send_message("Invalid Permission: Use 0=All, 4=Subscriber, 6=VIP, 8=Moderator, 10=Broadcaster, 12=Disabled")
+					send_message("Invalid Permission: Use 0=All, 4=Subscriber, 6=VIP, 8=Moderator, 10=Broadcaster, 11=Owner, 12=Disabled")
 					return False
-
 			else:
 				send_message(f"No command exists with name {command_name}.")
 				return False
@@ -465,6 +459,9 @@ def _tofreedom(unit, quantity):
 	elif unit == "cl":
 		ml = cl * 10
 		return ("ml", ml)
+	elif unit == "g":
+		oz = round(quantity/28.3495, 1)
+		return ("oz", oz)
 
 	return -1
 
@@ -492,15 +489,23 @@ def _unfreedom(unit, quantity):
 	elif unit == "pt":
 		ml = round(quantity * 568.261, 1)
 		return("ml", ml)
+	elif unit == "oz":
+		g = round(quantity*28.3495, 1)
+		return ("g", g)
 
 	return -1
 
 def _get_currencies(base="USD", convert_to="GBP"):
 	base = base.upper()
-	result = requests.get(f"https://api.exchangeratesapi.io/latest?base={base}").json()
+	convert_to = convert_to.upper()
+
+	result = requests.get(f"http://api.exchangeratesapi.io/v1/latest?access_key={exchange_API_key}").json()
 	rates = result["rates"]
-	if convert_to.upper() in rates:
-		return rates[convert_to]
+	if base in rates and convert_to in rates:
+
+		return rates[convert_to] / rates[base]
+	else:
+		raise ValueError("Currency not found.")
 
 @is_command("Convert metric units into imperial. Syntax: !tofreedom <quantity><unit> e.g. `!tofreedom 5kg`")
 def tofreedom(message_dict):
@@ -534,7 +539,7 @@ def tofreedom(message_dict):
 		return False
 
 	if free_quantity == int(free_quantity): # if the float is a whole number
-		free_quantity = int(free_quantity) # convert it to an int (i.e. remove the .0)
+		free_quantity = int(free_quantity)  # convert it to an int (i.e. remove the .0)
 
 	if quantity == int(quantity): # ditto
 		quantity = int(quantity)
@@ -563,7 +568,7 @@ def unfreedom(message_dict):
 	try:
 		quantity = float(input)
 	except (ValueError):
-		send_message("That... doesn't look like a number. Try a number followed by a unit e.g. '5ft' or '10lb'.")
+		send_message("That.. doesn't look like a number. Try a number followed by a unit e.g. '5ft' or '10lb'.")
 		return False
 
 	try:
@@ -582,6 +587,8 @@ def unfreedom(message_dict):
 
 @is_command("Looks up who gifted the current subscription to the given user. Syntax: !whogifted [@]kaywee")
 def whogifted(message_dict):
+	global subscribers
+
 	user = message_dict["display-name"].lower()
 	message = message_dict["message"]
 	try:
@@ -612,6 +619,8 @@ def whogifted(message_dict):
 
 @is_command("Looks up how many of the currently-active subscriptions were gifted by the given user. Syntax: !howmanygifts [@]kaywee")
 def howmanygifts(message_dict):
+	global subscribers
+
 	user = message_dict["display-name"].lower()
 	message = message_dict["message"]
 	try:
@@ -647,12 +656,12 @@ def endofseason(message_dict):
 	#user = message_dict["display-name"].lower()
 
 	try:
-		time_left = timeuntil(1614884400)
+		time_left = timeuntil(1615312800)
 		send_message(f"Season 26 ends in {time_left}")
 	except ValueError:
 		send_message("Season 26 has now ended!")
 
-@is_command("Translates a Spanish message into English. Syntax: `!toenglish hola` OR `!toenglish @toniki`")
+@is_command("Translates a Spanish message into English. Syntax: `!toenglish hola` OR to translate a user's last message, `!toenglish @toniki`")
 def toenglish(message_dict):
 	user = message_dict["display-name"].lower()
 	message = message_dict["message"]
@@ -670,14 +679,14 @@ def toenglish(message_dict):
 		except KeyError:
 			return False
 
-	phrase = phrase.replace(".", ",").replace("?", ",").replace("!", ",") # for some reason it only translates the first sentence
+	#phrase = phrase.replace(".", ",").replace("?", ",").replace("!", ",") # for some reason it only translates the first sentence
 
-	english += j_translate(phrase, dest_lang="en")
+	english += translator.translate(phrase, src="es", dest="en").text
 
 	send_message(english)
 	log(f"Translated \"{phrase}\" into English for {user}: it says \"{english}\"")
 
-@is_command("Translates an English message into Spanish. Syntax: `!tospanish hello` OR `!tospanish @kaywee`")
+@is_command("Translates an English message into Spanish. Syntax: `!tospanish hello` OR to translate a user's last message, `!tospanish @kaywee`")
 def tospanish(message_dict):
 	user = message_dict["display-name"].lower()
 	message = message_dict["message"]
@@ -695,10 +704,10 @@ def tospanish(message_dict):
 		except KeyError:
 			return False
 
-	phrase = phrase.replace(".", ",").replace("?", ",").replace("!", ",") # for some reason it only translates the first sentence
+	#phrase = phrase.replace(".", ",").replace("?", ",").replace("!", ",") # for some reason it only translates the first sentence
 
 	# phrase = phrase.replace(".", ";").replace("?", ";").replace("!", ";") 
-	spanish += j_translate(phrase, source_lang="auto", dest_lang="es")
+	spanish += translator.translate(phrase, src="en", dest="es").text
 
 	send_message(spanish)
 	log(f"Translated \"{phrase}\" into Spanish for {user}: it says \"{spanish}\"")
@@ -727,7 +736,7 @@ def translate(message_dict):
 			return False
 	try:
 		# phrase = phrase.replace(".", ";").replace("?", ";").replace("!", ";") # for some reason it only translates the first sentence
-		output += j_translate(phrase, source_lang=source, dest_lang=dest)
+		output += translator.translate(phrase, src=source, dest=dest).text
 		send_message(output)
 		log(f"Translated \"{phrase}\" into {dest} for {user}: it says \"{output}\"")
 	except Exception as ex:
@@ -815,7 +824,7 @@ def rainbow(message_dict):
 	message = message_dict["message"]
 
 	try:
-		word = message.split(" ")[1][:12] # 12 chr limit
+		word = " ".join(message.split(" ")[1:])[:15] # 15 chr limit
 	except IndexError:
 		return False
 
@@ -824,9 +833,9 @@ def rainbow(message_dict):
 
 	for colour in ["red", "coral", "goldenrod", "green", "seagreen", "dodgerblue", "blue", "blueviolet", "hotpink"]:
 		send_message(f"/color {colour}", False)
-		sleep(0.15)
+		sleep(0.12)
 		send_message(f"/me {word}", False)
-		sleep(0.15)
+		sleep(0.12)
 
 	current_colour = get_data("current_colour")
 	sleep(1)
@@ -1048,7 +1057,7 @@ def rtimeout(message_dict):
 def echo(message_dict):
 	user = message_dict["display-name"].lower()
 
-	if user == "theonefoster_":
+	if user == "theonefoster":
 		message = message_dict["message"]
 
 		phrase = " ".join(message.split(" ")[1:])
@@ -1115,7 +1124,7 @@ def worldday(message_dict):
 	links = [link for link in re.findall(links_re, page) if "www.daysoftheyear.com" in link and "class=\"js-link-target\"" in link] #"link" is the entire <a></a> tag
 
 	day_re = re.compile("<.*?>([^<]*)<")# text between the tags
-	world_day = re.search(day_re, links[0]).group(1) # first group of 0th match (0th group is the whole match, 1st group is between ())
+	world_day = re.search(day_re, links[0]).group(1).replace("&#8217;", "'") # first group of 0th match (0th group is the whole match, 1st group is between ())
 
 	send_message(f"Happy {world_day}! (Source: https://www.daysoftheyear.com)" )
 	log(f"Sent World Day ({world_day}) to {user}")
@@ -1350,6 +1359,7 @@ def btc(message_dict):
         return False
     
     send_message(f"Bitcoin is currently worth ${value:,}")
+    log(f"Sent BTC of ${value:,} to {user}")
 
 @is_command("Show the price of etherium")
 def eth(message_dict):
@@ -1360,6 +1370,7 @@ def eth(message_dict):
         return False
     
     send_message(f"Ethereum is currently worth ${value:,}")
+    log(f"Sent ETH of ${value:,} to {user}")
 
 @is_command("Display Kaywee's real biological age")
 def age(message_dict):
@@ -1386,65 +1397,16 @@ def followage(message_dict):
 	if target in followers:
 		follow_time = time() - datetime.strptime(followers[target], "%Y-%m-%dT%H:%M:%SZ").timestamp()
 
+		#days = int(follow_time // 86400)
+		#hours = int((follow_time % 86400) // 3600)
+		#mins = int((follow_time % 3600) // 60)
+		#seconds = int(follow_time % 60)
 
-		days = int(follow_time // 86400)
-		hours = int((follow_time % 86400) // 3600)
-		mins = int((follow_time % 3600) // 60)
-		seconds = int(follow_time % 60)
+		duration = seconds_to_duration(follow_time)
 
-		send_message(f"{target} followed at: {follow_time}")
+		send_message(f"{target} followed Kaywee {duration} ago.")
 	else:
 		send_message(f"{target} is not following Kaywee. FeelsBadMan")
-
-@is_command("Add or edit a variable. Usage: `!variable [add|edit] <variable name> <value>`")
-def variable(message_dict):
-	user = message_dict["display-name"].lower()
-	message = message_dict["message"]
-
-	params = message.split(" ")[1:]
-	try:
-		action = params[0]
-		name = params[1].lower()
-		value = " ".join(params[2:])
-		assert "{" not in value and "}" not in value # no recursive variables!
-	except (IndexError, AssertionError):
-		send_message("Syntax error. Use !variable [add|edit] <name> <value>.")
-		return False
-
-	with open("variables.txt", "r", encoding="utf-8") as f:
-		variables = dict(eval(f.read()))
-
-	if action == "add":
-		if name not in variables:
-			try:
-				value = int(value)
-			except ValueError:
-				pass # value is a string
-
-			variables[name] = value
-			with open("variables.txt", "w", encoding="utf-8") as f:
-				f.write(str(variables))
-			send_message(f"Created variable {name} as: {value}.")
-		else:
-			send_message(f"A variable with the name {name} already exists.")
-	elif action == "edit":
-		if name in variables:
-			try:
-				value = int(value)
-			except ValueError:
-				pass # value is a string
-
-			variables[name] = value
-
-			with open("variables.txt", "w", encoding="utf-8") as f:
-				f.write(str(variables))
-			send_message(f"Updated variable {name} to: {value}.")
-		else:
-			send_message(f"A variable with the name {name} does not exist.")
-	else:
-		send_message(f"Unknown action: {action}")
-
-	# maybe deletion isn't supported?
 
 @is_command("Predict how OW2 will work.")
 def ow2(message_dict):
@@ -1457,10 +1419,11 @@ def ow2(message_dict):
 	send_message(ow2_prediction)
 	log(f"Sent OW2 in response to {user}: {ow2_prediction}")
 
-@is_command("Look up the top definition of a word on Urban Dictionary")
+@is_command("Look up the top definition of a word on Urban Dictionary. Usage: !urban <word> [definition number]. e.g. `!urban twitch 2`")
 def urban(message_dict):
 	message = message_dict["message"]
 	user = message_dict["display-name"]
+	num = 0
 
 	try:
 		term = " ".join(message.split(" ")[1:])
@@ -1470,8 +1433,16 @@ def urban(message_dict):
 		return False
 
 	try:
+		num = int(term.split(" ")[-1]) - 1
+		assert 0 < num < 5
+	except:
+		num = 0
+	else:
+		term = " ".join(term.split(" ")[:-1])
+
+	try:
 		result = requests.get(f"http://api.urbandictionary.com/v0/define?term={term}")
-		definition = result.json()["list"][0]["definition"]
+		definition = result.json()["list"][num]["definition"]
 		assert definition != ""
 	except:
 		send_message("No definition found :( FeelsBadMan")
@@ -1479,11 +1450,16 @@ def urban(message_dict):
 		return False
 
 	definition = definition.replace("[", "").replace("]", "")
+	if " " in term:
+		url_term   = term.replace(" ", "%20")
+		url_suffix = "define.php?term={url_term}"
+	else:
+		url_suffix = term # it seems to accept just /word at the end as long as there are no spaces.. so this is smaller
 
 	# url looks like https://www.urbandictionary.com/define.php?term=term
 	# but this is shorter and works too: www.urbandictionary.com/term
-	real_url = f"www.urbandictionary.com/{term}"
-	suffix = f". - Source: {real_url}"
+	chat_url = f"www.urbandictionary.com/{url_suffix}"
+	suffix = f" - Source: {chat_url}"
 	max_len = 500-len(suffix)
 
 	send_message(f"{definition[:max_len]}{suffix}")
@@ -1585,13 +1561,14 @@ def ffz(message_dict):
 	log(f"Sent BTTV emotes to {user}")
 
 def _get_all_emotes():
+	global all_emotes
 	url = "https://api.streamelements.com/kappa/v2/chatstats/kaywee/stats"
 	result = requests.get(url).json()
 
-	return result["bttvEmotes"] + result["ffzEmotes"] + result["twitchEmotes"]
+	# nearly a year later.. turns out there is! :D
+	all_emotes = [emote_info["emote"] for emote_info in result.get("bttvEmotes", []) + result.get("ffzEmotes", []) + result.get("twitchEmotes", [])]
 
-# nearly a year later.. turns out there is! :D
-all_emotes = _get_all_emotes()
+Thread(target=_get_all_emotes).start()
 
 def _emote_uses(emote):
 	emotes = _get_all_emotes()
@@ -1601,3 +1578,136 @@ def _emote_uses(emote):
 		emotes_dict[e["emote"]] = e["amount"]
 
 	return emotes_dict.get(emote, 0)
+
+@is_command("Show the current stream title.")
+def title(message_dict):
+	url = "https://api.twitch.tv/helix/streams?user_id=" + kaywee_channel_id
+	global authorisation_header
+
+	bearer_token = get_data("app_access_token")
+	authorisation_header = {"Client-ID": robokaywee_client_id, "Authorization":"Bearer " + bearer_token}
+
+	try:
+		# if this call succeeds, streamer is Live. Exceptions imply streamer is offline (as no stream title exists)
+		title = requests.get(url, headers=authorisation_header).json()["data"][0]["title"]
+		send_message(f"The stream title is: {title}")
+	except:
+		send_message("There is no stream right now.")
+		return False
+
+@is_command("Look up a BattleTag's SR. Syntax: !sr <battletag> [<region>]. <Region> is one of us,eu,asia and defaults to `us`. Example usage: `!sr Kaywee#12345 us` OR `!sr Toniki#9876`")
+def sr(message_dict):
+	# uses https://ow-api.com/docs
+
+	message = message_dict["message"]
+	user = message_dict["display-name"].lower()
+
+	Thread(target=_sr_thread, args=(message,user)).start() # it can take up to 5s to get an API response. this way I lose the return value but oh well
+
+def _sr_thread(message,user):
+	try:
+		battletag = message.split(" ")[1]
+		assert "#" in battletag
+
+		target = battletag.split("#")[0]
+		number = int(battletag.split("#")[1])
+	except:
+		send_message("You have to provide a battletag in the format: Name#0000 (case sensitive!)")
+		return False
+
+	try:
+		region = message.split(" ")[2].lower()
+		assert region in ["na", "eu", "us", "asia"]
+		if region == "na":
+			region = "us"
+	except:
+		region = "us"
+
+	battletag = battletag.replace("#", "-")
+
+	url = f"https://ow-api.com/v1/stats/pc/{region}/{battletag}/profile"
+	result = requests.get(url).json()
+
+	if "error" in result:
+		send_message(result["error"] + " (names are case sensitive!)")
+		return False
+	elif result["private"] is True:
+		send_message("That profile is private! PepeHands")
+		return True
+	elif "ratings" in result:
+		tank = 0
+		support = 0
+		dps = 0
+
+		if not result["ratings"]:
+			send_message("That account hasn't placed in Competitive yet!")
+			return False
+
+		for rating in result["ratings"]:
+			if rating["role"] == "tank":
+				tank = rating["level"]
+			elif rating["role"] == "damage":
+				dps = rating["level"]
+			elif rating["role"] == "support":
+				support = rating["level"]
+
+		SRs = ""
+
+		if tank > 0:
+			SRs = "Tank: " + str(tank)
+
+		if dps > 0:
+			if SRs == "":
+				SRs = "DPS: " + str(dps)
+			else:
+				SRs += " // DPS: " + str(dps)
+
+		if support > 0:
+			if SRs == "":
+				SRs = "Support: " + str(support)
+			else:
+				SRs += " // Support: " + str(support)
+
+		if SRs != "":
+			send_message(f"{target}'s SRs are: {SRs}")
+			log(f"Sent SR to {user}: {target}'s SRs are: {SRs}")
+			return True
+		else:
+			send_message(f"No SRs were found.")
+			return False
+
+	elif "rating" in result:
+		if result["rating"] > 0:
+			send_message(f"{target}'s SR is {result['rating']}")
+			log(f"Sent SR to {user}: {target}'s SR is {result['rating']}")
+			return True
+		else:
+			send_message(f"No SR was found.")
+			return False
+	
+	send_message(f"Unable to find {target}'s SR rating. (Player names are case-sensitive!)")
+	return False
+
+@is_command("Checks whether a channel is live. Syntax: !islive [@]<channel> e.g. `!islive kaywee`")
+def islive(message_dict):
+	message = message_dict["message"]
+	user = message_dict["display-name"].lower()
+
+	channel = message.split(" ")[1]
+	
+	if channel.startswith("@"):
+		channel = channel[1:]
+
+	url = "https://api.twitch.tv/helix/streams?user_login=" + channel
+	bearer_token = get_data("app_access_token")
+	authorisation_header = {"Client-ID": robokaywee_client_id, "Authorization":"Bearer " + bearer_token}
+
+	try:
+		title = requests.get(url, headers=authorisation_header).json()["data"][0]["title"]
+		send_message(f"{channel} is currently Live! www.twitch.tv/{channel}")
+		log(f"Sent islive to {user}: {channel} is live.")
+		return True
+	except:
+		send_message(f"{channel} is not currently Live.")
+		log(f"Sent islive to {user}: {channel} is not live.")
+		return False
