@@ -11,7 +11,7 @@ from time        import time, sleep, localtime
 from enum        import IntEnum
 from math        import ceil
 from string      import ascii_lowercase
-from james       import timeuntil, is_haiku # takes 0.4s to import!
+from james       import timeuntil #, is_haiku # takes 0.4s to import!
 from shutil      import copy2 as copy_with_metadata
 from chatbot     import ChatBot # see https://github.com/theonefoster/pyTwitchChatBot
 from datetime    import date, datetime
@@ -29,6 +29,7 @@ rework how live detection works
 """
 
 ctypes.windll.kernel32.SetConsoleTitleW("RoboKaywee")
+del ctypes
 
 def log(s):
 	"""
@@ -65,23 +66,25 @@ channel_emotes = {"kaywee1AYAYA", "kaywee1Wut", "kaywee1Dale", "kaywee1Imout", "
 bot = None
 shutdown_on_offline = False
 
-ayy_re   = re.compile("a*y*")
-hello_re = re.compile("h*i*|h*e*y*|h*e*l*o*|h*o*l*a*|h*i*y*a*")
+ayy_re   = re.compile("a+y+")
+hello_re = re.compile("h+i+|h+e+y+|h+e+l+o+|h+o+l+a+|h+i+y+a+")
 
 modwalls = {
-	15:  {"name": "Modwall",                    "emotes": "kaywee1AYAYA"},
-	30:  {"name": "Supermodwall!",              "emotes": "SeemsGood kaywee1Wut"},
-	60:  {"name": "MEGA MODWALL!!",             "emotes": "TwitchLit kaywee1AYAYA kaywee1Wut"},
-	120: {"name": "H Y P E R MODWALL!!",        "emotes": "kaywee1AYAYA PogChamp Kreygasm CurseLit"},
-	250: {"name": "U L T R A M O D W A L L!!!", "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
-	500: {"name": "GIGAMODWALL!!!",             "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
+	15:  {"name": "Modwall",                    "emotes": "kaywee1AYAYA",                                                           "excitement": 0, "break_emotes": "FeelsBadMan"},
+	30:  {"name": "Supermodwall!",              "emotes": "SeemsGood kaywee1Wut",                                                   "excitement": 1, "break_emotes": "FeelsBadMan"},
+	60:  {"name": "MEGA MODWALL!!",             "emotes": "TwitchLit kaywee1AYAYA kaywee1Wut",                                      "excitement": 2, "break_emotes": "FeelsBadMan NotLikeThis"},
+	120: {"name": "H Y P E R MODWALL!!",        "emotes": "kaywee1AYAYA PogChamp Kreygasm CurseLit",                                "excitement": 2, "break_emotes": "FeelsBadMan NotLikeThis PepeHands"},
+	250: {"name": "U L T R A M O D W A L L!!!", "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut", "excitement": 3, "break_emotes": "FeelsBadMan NotLikeThis PepeHands"},
+	500: {"name": "GIGAMODWALL!!!",             "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut", "excitement": 3, "break_emotes": "FeelsBadMan NotLikeThis PepeHands Sadge"},
 	# I guarantee none of these will ever be reached naturally, but..
-	1000:{"name": "PETAMODWALL!!!!",            "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
-	2000:{"name": "EXAMODWALL!!!!!",            "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
-	3000:{"name": "ZETTAMODWALL!!!!!!",         "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
-	4000:{"name": "YOTTAMODWALL!!!!!!!",        "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut"},
+	1000:{"name": "PETAMODWALL!!!!",            "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut", "excitement": 4, "break_emotes": "FeelsBadMan NotLikeThis PepeHands Sadge"},
+	2000:{"name": "EXAMODWALL!!!!!",            "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut", "excitement": 5, "break_emotes": "FeelsBadMan NotLikeThis PepeHands Sadge"},
+	3000:{"name": "ZETTAMODWALL!!!!!!",         "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut", "excitement": 6, "break_emotes": "FeelsBadMan NotLikeThis PepeHands Sadge"},
+	4000:{"name": "YOTTAMODWALL!!!!!!!",        "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut", "excitement": 7, "break_emotes": "FeelsBadMan NotLikeThis PepeHands Sadge"},
 	# also I know that the SI prefixes don't make sense with the numbers but whatever, I needed increasing prefixes
 }
+
+get_modwall = lambda x: modwalls[sorted(list(key for key in modwalls.keys() if key < x))[-1]] # good luck figuring this out flasgod
 
 with open("usernames.txt", "r", encoding="utf-8") as f:
 	usernames = set(f.read().split("\n"))
@@ -745,6 +748,8 @@ if __name__ == "__main__":
 	commands_file.last_message       = last_message
 	commands_file.write_command_data = write_command_data
 
+	print("Setup complete. Now listening in chat.")
+
 	while True:
 		try:
 			#messages = [{"message_type":"privmsg", "display-name":"theonefoster", "message":"!translate en de this is a test!", "badges":["moderator"]}]
@@ -855,19 +860,19 @@ if __name__ == "__main__":
 							if modwall in modwalls:
 								modwall_data = modwalls[modwall]
 								current_modwall = modwall_data["name"]
+								excitement = "!"*modwall_data["excitement"]
 
-								send_message(f"#{current_modwall}! {modwall_data['emotes']}")
+								send_message(f"#{current_modwall}{'!'*modwall_data['excitement']} {modwall_data['emotes']}")
 								log(f"{current_modwall}!")
 							if modwall >= 5:
 								set_data("modwall", modwall)
 					else:
 						if modwall >= 30:
-							if modwall < 60:
-								send_message(f"{current_modwall} has been broken by {user}! :( FeelsBadMan")
-							elif modwall < 120: # >= 60 is implied
-								send_message(f"{current_modwall} has been broken by {user}! :( FeelsBadMan NotLikeThis")
-							elif modwall >= 120:
-								send_message(f"{current_modwall} has been broken by {user}! :( FeelsBadMan NotLikeThis PepeHands")
+							modwall_data = get_modwall(modwall)
+							current_modwall = modwall_data["name"]
+							break_emotes = modwall_data["break_emotes"]
+							excitement = "!"*modwall_data["excitement"]
+							send_message(f"{current_modwall} has been broken by {user}{excitement} :( {break_emotes}")
 
 						if modwall >= 5:
 							set_data("modwall", 0)
