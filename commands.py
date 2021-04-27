@@ -7,7 +7,7 @@ from time            import sleep, time
 from datetime        import date, datetime
 from fortunes        import fortunes
 from threading       import Thread
-from credentials     import kaywee_channel_id, robokaywee_client_id, exchange_API_key
+from credentials     import kaywee_channel_id, robokaywee_client_id, exchange_API_key, weather_API_key 
 from googletrans     import Translator #stopped working so superceded by:
 from multiprocessing import Process
 from james           import seconds_to_duration
@@ -301,7 +301,7 @@ def _start_toxic_poll():
 	send_message("Poll starting! Type !votetoxic or !votenice to vote on whether the previous game was toxic or nice. Results in 60 seconds.")
 	toxic_poll = True
 	sleep(60)
-	if toxicpoll: # toxicpoll can be cancelled externally, so only proceed if it wasn't
+	if toxic_poll: # toxicpoll can be cancelled externally, so only proceed if it wasn't
 		toxic_poll = False
 		if nottoxic_votes > 0 and toxic_votes > 0:
 			toxic_percent    =    toxic_votes / (toxic_votes + nottoxic_votes)
@@ -551,6 +551,7 @@ def tofreedom(message_dict):
 		quantity = int(quantity)
 
 	send_message(f"{quantity}{unit} in incomprehensible Freedom Units is {free_quantity}{free_unit}.")
+	log(f"Tofreedomed {quantity}{unit} for {user}")
 
 @is_command("Convert imperial units into metric. Syntax: !unfreedom <quantity><unit> e.g. `!tofreedom 5lb`")
 def unfreedom(message_dict):
@@ -590,6 +591,7 @@ def unfreedom(message_dict):
 		quantity = int(quantity) 
 
 	send_message(f"{quantity}{unit} in units which actually make sense is {sensible_quantity}{sensible_unit}.")
+	log(f"Unfreedomed {quantity}{unit} for {user}")
 
 @is_command("Looks up who gifted the current subscription to the given user. Syntax: !whogifted [@]kaywee")
 def whogifted(message_dict):
@@ -1266,6 +1268,7 @@ def spongebob(message_dict):
 
 @is_command("Gets the current weather at a specific place. Defaults to metric but can use imperial with the 'imperial' parameter. Syntax: !weather <place> [imperial]. E.g. `!weather London` or `!weather Austin imperial`")
 def weather(message_dict):
+	global weather_API_key 
 	user = message_dict["display-name"].lower()
 	message = message_dict["message"]
 
@@ -1283,7 +1286,7 @@ def weather(message_dict):
 		return False
 
 	weather_url = "https://api.openweathermap.org/data/2.5/onecall?lat={lat}&lon={lon}&exclude={exclude}&appid={APIkey}&units={unittype}"
-	weather_response = requests.get(weather_url.format(lat=latitude, lon=longitude, exclude="minutely,hourly,daily,alerts", APIkey="efb9294a75c99f69767f0691b0bbcc23", unittype=units)).json()
+	weather_response = requests.get(weather_url.format(lat=latitude, lon=longitude, exclude="minutely,hourly,daily,alerts", APIkey=weather_API_key, unittype=units)).json()
 
 	weather    = weather_response["current"]
 	temp       = round(weather["temp"], 1)
@@ -1358,13 +1361,12 @@ def wordoftheday(message_dict):
 		words = eval(f.read())
 
 	wotd_time = get_data("wordoftheday_time")
+	word_num = get_data("wordoftheday_index")
 
-	if wotd_time is None or wotd_time < time()-12*60*60 or get_data("wordoftheday_index") is None:
+	if wotd_time is None or wotd_time < time()-12*60*60 or word_num is None:
 		set_data("wordoftheday_time", time())
 		word_num = random.randint(0, len(words))
 		set_data("wordoftheday_index", word_num)
-	else:
-		word_num = get_data("wordoftheday_index")
 
 	spa, eng = words[word_num]
 	if user == "Timed Event":
@@ -1381,7 +1383,8 @@ def btc(message_dict):
 	try:
 		result = requests.get("https://api.coinbase.com/v2/prices/BTC-USD/spot").json()
 		value = float(result["data"]["amount"])
-	except:
+	except Exception as ex:
+		log(f"Exception in btc: {str(ex)}")
 		return False
 	
 	send_message(f"Bitcoin is currently worth ${value:,}")
@@ -1393,7 +1396,8 @@ def eth(message_dict):
 	try:
 		result = requests.get("https://api.coinbase.com/v2/prices/ETH-USD/spot").json()
 		value = float(result["data"]["amount"])
-	except:
+	except Exception as ex:
+		log(f"Exception in eth: {str(ex)}")
 		return False
 	
 	send_message(f"Ethereum is currently worth ${value:,}")
@@ -1474,7 +1478,7 @@ def urban(message_dict):
 	except:
 		send_message("No definition found :( FeelsBadMan")
 		log(f"No Urban definition found for {term} in response to {user}")
-		return False
+		return True
 
 	definition = definition.replace("[", "").replace("]", "")
 	if " " in term:
@@ -1620,7 +1624,7 @@ def title(message_dict):
 		send_message(f"The stream title is: {title}")
 	except:
 		send_message("There is no stream right now.")
-		return False
+		return True
 
 @is_command("Look up a BattleTag's SR. Syntax: !sr <battletag> [<region>]. <Region> is one of us,eu,asia and defaults to `us`. Example usage: `!sr Kaywee#12345 us` OR `!sr Toniki#9876`")
 def sr(message_dict):
@@ -1640,7 +1644,7 @@ def _sr_thread(message,user):
 		number = int(battletag.split("#")[1])
 	except:
 		send_message("You have to provide a battletag in the format: Name#0000 (case sensitive!)")
-		return False
+		return True
 
 	try:
 		region = message.split(" ")[2].lower()
@@ -1657,7 +1661,7 @@ def _sr_thread(message,user):
 
 	if "error" in result:
 		send_message(result["error"] + " (names are case sensitive!)")
-		return False
+		return True
 	elif result["private"] is True:
 		send_message("That profile is private! PepeHands")
 		return True
@@ -1668,7 +1672,7 @@ def _sr_thread(message,user):
 
 		if not result["ratings"]:
 			send_message("That account hasn't placed in Competitive yet!")
-			return False
+			return True
 
 		for rating in result["ratings"]:
 			if rating["role"] == "tank":
@@ -1701,7 +1705,7 @@ def _sr_thread(message,user):
 			return True
 		else:
 			send_message(f"No SRs were found.")
-			return False
+			return True
 
 	elif "rating" in result:
 		if result["rating"] > 0:
@@ -1710,10 +1714,10 @@ def _sr_thread(message,user):
 			return True
 		else:
 			send_message(f"No SR was found.")
-			return False
+			return True
 	
 	send_message(f"Unable to find {target}'s SR rating. (Player names are case-sensitive!)")
-	return False
+	return True
 
 @is_command("Checks whether a channel is live. Syntax: !islive [@]<channel> e.g. `!islive kaywee`")
 def islive(message_dict):
@@ -1737,7 +1741,7 @@ def islive(message_dict):
 	except:
 		send_message(f"{channel} is not currently Live.")
 		log(f"Sent islive to {user}: {channel} is not live.")
-		return False
+		return True
 
 @is_command("Send a message to another user the next time they appear in chat.")
 def message(message_dict):
@@ -1779,9 +1783,9 @@ def message(message_dict):
 			return False
 		else:
 			user_messages[target] = {"from_user": user, "user_message": user_message}
+			set_data("user_messages", user_messages)
 			send_message(f"Your message was saved! It'll be sent next time {target} sends a chat.")
 			log(f"Saved a user message from {user} to {target}.")
-			set_data("user_messages", user_messages)
 			return True
 	else:
 		send_message("That user has never been seen in chat. Messages can only be sent to known users.")
