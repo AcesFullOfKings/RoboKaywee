@@ -84,7 +84,8 @@ modwalls = {
 	# also I know that the SI prefixes don't make sense with the numbers but whatever, I needed increasing prefixes
 }
 
-get_modwall = lambda x: modwalls[sorted(list(key for key in modwalls.keys() if key < x))[-1]] # good luck figuring this out flasgod
+get_modwall = lambda x: modwalls[sorted(list(key for key in modwalls.keys() if key <= x))[-1]] # you can do it flasgod
+
 
 with open("usernames.txt", "r", encoding="utf-8") as f:
 	usernames = set(f.read().split("\n"))
@@ -428,8 +429,6 @@ def get_data(name):
 			with open("config.txt", "r") as f:
 				file = f.read()
 				data = dict(eval(file))
-
-			config_lock.release()
 		else:
 			log("WARNING: config_lock timed out in get_data() !!")
 			return None
@@ -439,6 +438,10 @@ def get_data(name):
 	except ValueError as ex:
 		log(f"Failed to get data called {name} - Value Error (corrupt file??)")
 		return None
+	except:
+		log(f"Unknown error when reading data in get_data (trying to get {name})")
+	finally:
+		config_lock.release()
 
 	return data.get(name, None)
 
@@ -459,16 +462,25 @@ def set_data(name, value):
 	except ValueError as ex:
 		log(f"Failed to set data of {name} to {value} - Value Error (corrupt file?)")
 		return
+	except:
+		log(f"Unknown error when reading data in set_data: trying to set {name} to {value}.")
+	finally:
+		config_lock.release()
 
 	data[name] = value
 
-	if config_lock.acquire(timeout=3):
-		with open("config.txt", "w") as f:
-			f.write(str(data).replace(", ", ",\n"))
+	try:
+		if config_lock.acquire(timeout=3):
+			with open("config.txt", "w") as f:
+				f.write(str(data).replace(", ", ",\n"))
+			config_lock.release()
+		else:
+			log("WARNING: config_lock timed out (while writing) in set_data() !!")
+			return
+	except:
+		log(f"Unknown error in set_data when setting data {name} to {value}.")
+	finally:
 		config_lock.release()
-	else:
-		log("WARNING: config_lock timed out (while writing) in set_data() !!")
-		return
 
 def automatic_backup():
 	"""
@@ -733,9 +745,14 @@ if __name__ == "__main__":
 	vipwall_vips    = set()
 	last_message    = {}
 	dropoff         = 1
-	bUrself_sent = get_data("bUrself_sent")
+	bUrself_sent    = get_data("bUrself_sent")
+	user_messages   = get_data("user_messages")
+
+	if user_messages is None:
+		user_messages = dict()
 	
 	# let commands file access key objects:
+	# (these can be modified from commands_file and read from here, or vice versa)
 	commands_file.bot                = bot
 	commands_file.log                = log
 	commands_file.get_data           = get_data
@@ -747,6 +764,8 @@ if __name__ == "__main__":
 	commands_file.command_dict       = commands_dict
 	commands_file.last_message       = last_message
 	commands_file.write_command_data = write_command_data
+	commands_file.user_messages      = user_messages
+	commands_file.usernames          = usernames
 
 	print("Setup complete. Now listening in chat.")
 
@@ -767,7 +786,7 @@ if __name__ == "__main__":
 						Thread(target=add_new_username,args=(user,)).start() # probably saves like.. idk 50ms? over just calling it.. trims reaction time though
 					elif hello_re.fullmatch(message_lower):
 						if user.lower() == "littlehummingbird":
-							send_message("HELLO MADDIE THIS IS NOT A SASSY MESSAGE BUT HI") # little easter egg for maddie :)
+							send_message("HELLO MADDIE THIS IS TOTALLY NOT A SASSY MESSAGE BUT HI") # little easter egg for maddie :)
 							log("Said Hello to Maddie, but in a totally not-sassy way")
 						else:
 							message = "!hello" # react as if they used the command
@@ -900,6 +919,18 @@ if __name__ == "__main__":
 					else:
 						vip_wall = 0
 						vipwall_vips = set()
+
+					if user in user_messages:
+						user_message_info = user_messages[user]
+						from_user    = user_message_info["from_user"]
+						user_message = user_message_info["user_message"]
+
+						del user_messages[user]
+						
+						send_message(f"@{user}, you have a message from {from_user}! It says: {user_message}")
+						log(f"Sent a user message from {from_user} to {user}. It says: {user_message}")
+						set_data("user_messages", user_messages)
+
 				elif message_dict["message_type"] == "notice":
 					if "msg_id" in message_dict: # yes.. it's msg_id here but msg-id everywhere else. Why? Who knows. Why be consistent?
 						id = message_dict["msg_id"]
