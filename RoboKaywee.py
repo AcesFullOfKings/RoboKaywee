@@ -16,6 +16,7 @@ from shutil      import copy2 as copy_with_metadata
 from chatbot     import ChatBot # see https://github.com/theonefoster/pyTwitchChatBot
 from datetime    import date, datetime
 from threading   import Thread, Lock, Event
+from contextlib  import suppress
 from credentials import bot_name, password, channel_name, kaywee_channel_id, robokaywee_client_id, tof_channel_id
 
 import commands as commands_file # takes 0.3s to import!
@@ -234,7 +235,8 @@ def update_commands_wiki(force_update_reddit=False):
 			with open("commands.txt", "r", encoding="utf-8") as f:
 				commands = dict(eval(f.read()))
 
-			command_lock.release()
+			with suppress(RuntimeError):
+				command_lock.release()
 
 			table = "**Note: all commands are sent with /me so will display in the bot's colour.**\n\n\n**Command**|**Level**|**Response/Description**|**Uses**\n---|---|---|---\n"
 
@@ -276,7 +278,9 @@ def write_command_data(force_update_reddit=False):
 	if command_lock.acquire(timeout=3):
 		with open("commands.txt", "w", encoding="utf-8") as f:
 			f.write(str(commands_dict).replace("},", "},\n"))
-		command_lock.release()
+		
+		with suppress(RuntimeError):
+			command_lock.release()
 
 		Thread(target=update_commands_wiki, args=(force_update_reddit,)).start()
 	else:
@@ -286,7 +290,8 @@ def commit_subscribers():
 	if command_lock.acquire(timeout=3):
 		with open("subscribers.txt", "w", encoding="utf-8") as f:
 			f.write(str(subscribers))
-		command_lock.release()
+		with suppress(RuntimeError):
+			command_lock.release()
 	else:
 		log("Warning: Subs Lock timed out in commit_subscribers() !!")
 
@@ -434,14 +439,13 @@ def get_data(name):
 			return None
 	except FileNotFoundError as ex:
 		log(f"Failed to get data called {name} - File Not Found.")
-		return None
 	except ValueError as ex:
 		log(f"Failed to get data called {name} - Value Error (corrupt file??)")
-		return None
 	except:
 		log(f"Unknown error when reading data in get_data (trying to get {name})")
 	finally:
-		config_lock.release()
+		with suppress(RuntimeError):
+			config_lock.release()
 
 	return data.get(name, None)
 
@@ -451,8 +455,6 @@ def set_data(name, value):
 			with open("config.txt", "r") as f:
 				file = f.read()
 				data = dict(eval(file))
-
-			config_lock.release()
 		else:
 			log("WARNING: config_lock timed out (while reading) in set_data() !!")
 			return
@@ -465,7 +467,8 @@ def set_data(name, value):
 	except:
 		log(f"Unknown error when reading data in set_data: trying to set {name} to {value}.")
 	finally:
-		config_lock.release()
+		with suppress(RuntimeError):
+			config_lock.release()
 
 	data[name] = value
 
@@ -473,14 +476,17 @@ def set_data(name, value):
 		if config_lock.acquire(timeout=3):
 			with open("config.txt", "w") as f:
 				f.write(str(data).replace(", ", ",\n"))
-			config_lock.release()
+			
+			with suppress(RuntimeError):
+				config_lock.release()
 		else:
 			log("WARNING: config_lock timed out (while writing) in set_data() !!")
 			return
 	except:
 		log(f"Unknown error in set_data when setting data {name} to {value}.")
 	finally:
-		config_lock.release()
+		with suppress(RuntimeError):
+			config_lock.release()
 
 def automatic_backup():
 	"""
@@ -543,7 +549,7 @@ def send_message(message, add_to_chatlog=True, suppress_colour=False):
 	Will also be accessible from the commands file.
 	"""
 
-	if message.startswith("/") or suppress_colour:
+	if message[0]=="/" or suppress_colour:
 		bot.send_message(message)
 	else:
 		bot.send_message("/me " + message)
@@ -652,7 +658,7 @@ def respond_message(message_dict):
 		shutdown_on_offline = True
 		log("Will now shutdown when Kaywee goes offline.")
 
-	elif user == "nightroad2593" and message_lower.startswith("in ow2"):
+	elif user == "nightroad2593" and message_lower[:6] == "in ow2":
 		log(f"Saved new ow2 prediction: {message_lower}")
 		with open("ow2.txt", "a") as f:
 			f.write(message + "\n")
@@ -693,7 +699,7 @@ class permissions(IntEnum):
 update_command_data = False # does command data on disk/wiki need to be updated?
 
 #check for new commands and add to database:
-for command_name in [o for o in dir(commands_file) if not(o.startswith("_") or o.endswith("_"))]:
+for command_name in [o for o in dir(commands_file) if not(o[0] == "_" or o[-1] == "_")]:
 	try:
 		if getattr(commands_file, command_name).is_command is True:
 			if command_name not in commands_dict:
@@ -810,13 +816,13 @@ if __name__ == "__main__":
 
 					message_dict["user_permission"] = user_permission
 
-					if message_lower.startswith("alexa "):
+					if message_lower[:6] == "alexa ":
 						message_letters = "".join(char for char in message_lower if char in ascii_lowercase+" ")
 						if message_letters not in ["alexa play despacito", "alexa stop"]:
 							message = "!" + message[6:]
 							message_dict["message"] = message
 
-					if message.startswith("!"):
+					if message[0] == "!":
 						command = message[1:].split(" ")[0].lower()
 						if command in ["win", "loss", "draw"]:
 							command = "toxicpoll" # start a toxicpoll when the SE result commands are seen
@@ -842,11 +848,11 @@ if __name__ == "__main__":
 									else:
 										log(f"WARNING: Stored coded command with no function: {command}")
 								else:
-									if "response" in command_obj:
+									if "response" in command_obj and command_obj["response"]:
 										words = message.split(" ")
 										response = command_obj["response"]
 
-										if len(words) == 2 and words[1].startswith("@"):
+										if len(words) == 2 and words[1][0]=="@":
 											msg_to_send = words[1] + " " + response
 										else:
 											msg_to_send = response
@@ -923,7 +929,7 @@ if __name__ == "__main__":
 					if user in user_messages:
 						user_message_info = user_messages[user]
 						from_user    = user_message_info["from_user"]
-						user_message = user_message_info["user_message"]
+						user_message = user_message_info["user_message"].replace(", ", ",")
 
 						del user_messages[user]
 						
@@ -1102,11 +1108,9 @@ if __name__ == "__main__":
 					# single message was deleted
 					# e.g {'message_type': 'clearmsg', 'login': 'nacho_888', 'room-id': '', 'target-msg-id': '4e2100ba-f5fe-4338-85a1-cccc191375c7', 'tmi-sent-ts': '1613065616305'}
 					target = message_dict["login"] # the user whose message was deleted ?
-					print(message_dict)
 
 				elif message_dict["message_type"] == "clearchat":
 					# cleared all messages from user
-					print(message_dict)
 					user_id = message_dict.get("target-user-id", None) # this is the User ID, not the username. It's a str-formatted number.
 					# username = get_name_from_user_ID(user_id)
 				else:
