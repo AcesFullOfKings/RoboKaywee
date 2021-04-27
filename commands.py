@@ -1726,7 +1726,7 @@ def islive(message_dict):
 
 	channel = message.split(" ")[1]
 	
-	if channel.startswith("@"):
+	if channel[0] == "@":
 		channel = channel[1:]
 
 	url = "https://api.twitch.tv/helix/streams?user_login=" + channel
@@ -1757,7 +1757,7 @@ def message(message_dict):
 		target = message.split(" ")[1]
 		user_message = "".join(chr for chr in " ".join(message.split(" ")[2:]) if chr.lower() in valid_chars)
 
-		if target.startswith("@"):
+		if target[0] == "@":
 			target = target[1:]
 
 		target = target.lower()
