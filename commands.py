@@ -8,7 +8,7 @@ from datetime        import date, datetime
 from fortunes        import fortunes
 from threading       import Thread
 from credentials     import kaywee_channel_id, robokaywee_client_id, exchange_API_key, weather_API_key 
-from googletrans     import Translator #stopped working so superceded by:
+from googletrans     import Translator
 from multiprocessing import Process
 from james           import seconds_to_duration
 #from james import translate as j_translate
