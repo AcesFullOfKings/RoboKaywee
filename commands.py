@@ -3,13 +3,14 @@ import requests
 import re
 import subprocess
 
-from time          import sleep, time
-from datetime      import date, datetime
-from fortunes      import fortunes
-from threading     import Thread
-from credentials   import kaywee_channel_id, robokaywee_client_id, exchange_API_key
-from googletrans   import Translator #stopped working so superceded by:
-from james         import seconds_to_duration
+from time            import sleep, time
+from datetime        import date, datetime
+from fortunes        import fortunes
+from threading       import Thread
+from credentials     import kaywee_channel_id, robokaywee_client_id, exchange_API_key
+from googletrans     import Translator #stopped working so superceded by:
+from multiprocessing import Process
+from james           import seconds_to_duration
 #from james import translate as j_translate
 
 from PyDictionary import PyDictionary
@@ -254,7 +255,7 @@ def toxicpoll(message_dict):
 	global nochat_on
 	nochat_on = False # game is over so turn off nochat mode
 
-	poll_thread = Thread(target=_start_toxic_poll)
+	poll_thread = Thread(target=_start_toxic_poll, name="Toxic Poll")
 	poll_thread.start()
 
 @is_command("Only allowed while a toxicpoll is active. Votes toxic.")
@@ -511,6 +512,11 @@ def _get_currencies(base="USD", convert_to="GBP"):
 def tofreedom(message_dict):
 	user = message_dict["display-name"].lower()
 	message = message_dict["message"]
+
+	if message == "!tofreedom tea":
+		send_message('"Dinner"')
+		return
+
 	try:
 		input = message.split(" ")[1]
 	except (ValueError, IndexError):
@@ -926,7 +932,7 @@ def timer(message_dict):
 	except:
 		reminder = ""
 
-	timer_thread = Thread(target=_start_timer, args=(user,time_str,reminder))
+	timer_thread = Thread(target=_start_timer, args=(user,time_str,reminder), name=f"{time_str} timer for {user}")
 	timer_thread.start()
 
 @is_command("Shows how many times a command has been used. Syntax: `!uses toenglish`")
@@ -936,17 +942,17 @@ def uses(message_dict):
 
 	thing = message.split(" ")[1]
 
-	# thing is a command?
+	# is `thing` a command?
 	if thing in command_dict:
 		times_used = command_dict[thing].get("uses", 0)
-		if times_used > 1:
+		if times_used != 1:
 			send_message(f"The {thing} command has been used {times_used} times.")
 			log(f"Sent uses to {user}: command {thing} has been used {times_used} times.")
 		else:
 			send_message(f"The {thing} command has been used {times_used} time.")
 			log(f"Sent uses to {user}: command {thing} has been used {times_used} time.")
 	else:
-		# thing is an emote?
+		# is `thing` an emote?
 		emote_uses = _emote_uses(thing)
 		if emote_uses > 0:
 			send_message(f"The {thing} emote has been used {emote_uses:,} times.")
@@ -958,7 +964,7 @@ def _nochat_mode():
 	global nochat_on
 	nochat_on = True
 
-	duration = 12*60 # 10 mins
+	duration = 12*60 # 12 mins
 	check_period = 5 # secs
 	try:
 		for secs in range(0, duration, check_period):
@@ -1111,8 +1117,6 @@ def _refreshtranslator():
 		else:
 			return False # give up trying after 3 attempts
 
-#_refreshtranslator() # run when the file is imported
-
 @is_command("Looks up the current World Day")
 def worldday(message_dict):
 	user = message_dict["display-name"].lower()
@@ -1163,25 +1167,46 @@ def calculate(message_dict):
 	calculation = calculation.replace(" ", "").replace("x", "*")
 
 	if all(c in "0123456789+-*/()." for c in calculation): # don't allow invalid characters: unsanitised eval() is spoopy
-		try:
-			result = eval(calculation) # make sure this is super sanitised!
-
-			# only allow sensible calculation sizes. 10 billion is arbitraty. This also throws TypeError if it's somehow not a number
-			assert -10_000_000_000 < result < 10_000_000_000
-
-			if int(result) != result: # result is not a numeric integer (may still be type float though, e.g. 10/2 = 5.0)
-				result = round(result, 6)
-			else:
-				result = int(result)
-		except:
-			send_message("That calculation didn't work.")
-			return False
-		else:
-			send_message(f"The result is {result}")
-			return True
+		Thread(target=_perform_calculation, name=f"Calculation for {user}", args=(calculation,user)).start()
 	else:
 		send_message("That calculation doesn't look right. You can only use: 0-9 +-*/().")
 		return False
+
+def _perform_calculation(calculation,user):
+	p = Process(target=_process_calculation, args=(calculation,user,bot,log))
+	p.start()
+	sleep(6)
+	if p.is_alive():
+		p.terminate() # 
+		send_message("That calculation timed out.")
+		log(f"Calculation {calculation} for {user} timed out.")
+
+
+def _process_calculation(calculation, user, bot, log):
+	try:
+		result = eval(calculation) # make sure this is super sanitised!
+
+		# only allow sensible calculation sizes. 100 trillion is arbitrary. This also throws TypeError if it's somehow not a number
+		assert -100_000_000_000_000 < result < 100_000_000_000_000
+
+		if int(result) != result: # result is not a numeric integer (may still be type float though, e.g. 10/2 = 5.0)
+			result = round(result, 5)
+		else:
+			result = int(result)
+	except:
+		bot.send_message("That calculation didn't work.")
+		return False
+	else:
+		prefix = random.choice([
+		"The result is",
+		"I make that",
+		"The answer is",
+		"That would be",
+		"It's",
+		])
+		bot.send_message(f"{prefix} {result}")
+		log(f"Calculated {calculation} for {user}: answer is {result}")
+		return True
 
 @is_command("Adds spaces between your letters.")
 def spaces(message_dict):
@@ -1352,25 +1377,27 @@ def wordoftheday(message_dict):
 
 @is_command("Show the price of bitcoin")
 def btc(message_dict):
-    try:
-        result = requests.get("https://api.coinbase.com/v2/prices/BTC-USD/spot").json()
-        value = float(result["data"]["amount"])
-    except:
-        return False
-    
-    send_message(f"Bitcoin is currently worth ${value:,}")
-    log(f"Sent BTC of ${value:,} to {user}")
+	user = message_dict["display-name"].lower()
+	try:
+		result = requests.get("https://api.coinbase.com/v2/prices/BTC-USD/spot").json()
+		value = float(result["data"]["amount"])
+	except:
+		return False
+	
+	send_message(f"Bitcoin is currently worth ${value:,}")
+	log(f"Sent BTC of ${value:,} to {user}")
 
 @is_command("Show the price of etherium")
 def eth(message_dict):
-    try:
-        result = requests.get("https://api.coinbase.com/v2/prices/ETH-USD/spot").json()
-        value = float(result["data"]["amount"])
-    except:
-        return False
-    
-    send_message(f"Ethereum is currently worth ${value:,}")
-    log(f"Sent ETH of ${value:,} to {user}")
+	user = message_dict["display-name"].lower()
+	try:
+		result = requests.get("https://api.coinbase.com/v2/prices/ETH-USD/spot").json()
+		value = float(result["data"]["amount"])
+	except:
+		return False
+	
+	send_message(f"Ethereum is currently worth ${value:,}")
+	log(f"Sent ETH of ${value:,} to {user}")
 
 @is_command("Display Kaywee's real biological age")
 def age(message_dict):
@@ -1478,11 +1505,11 @@ def _chatstats(key):
 def totalmessages(message_dict):
 	user = message_dict["display-name"].lower()
 
-	messages = int(_chatstats("totalMessages"))
-	send_message(f"There have been {messages:,} messages sent to Kaywee's chat.")
+	messages = int(_chatstats("totalMessages")) + 1
+	send_message(f"This is message number {messages:,} to be sent in Kaywee's chat.")
 	log(f"Sent totalmessages of {messages:,} to {user}")
 
-@is_command("Show the total number of messages ever sent in Kaywee's chat")
+@is_command("Show the total number of messages sent in Kaywee's chat by a given user. Syntax: !chats [@]<user>, e.g. `!chats @kaywee`")
 def chats(message_dict):
 	user = message_dict["display-name"].lower()
 
@@ -1568,7 +1595,7 @@ def _get_all_emotes():
 	# nearly a year later.. turns out there is! :D
 	all_emotes = [emote_info["emote"] for emote_info in result.get("bttvEmotes", []) + result.get("ffzEmotes", []) + result.get("twitchEmotes", [])]
 
-Thread(target=_get_all_emotes).start()
+Thread(target=_get_all_emotes, name="Get_All_Emotes").start()
 
 def _emote_uses(emote):
 	emotes = _get_all_emotes()
@@ -1602,7 +1629,7 @@ def sr(message_dict):
 	message = message_dict["message"]
 	user = message_dict["display-name"].lower()
 
-	Thread(target=_sr_thread, args=(message,user)).start() # it can take up to 5s to get an API response. this way I lose the return value but oh well
+	Thread(target=_sr_thread, args=(message,user),name="SR Thread").start() # it can take up to 5s to get an API response. this way I lose the return value but oh well
 
 def _sr_thread(message,user):
 	try:
@@ -1710,4 +1737,53 @@ def islive(message_dict):
 	except:
 		send_message(f"{channel} is not currently Live.")
 		log(f"Sent islive to {user}: {channel} is not live.")
+		return False
+
+@is_command("Send a message to another user the next time they appear in chat.")
+def message(message_dict):
+	global user_messages
+	global usernames
+
+	valid_chars = "abcdefghijklmnopqrstuvwxyz0123456789!£$%^&*()-=_+[]{};'#:@~,./<>? "
+
+	try:
+		message = message_dict["message"]
+		user = message_dict["display-name"].lower()
+
+		target = message.split(" ")[1]
+		user_message = "".join(chr for chr in " ".join(message.split(" ")[2:]) if chr.lower() in valid_chars)
+
+		if target.startswith("@"):
+			target = target[1:]
+
+		target = target.lower()
+
+	except Exception as ex:
+		send_message("Invalid syntax. Your message won't be sent.")
+		log(f"Didn't save user message for {user}: invalid syntax.")
+		return False
+
+	if target == user:
+		send_message("Don't be silly, you can't message yourself.")
+		log(f"Didn't save user message for {user}: tried to message self")
+		return False
+	elif target in ["robokaywee", "streamelements"]:
+		send_message("Don't be silly, bots can't read. (At least, that's what we want you to think..!)")
+		log(f"Didn't save user message for {user}: tried to message a bot")
+		return False
+
+	if target in usernames:
+		if target in user_messages:
+			send_message("That user already has a message waiting for them. To avoid spam, they can only have one at a time.")
+			log(f"Didn't save user message for {user}: duplicate user ({target})")
+			return False
+		else:
+			user_messages[target] = {"from_user": user, "user_message": user_message}
+			send_message(f"Your message was saved! It'll be sent next time {target} sends a chat.")
+			log(f"Saved a user message from {user} to {target}.")
+			set_data("user_messages", user_messages)
+			return True
+	else:
+		send_message("That user has never been seen in chat. Messages can only be sent to known users.")
+		log(f"Didn't save user message for {user}: unknown user ({target})")
 		return False
