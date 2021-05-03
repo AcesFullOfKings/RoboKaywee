@@ -28,7 +28,7 @@ def is_command(description=""):
 
 """
 Each @is_command function is a command (!!), callable by sending "!<function_name>" in chat.
-All replies will be sent in the bot's colour, using /me.
+All replies will be sent in the bot's colour, using /me unless specified otherwise.
 """
 
 currencies = {'CAD', 'HKD', 'ISK', 'PHP', 'DKK', 'HUF', 'CZK', 'GBP', 'RON', 'SEK', 'IDR', 'INR', 'BRL', 'RUB', 'HRK', 'JPY', 'THB', 'CHF', 'EUR', 'MYR', 'BGN', 'TRY', 'CNY', 'NOK', 'NZD', 'ZAR', 'USD', 'MXN', 'SGD', 'AUD', 'ILS', 'KRW', 'PLN'}
@@ -76,7 +76,7 @@ def rcommand(message_dict):
 			if not command_dict[command_name]["coded"] and "response" in command_dict[command_name]:
 				response = " ".join(params[2:])
 				if response[:4] == "/me ":
-					response = response[4:] # include the space
+					response = response[4:] # trim the space too
 
 				response = response.replace("|", "/") # pipes break the formatting on the reddit wiki
 
@@ -155,7 +155,7 @@ def rcommand(message_dict):
 				return False
 			else:
 				if response[:4] == "/me ":
-					response = response[4:] #include the space
+					response = response[4:] # trim the space too
 				response = response.replace("|", "/") # pipes break the formatting on the reddit wiki
 				
 				command_dict[command_name] = {'permission': 0, 'global_cooldown': 1, 'user_cooldown': 0, 'coded': False, 'uses':0, 'response': response}
@@ -181,11 +181,11 @@ def rcommand(message_dict):
 	elif action in ["view", "show"]:
 		view_command = command_dict[command_name]
 
-		usercooldown = view_command.get("user_cooldown", 0)
+		usercooldown = view_command.get("user_cooldown"  , 0)
 		cooldown     = view_command.get("global_cooldown", 0)
-		coded        = view_command.get("coded", False)
-		permission   = view_command.get("permission", 0)
-		response     = view_command.get("response", "")
+		coded        = view_command.get("coded"          , False)
+		permission   = view_command.get("permission"     , 0)
+		response     = view_command.get("response"       , "")
 
 		permission_name = "Unknown"
 
@@ -253,10 +253,11 @@ def triangle(message_dict):
 @is_command("Begins a toxicpoll")
 def toxicpoll(message_dict):
 	global nochat_on
-	nochat_on = False # game is over so turn off nochat mode
+	global toxic_poll
 
-	poll_thread = Thread(target=_start_toxic_poll, name="Toxic Poll")
-	poll_thread.start()
+	if not toxic_poll:
+		nochat_on = False # game is over so turn off nochat mode
+		Thread(target=_start_toxic_poll, name="Toxic Poll").start()
 
 @is_command("Only allowed while a toxicpoll is active. Votes toxic.")
 def votetoxic(message_dict):
@@ -842,7 +843,7 @@ def rainbow(message_dict):
 	for colour in ["red", "coral", "goldenrod", "green", "seagreen", "dodgerblue", "blue", "blueviolet", "hotpink"]:
 		send_message(f"/color {colour}", False)
 		sleep(0.12)
-		send_message(f"/me {word}", False)
+		send_message(word, False)
 		sleep(0.12)
 
 	current_colour = get_data("current_colour")
@@ -857,7 +858,7 @@ def allcolours(message_dict):
 	for colour in ['blue', 'blueviolet', 'cadetblue', 'chocolate', 'coral', 'dodgerblue', 'firebrick', 'goldenrod', 'green', 'hotpink', 'orangered', 'red', 'seagreen', 'springgreen', 'yellowgreen']:
 		send_message(f"/color {colour}", False)
 		sleep(0.1)
-		send_message(f"/me This is {colour}", False)
+		send_message(f"This is {colour}", False)
 		sleep(0.1)
 
 	current_colour = get_data("current_colour")
@@ -875,7 +876,7 @@ def _start_timer(user, time_in, reminder):
 			hours = int(time_str.split("h")[0])
 			time_str = time_str.split("h")[1]
 		except:
-			send_message(f"/me @{user} sorry, I don't recognise that format :(")
+			send_message(f"@{user} sorry, I don't recognise that format :(")
 			return False
 
 	if "m" in time_str:
@@ -883,7 +884,7 @@ def _start_timer(user, time_in, reminder):
 			mins = int(time_str.split("m")[0])
 			time_str = time_str.split("m")[1]
 		except:
-			send_message(f"/me @{user} sorry, I don't recognise that format :(")
+			send_message(f"@{user} sorry, I don't recognise that format :(")
 			return False
 
 	if "s" in time_str:
@@ -891,31 +892,31 @@ def _start_timer(user, time_in, reminder):
 			secs = int(time_str.split("s")[0])
 			time_str = time_str.split("s")[1]
 		except:
-			send_message(f"/me @{user} sorry, I don't recognise that format :(")
+			send_message(f"@{user} sorry, I don't recognise that format :(")
 			return False
 
 	if time_str != "": # or secs >= 60 or mins >= 60 or hours > 24:
-		send_message("/me That time doesn't look right. ")
+		send_message("That time doesn't look right.")
 		return False
 
 	timer_time = 60*60*hours + 60*mins + secs
 
 	if timer_time < 30:
-		send_message("/me The timer must be for at least 30 seconds.")
+		send_message("The timer must be for at least 30 seconds.")
 		return False
 
 	reminder_type = "reminder" if reminder != "" else "timer"
 	start_type = "is set" if reminder_type == "reminder" else "has started"
-	
-	send_message(f"/me @{user} - your {time_in} {reminder_type} {start_type}!")
 
-	log(f"Started {time_str} timer for {user}.")
+	send_message(f"@{user} - your {time_in} {reminder_type} {start_type}!")
+
+	log(f"Started {time_in} timer for {user}.")
 	sleep(timer_time)
 
 	if reminder_type == "reminder":
-		send_message(f"/me @{user} Reminder! {reminder}")
+		send_message(f"@{user} Reminder! {reminder}")
 	else:
-		send_message(f"/me @{user} your {time_in} timer is up!")
+		send_message(f"@{user} your {time_in} timer is up!")
 
 	log(f"{user}'s {timer_time} timer expired.")
 
@@ -1069,7 +1070,7 @@ def echo(message_dict):
 		message = message_dict["message"]
 
 		phrase = " ".join(message.split(" ")[1:])
-		send_message(phrase, False, True)
+		send_message(phrase, add_to_chatlog=True, suppress_colour=True)
 		log(f"Echoed \"{phrase}\" for {user}.")
 	else:
 		return False
@@ -1791,3 +1792,59 @@ def message(message_dict):
 		send_message("That user has never been seen in chat. Messages can only be sent to known users.")
 		log(f"Didn't save user message for {user}: unknown user ({target})")
 		return False
+
+
+@is_command("Get the number of viewers in a game category on Twitch. Example usage: `!viewers overwatch`")
+def viewers(message_dict):
+	Thread(target=_get_viewers_worker, args=(message_dict,), name="Get Viewers Worker").start()
+
+def _get_viewers_worker(message_dict):
+	user = message_dict["display-name"].lower()
+	viewer_thread = Thread(target=_get_viewers, args=(message_dict,), name="Get Viewers")
+	viewer_thread.start()
+
+	sleep(3.5)
+	if viewer_thread.is_alive():
+		send_message(f"@{user} Give me a sec - it might take a few seconds to get the viewers...")
+
+
+def _get_viewers(message_dict):
+	try:
+		name = " ".join(message_dict["message"].split(" ")[1:])
+	except:
+		send_message("You must specify which game to search for.")
+		return False
+
+	user = message_dict["display-name"].lower()
+
+	bearer_token = get_data("app_access_token")
+	authorisation_header = {"Client-ID": robokaywee_client_id, "Authorization":"Bearer " + bearer_token}
+
+	games_url = f"https://api.twitch.tv/helix/games?name={name.replace(' ', '%20')}"
+	try:
+		id = requests.get(games_url, headers=authorisation_header).json()["data"][0]["id"]
+	except:
+		send_message("There was a problem. Maybe that game doesn't exist.")
+		return False
+
+	viewers = 0
+
+	cursor = ""
+	viewers_url = "https://api.twitch.tv/helix/streams?game_id={id}&first=100&after={cursor}"
+
+	page = requests.get(viewers_url.format(id=id, cursor=cursor), headers=authorisation_header).json()
+	cursor = page["pagination"]["cursor"]
+
+	while cursor != "":
+		for stream in page["data"]:
+			viewers += stream["viewer_count"]
+
+		page = requests.get(viewers_url.format(id=id, cursor=cursor), headers=authorisation_header).json()
+		try:
+			cursor = page["pagination"]["cursor"]
+		except Exception as ex:
+			break
+
+	send_message(f"@{user} There are currently {viewers:,} people watching a {name} stream.")
+	log(f"Sent viewers of {viewers:,} in category {name} to {user}.")
+	return
