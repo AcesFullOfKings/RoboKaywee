@@ -763,11 +763,11 @@ def lastraid(message_dict):
 	time    = raid_data["time"]
 
 	date_num = datetime.utcfromtimestamp(time).strftime('%d') # returns a string with current date number, e.g. "19"
-	if date_num in ["1", "21", "31"]:
+	if date_num in ["01", "21", "31"]:
 		suffix = "st"
-	elif date_num in ["2", "22"]:
+	elif date_num in ["02", "22"]:
 		suffix = "nd"
-	elif date_num in ["3", "23"]:
+	elif date_num in ["03", "23"]:
 		suffix = "rd"
 	else:
 		suffix = "th"
@@ -1805,7 +1805,7 @@ def _get_viewers_worker(message_dict):
 
 	sleep(3.5)
 	if viewer_thread.is_alive():
-		send_message(f"@{user} Give me a sec - it might take a few seconds to get the viewers...")
+		send_message(f"@{user} Give me a sec - it might take some time to get the viewers...")
 
 
 def _get_viewers(message_dict):
@@ -1848,3 +1848,69 @@ def _get_viewers(message_dict):
 	send_message(f"@{user} There are currently {viewers:,} people watching a {name} stream.")
 	log(f"Sent viewers of {viewers:,} in category {name} to {user}.")
 	return
+
+@is_command("Check whether a website or service is down. Usage: `!isitdown apex legends` or `!isitdown twitch`")
+def isitdown(message_dict):
+	
+	user = message_dict["display-name"].lower()
+
+	try:
+		name = " ".join(message_dict["message"].split(" ")[1:])
+	except:
+		send_message("You must specify which service to search for.")
+		return False
+
+	url = f"https://downdetector.com/status/{name.replace(' ', '-')}"
+	user_agent = {'User-agent': 'Mozilla/5.0'}
+	page = requests.get(url, headers=user_agent)
+
+	if "User reports indicate problems" in page.text:
+		send_message(f"It looks like {name} is having problems - maybe it's down! Sadge Source: {url}")
+		log(f"Sent isitdown to {user}: {name} is down.")
+	elif "our systems have detected unusual traffic" in page.text:
+		send_message(f"Oops, I can't check downdetector at the moment. Tell Foster he sucks at coding.")
+		log(f"Anti-scraping from downdetector! Can't process command.")
+		return False
+	elif "no current problems" in page.text:
+		send_message(f"Looks like {name} is up! FeelsGoodMan Source: {url}")
+		log(f"Sent isitdown to {user}: {name} is up!")
+	else:
+		send_message(f"I'm not sure if {name} is down. Did you type it correctly? Try checking {url}")
+		log(f"Sent isitdown to {user} - service {name} not found")
+
+@is_command("Provides a reason as to why Kaywee is playing badly")
+def excuse(message_dict):
+	message = message_dict["message"]
+	user = message_dict["display-name"].lower()
+
+	try:
+		param = message.split(" ")[1].lower()
+	except:
+		param = ""
+
+	if param == "add":
+		if message_dict["user_permission"] < permissions.Mod:
+			send_message("Only mods can add excuses. Try using !excuse")
+			return False
+		excuse = " ".join(message.split(" ")[2:])
+		with open("excuses.txt", "r", encoding="utf-8") as f:
+			excuses = list(f.read().split("\n"))
+
+		excuses.append(excuse)
+
+		with open("excuses.txt", "w", encoding="utf-8") as f:
+			f.write("\n".join(excuses))
+
+		responses = ["Ahh that explains a lot.",
+					 "No wonder she's been playing this way.",
+					 "Oh. Does her duo know this?"]
+
+		send_message(random.choice(responses))
+		log(f"Added excuse from {user}: {excuse}")
+	else:
+		with open("excuses.txt", "r", encoding="utf-8") as f:
+			excuses = f.read().split("\n")
+
+		excuse = random.choice(excuses)
+		send_message(excuse)
+		log(f"Sent excuse {excuse} to {user}")
