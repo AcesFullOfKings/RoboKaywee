@@ -2,7 +2,6 @@
 import os
 import re
 import praw # takes 0.33s to import!
-import ctypes
 import random
 import requests
 
@@ -29,8 +28,12 @@ when host_on notice is received, channel_live should be set to false
 rework how live detection works
 """
 
-ctypes.windll.kernel32.SetConsoleTitleW("RoboKaywee")
-del ctypes
+try: # try to name the window
+	import ctypes
+	ctypes.windll.kernel32.SetConsoleTitleW("RoboKaywee")
+	del ctypes
+except: # might not work on linux / etc.. oh well
+	pass
 
 def log(s):
 	"""
@@ -67,8 +70,9 @@ channel_emotes = {"kaywee1AYAYA", "kaywee1Wut", "kaywee1Dale", "kaywee1Imout", "
 bot = None
 shutdown_on_offline = False
 
-ayy_re   = re.compile("a+y+")
-hello_re = re.compile("h+i+|h+e+y+|h+e+l+o+|h+o+l+a+|h+i+y+a+")
+ayy_re     = re.compile("a+y+")
+hello_re   = re.compile("h+i+|h+e+y+|h+e+l+o+|h+o+l+a+|h+i+y+a+")
+patrick_re = re.compile("is this [^ ]*\?{1,}")
 
 modwalls = {
 	15:  {"name": "Modwall",                    "emotes": "kaywee1AYAYA",                                                           "excitement": 0, "break_emotes": "FeelsBadMan"},
@@ -221,6 +225,33 @@ def channel_events():
 		check_live_status_subsequent()
 		sleep(period)
 
+def play_patiently():
+	url = "https://api.twitch.tv/helix/streams?user_id=" + kaywee_channel_id
+	global authorisation_header
+
+	reminder_period = 60*60
+
+	last_patient_reminder = get_data("last_patient_reminder", 0)
+
+	time_since = time() - last_patient_reminder
+	if time_since <= reminder_period:
+		wait_time = reminder_period - time_since
+	else:
+		wait_time = 0
+
+	sleep(wait_time)
+
+	while True:
+		try:
+			title = requests.get(url, headers=authorisation_header).json()["data"][0]["title"] # makes sure streamer is live
+			send_message("@Kaywee - don't forget to play patiently!")
+			log("Sent patient reminder.")
+			set_data("last_patient_reminder", int(time()))
+		except:
+			pass
+
+		sleep(reminder_period) # wait an hour before retrying
+
 last_wiki_update = 0
 def update_commands_wiki(force_update_reddit=False):
 	global last_wiki_update
@@ -238,7 +269,8 @@ def update_commands_wiki(force_update_reddit=False):
 			with suppress(RuntimeError):
 				command_lock.release()
 
-			table = "**Note: all commands are sent with /me so will display in the bot's colour.**\n\n\n**Command**|**Level**|**Response/Description**|**Uses**\n---|---|---|---\n"
+			table = ("" + # "**Note: most commands are sent with /me so will display in the bot's colour.**\n\n\n" + 
+					"**Command**|**Level**|**Response/Description**|**Uses**\n---|---|---|---\n")
 
 			for command in sorted(commands):
 				if "permission" in commands[command]:
@@ -287,13 +319,17 @@ def write_command_data(force_update_reddit=False):
 		log("Warning: Command Lock timed out on write_command_data() !!")
 
 def commit_subscribers():
-	if command_lock.acquire(timeout=3):
-		with open("subscribers.txt", "w", encoding="utf-8") as f:
-			f.write(str(subscribers))
+	try:
+		if command_lock.acquire(timeout=3):
+			with open("subscribers.txt", "w", encoding="utf-8") as f:
+				f.write(str(subscribers))
+		else:
+			log("Warning: Subs Lock timed out in commit_subscribers() !!")
+	except Exception as ex:
+		log("Exception in commit_subscribers: " + str(ex))
+	finally:
 		with suppress(RuntimeError):
 			command_lock.release()
-	else:
-		log("Warning: Subs Lock timed out in commit_subscribers() !!")
 
 def add_new_username(username):
 	send_message(f"Welcome to Kaywee's channel {username}! Get cosy and enjoy your stay kaywee1AYAYA <3")
@@ -301,9 +337,17 @@ def add_new_username(username):
 
 	global usernames	
 	usernames.add(username)
-
-	with open("usernames.txt", "w", encoding="utf-8") as f:
-		f.write("\n".join(usernames))
+	try:
+		if usernames_lock.acquire(timeout=3):
+			with open("usernames.txt", "w", encoding="utf-8") as f:
+				f.write("\n".join(usernames))
+		else:
+			log(f"Failed to aquire usernames_lock after 3 seconds! {username} was not added to the text file.")
+	except Exception as ex:
+		log("Exception in add_new_username: " + str(ex))
+	finally:
+		with suppress(RuntimeError):
+			usernames_lock.release()
 
 def add_seen_title(title):
 	global titles
@@ -428,15 +472,16 @@ def update_followers():
 
 		sleep(10*60)
 
-def get_data(name):
+def get_data(name, default=None):
 	try:
 		if config_lock.acquire(timeout=3):
 			with open("config.txt", "r") as f:
 				file = f.read()
 				data = dict(eval(file))
+				return data.get(name, default)
 		else:
 			log("WARNING: config_lock timed out in get_data() !!")
-			return None
+			return default
 	except FileNotFoundError as ex:
 		log(f"Failed to get data called {name} - File Not Found.")
 	except ValueError as ex:
@@ -447,14 +492,13 @@ def get_data(name):
 		with suppress(RuntimeError):
 			config_lock.release()
 
-	return data.get(name, None)
-
 def set_data(name, value):
 	try:
 		if config_lock.acquire(timeout=3):
 			with open("config.txt", "r") as f:
 				file = f.read()
 				data = dict(eval(file))
+				data[name] = value
 		else:
 			log("WARNING: config_lock timed out (while reading) in set_data() !!")
 			return
@@ -470,12 +514,10 @@ def set_data(name, value):
 		with suppress(RuntimeError):
 			config_lock.release()
 
-	data[name] = value
-
 	try:
 		if config_lock.acquire(timeout=3):
 			with open("config.txt", "w") as f:
-				f.write(str(data).replace(", ", ",\n"))
+				f.write(str(data)) #.replace(", ", "},\n")
 			
 			with suppress(RuntimeError):
 				config_lock.release()
@@ -497,7 +539,7 @@ def automatic_backup():
 	check_interval = 60*60     # check once per hour
 
 	while True:
-		if get_data("last_backup") < time() - backup_period:
+		if get_data("last_backup", 0) < time() - backup_period:
 			today_dt = datetime.today()
 			year = str(today_dt.year)[-2:]
 			month = str(today_dt.month).zfill(2)
@@ -525,7 +567,7 @@ def update_app_access_token():
 
 	while True:
 		try:
-			current_token = get_data("app_access_token")
+			current_token = get_data("app_access_token", None)
 			assert current_token is not None
 
 			response = requests.get(url, headers=authorisation_header).json()
@@ -544,15 +586,16 @@ def update_app_access_token():
 
 		sleep(23*60*60) # wait 23 hours
 
-def send_message(message, add_to_chatlog=True, suppress_colour=False):
+def send_message(message, add_to_chatlog=True, suppress_colour=True):
 	"""
 	Will also be accessible from the commands file.
 	"""
 
-	if message[0]=="/" or suppress_colour:
+	if message[0] in "/." or suppress_colour:
 		bot.send_message(message)
 	else:
-		bot.send_message("/me " + message)
+		bot.send_message("slash me " + message)
+
 	if add_to_chatlog:
 		with open("chatlog.txt", "a", encoding="utf-8") as f:
 			f.write("robokaywee: " + message + "\n")
@@ -602,7 +645,7 @@ def create_bot():
 def respond_message(message_dict):
 	# For random non-command responses/rules
 
-	global bUrself_sent
+	global bUrself_sent # this is needed
 
 	user       = message_dict["display-name"].lower()
 	message    = message_dict["message"]
@@ -629,6 +672,8 @@ def respond_message(message_dict):
 			log(f"Banned {user} for linking to bigfollows")
 
 	# EASTER EGGS:
+
+	msg_lower_no_punc = "".join(c for c in message_lower if c in ascii_lowercase+" ")
 	
 	if message[0] == "^":
 		send_message("^", suppress_colour=True)
@@ -665,11 +710,10 @@ def respond_message(message_dict):
 	elif user in ["gothmom_", "ncal_babygirl24"] and "lucio" in message_lower:
 		send_message("IS UR MAN HERE??")
 		log(f"Sent \"Is your man here?\" to {user}")
-
-	elif "".join(c for c in message_lower if c in ascii_lowercase+" ") == "alexa play despacito":
+	elif msg_lower_no_punc == "alexa play despacito":
 		send_message("Now playing Despacito by Luis Fonsi.")
 		log(f"Now playing Despacito for {user}")
-	elif "".join(c for c in message_lower if c in ascii_lowercase+" ") == "alexa stop":
+	elif msg_lower_no_punc == "alexa stop":
 		send_message("Now stopping.")
 		log(f"Stopping Alexia for {user}")
 	elif len(message_lower.split()) == 2 and message_lower.split()[0] in ["im", "i'm"]:
@@ -679,7 +723,13 @@ def respond_message(message_dict):
 		send_message("bUrself")
 		bUrself_sent = True
 		set_data("bUrself_sent", True)
-	
+	elif re.fullmatch(patrick_re, message_lower):
+		send_message("No, this is Patrick.")
+		log(f"Sent patrick to {user}")
+	elif msg_lower_no_punc == "you're walking in the woods":
+		send_message("There's no-one around and your phone is dead.")
+	elif msg_lower_no_punc == "out of the corner of your eye you spot him":
+		send_message("Shia Lebeuf!")
 	#else:
 	#	haiku = is_haiku(message_lower)
 	#	if haiku:
@@ -741,18 +791,19 @@ if __name__ == "__main__":
 	Thread(target=set_random_colour,       name="Colour Updater").start()
 	Thread(target=channel_live_messages,   name="Channel Live Messages").start()
 	Thread(target=automatic_backup,        name="Automatic Backup").start()
+	Thread(target=play_patiently,          name="Play Patiently").start()
 	#Thread(target=ow2_msgs,                name="OW2 messages").start()
 	
 	user_cooldowns  = {}
 	modwall_mods    = set()
-	modwall         = get_data("modwall")
+	modwall         = get_data("modwall", 0)
 	current_modwall = None
 	vip_wall        = 0
 	vipwall_vips    = set()
 	last_message    = {}
 	dropoff         = 1
-	bUrself_sent    = get_data("bUrself_sent")
-	user_messages   = get_data("user_messages")
+	bUrself_sent    = get_data("bUrself_sent", False)
+	user_messages   = get_data("user_messages", {})
 
 	if user_messages is None:
 		user_messages = dict()
@@ -764,14 +815,14 @@ if __name__ == "__main__":
 	commands_file.get_data           = get_data
 	commands_file.set_data           = set_data
 	commands_file.nochat_on          = False
+	commands_file.usernames          = usernames
 	commands_file.subscribers        = subscribers
 	commands_file.permissions        = permissions
 	commands_file.send_message       = send_message
 	commands_file.command_dict       = commands_dict
 	commands_file.last_message       = last_message
-	commands_file.write_command_data = write_command_data
 	commands_file.user_messages      = user_messages
-	commands_file.usernames          = usernames
+	commands_file.write_command_data = write_command_data
 
 	print("Setup complete. Now listening in chat.")
 
@@ -824,8 +875,8 @@ if __name__ == "__main__":
 
 					if message[0] == "!":
 						command = message[1:].split(" ")[0].lower()
-						if command in ["win", "loss", "draw"]:
-							command = "toxicpoll" # start a toxicpoll when the SE result commands are seen
+						#if command in ["win", "loss", "draw"]:
+						#	command = "toxicpoll" # start a toxicpoll when the SE result commands are seen
 						if command in commands_dict:
 							command_obj = commands_dict[command]
 							                                                     # cooldowns now only apply to non-mods. bc fuck those guys
@@ -871,7 +922,7 @@ if __name__ == "__main__":
 										log(f"WARNING: Stored text command with no response: {command}")
 
 					else:
-						respond_message(message_dict)
+						Thread(target=respond_message, args=(message_dict,)).start()
 
 					if user_permission >= permissions.Mod:
 						modwall_mods.add(user)
@@ -929,7 +980,7 @@ if __name__ == "__main__":
 					if user in user_messages:
 						user_message_info = user_messages[user]
 						from_user    = user_message_info["from_user"]
-						user_message = user_message_info["user_message"].replace(", ", ",")
+						user_message = user_message_info["user_message"]
 
 						del user_messages[user]
 						
