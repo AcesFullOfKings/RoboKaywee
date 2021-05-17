@@ -4,6 +4,7 @@ import re
 import praw # takes 0.33s to import!
 import random
 import requests
+import subprocess
 
 from os          import getcwd
 from time        import time, sleep, localtime
@@ -72,25 +73,24 @@ shutdown_on_offline = False
 
 ayy_re     = re.compile("a+y+")
 hello_re   = re.compile("h+i+|h+e+y+|h+e+l+o+|h+o+l+a+|h+i+y+a+")
-patrick_re = re.compile("is this [^ ]*\?{1,}")
+patrick_re = re.compile("is this [^ ]*\?{0,}$")
 
 modwalls = {
-	15:  {"name": "Modwall",                    "emotes": "kaywee1AYAYA",                                                           "excitement": 0, "break_emotes": "FeelsBadMan"},
-	30:  {"name": "Supermodwall!",              "emotes": "SeemsGood kaywee1Wut",                                                   "excitement": 1, "break_emotes": "FeelsBadMan"},
-	60:  {"name": "MEGA MODWALL!!",             "emotes": "TwitchLit kaywee1AYAYA kaywee1Wut",                                      "excitement": 2, "break_emotes": "FeelsBadMan NotLikeThis"},
-	120: {"name": "H Y P E R MODWALL!!",        "emotes": "kaywee1AYAYA PogChamp Kreygasm CurseLit",                                "excitement": 2, "break_emotes": "FeelsBadMan NotLikeThis PepeHands"},
-	250: {"name": "U L T R A M O D W A L L!!!", "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut", "excitement": 3, "break_emotes": "FeelsBadMan NotLikeThis PepeHands"},
-	500: {"name": "GIGAMODWALL!!!",             "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut", "excitement": 3, "break_emotes": "FeelsBadMan NotLikeThis PepeHands Sadge"},
+	15:  {"name": "Modwall",                 "emotes": "kaywee1AYAYA",                                                           "excitement": 1, "break_emotes": ":("},
+	30:  {"name": "Supermodwall",            "emotes": "SeemsGood kaywee1Wut",                                                   "excitement": 1, "break_emotes": ":( FeelsBadMan"},
+	60:  {"name": "MEGA MODWALL",            "emotes": "TwitchLit kaywee1AYAYA kaywee1Wut",                                      "excitement": 2, "break_emotes": ":( FeelsBadMan NotLikeThis"},
+	120: {"name": "H Y P E R MODWALL",       "emotes": "kaywee1AYAYA PogChamp Kreygasm CurseLit",                                "excitement": 2, "break_emotes": ":( FeelsBadMan NotLikeThis PepeHands"},
+	250: {"name": "U L T R A M O D W A L L", "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut", "excitement": 3, "break_emotes": ":( FeelsBadMan NotLikeThis PepeHands"},
+	500: {"name": "G I G A M O D W A L L",   "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut", "excitement": 3, "break_emotes": ":( FeelsBadMan NotLikeThis PepeHands Sadge"},
 	# I guarantee none of these will ever be reached naturally, but..
-	1000:{"name": "PETAMODWALL!!!!",            "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut", "excitement": 4, "break_emotes": "FeelsBadMan NotLikeThis PepeHands Sadge"},
-	2000:{"name": "EXAMODWALL!!!!!",            "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut", "excitement": 5, "break_emotes": "FeelsBadMan NotLikeThis PepeHands Sadge"},
-	3000:{"name": "ZETTAMODWALL!!!!!!",         "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut", "excitement": 6, "break_emotes": "FeelsBadMan NotLikeThis PepeHands Sadge"},
-	4000:{"name": "YOTTAMODWALL!!!!!!!",        "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut", "excitement": 7, "break_emotes": "FeelsBadMan NotLikeThis PepeHands Sadge"},
-	# also I know that the SI prefixes don't make sense with the numbers but whatever, I needed increasing prefixes
+	1000:{"name": "PETAMODWALL",             "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut", "excitement": 4, "break_emotes": ":( FeelsBadMan NotLikeThis PepeHands Sadge"},
+	2000:{"name": "EXAMODWALL",              "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut", "excitement": 5, "break_emotes": ":( FeelsBadMan NotLikeThis PepeHands Sadge"},
+	3000:{"name": "ZETTAMODWALL",            "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut", "excitement": 6, "break_emotes": ":( FeelsBadMan NotLikeThis PepeHands Sadge"},
+	4000:{"name": "YOTTAMODWALL",            "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut", "excitement": 7, "break_emotes": ":( FeelsBadMan NotLikeThis PepeHands Sadge"},
+	# also I know that the SI prefixes don't match the numbers but whatever, I needed increasing prefixes
 }
 
 get_modwall = lambda x: modwalls[sorted(list(key for key in modwalls.keys() if key <= x))[-1]] # you can do it flasgod
-
 
 with open("usernames.txt", "r", encoding="utf-8") as f:
 	usernames = set(f.read().split("\n"))
@@ -118,7 +118,7 @@ with open("titles.txt", "r", encoding="utf-8") as f:
 def channel_events():
 	""" 
 	Checks the channel every period. If channel goes live or goes offline, global Thread events are triggered.
-	Dont you dare judge my code quality in this function Flasgod. It's a mess but we do what we gotta do to survive.
+	Dont you dare judge my code quality in this function Flasgod. I know it's a mess but we do what we gotta do to survive.
 	"""
 
 	global channel_live
@@ -156,6 +156,10 @@ def channel_events():
 				set_data("online_time", online_time)
 				bUrself_sent = False
 				set_data("bUrself_sent", False)
+				ali_sent = False
+				set_data("ali_sent", False)
+				set_data("wordoftheday_sent", False)
+				set_data("unpink_sent", False)
 				
 			channel_live.set()
 
@@ -188,6 +192,8 @@ def channel_events():
 				channel_live.clear()
 				channel_offline.set()
 
+				print(f"shutdown_on_offline is {shutdown_on_offline}")
+
 				if shutdown_on_offline:
 					log("Shutting down the PC..")
 					sleep(1)
@@ -205,15 +211,19 @@ def channel_events():
 
 				bUrself_sent = False
 				set_data("bUrself_sent", False)
+				ali_sent = False
+				set_data("ali_sent", False)
+				set_data("wordoftheday_sent", False)
+				set_data("unpink_sent", False)
 
 			add_seen_title(title) # save unique stream title
 	try:
 		online_time = get_data("online_time")
-		period = 120
 	except Exception as ex:
 		log("Exception reading online_time: " + str(ex))
 		online_time = None
-		period = 120
+	
+	period = 120
 
 	url = "https://api.twitch.tv/helix/streams?user_id=" + kaywee_channel_id
 	global authorisation_header
@@ -380,7 +390,16 @@ def set_random_colour():
 		sleep(60*60)
 
 def it_is_wednesday_my_dudes():
-	sleep(20*60) # wait 20 mins into the stream
+	reminder_period = 60*60
+	last_pink_reminder = get_data("last_pink_reminder", 0)
+
+	time_since = time() - last_pink_reminder
+	if time_since <= reminder_period:
+		wait_time = reminder_period - time_since
+	else:
+		wait_time = 0
+
+	sleep(wait_time)
 
 	url = "https://api.twitch.tv/helix/streams?user_id=" + kaywee_channel_id
 	global authorisation_header 
@@ -390,20 +409,25 @@ def it_is_wednesday_my_dudes():
 		if date.today().weekday() == 2 and datetime.now().hour >= 6: # if it's wednesday and it's not earlier than 6am
 			send_message("On Wednesdays we wear pink. If you want to sit with us type /color HotPink to update your username colour.")
 			log("Sent Pink reminder.")
-		sleep(60*60)
+			set_data("last_pink_reminder", time())
+		sleep(reminder_period)
 
 def it_is_thursday_my_dudes():
-	sleep(20*60) # wait 20 mins into the stream
-	send_message("On Thursdays we wear whatever colour we want. Set your username colour by using /color and sit with us.")
-	log("Sent UnPink reminder.")
+	if not get_data("unpink_sent"):
+		sleep(20*60) # wait 20 mins into the stream
+		send_message("On Thursdays we wear whatever colour we want. Set your username colour by using /color and sit with us.")
+		log("Sent UnPink reminder.")
+		set_data("unpink_sent", True)
 
 def it_is_worldday_my_dudes():
 	sleep(10*60) # wait 10 mins into stream
 	commands_file.worldday({"display-name":"Timed Event"}) # have to include a message dict param
 
 def wordoftheday_timer():
-	sleep(60*60) # wait 60 mins into stream
-	commands_file.wordoftheday({"display-name":"Timed Event"}) # have to include a message dict param
+	if not get_data("wordoftheday_sent"):
+		sleep(60*60) # wait 60 mins into stream
+		commands_file.wordoftheday({"display-name":"Timed Event"}) # have to include a message dict param
+		set_data("wordoftheday_sent", True)
 
 def ow2_msgs():
 	while True:
@@ -417,12 +441,12 @@ def channel_live_messages():
 
 	live_status_checked.wait() # wait for check_live_status to run once
 
-	if not channel_live.is_set():  # if channels isn't already live when bot starts
-		channel_live.wait()        # wait for channel to go live
+	#if not channel_live.is_set():  # if channels isn't already live when bot starts
+	channel_live.wait()        # wait for channel to go live
 		#send_message("!resetrecord", suppress_colour=True)
 
-		Thread(target=it_is_worldday_my_dudes).start()
-		Thread(target=wordoftheday_timer).start()
+	Thread(target=it_is_worldday_my_dudes).start()
+	Thread(target=wordoftheday_timer).start()
 
 	# these will start right away if channel is already live
 	# or if channel is offline, they will wait for channel to go live then start
@@ -462,13 +486,17 @@ def update_followers():
 		# only update followers if total follow count has changed: 
 		# (this might mean e.g. one unfollowed and one followed so the count stayed the same but the list changed.. but oh well)
 		if follower_count != len(followers):
-			followers = get_followers()
 			try:
-				with open("followers.txt", "w", encoding="utf-8") as f:
-					f.write(str(followers))
+				followers = get_followers() # occasionally causes the thread to crash so wrapped it in a try
 			except Exception as ex:
-				log("Exception writing followers: " + str(ex))
-				followers = {}
+				log("Exception getting followers: " + str(ex))
+			else:
+				try:
+					with open("followers.txt", "w", encoding="utf-8") as f:
+						f.write(str(followers))
+				except Exception as ex:
+					log("Exception writing followers: " + str(ex))
+					followers = {} # should get updated on next loop
 
 		sleep(10*60)
 
@@ -552,7 +580,7 @@ def automatic_backup():
 				os.mkdir(folder_name)
 
 			for filename in os.listdir(getcwd()):
-				if any(filename.endswith(ext) for ext in [".txt", ".py", ".json"]):
+				if any(filename.endswith(ext) for ext in [".txt", ".py"]):
 					full_src = getcwd()    + f"\\{filename}" # source file full path
 					full_dst = folder_name + f"\\{filename}" # dest file full path
 					copy_with_metadata(full_src, full_dst)
@@ -636,16 +664,31 @@ def check_cooldown(command_name, user):
 
 def create_bot():
 	global bot
+	global commands_file
+
 	if bot is not None:
 		log("Re-creating bot object..")
 
-	bot = ChatBot(bot_name, password, channel_name, debug=False, capabilities=["tags", "commands"])
-	commands_file.bot = bot
+	success = False
+	dropoff = 0.5
+
+	while not success:
+		try:
+			bot = ChatBot(bot_name, password, channel_name, debug=False, capabilities=["tags", "commands"])
+			commands_file.bot = bot
+			success = True
+		except Exception as ex:
+			log(f"Bot raised an exception while starting: {str(ex)}. Waiting {dropoff}s.")
+			sleep(dropoff)
+			dropoff *= 2
+
 
 def respond_message(message_dict):
 	# For random non-command responses/rules
+	# This is run on a second thread
 
 	global bUrself_sent # this is needed
+	global ali_sent     # this too
 
 	user       = message_dict["display-name"].lower()
 	message    = message_dict["message"]
@@ -699,7 +742,7 @@ def respond_message(message_dict):
 		send_message("!romper")
 		log(f"Sent romper to {user}")
 
-	elif user == "theonefoster_" and message_lower == "*sd":
+	elif user == "theonefoster" and message_lower == "*sd":
 		shutdown_on_offline = True
 		log("Will now shutdown when Kaywee goes offline.")
 
@@ -707,15 +750,15 @@ def respond_message(message_dict):
 		log(f"Saved new ow2 prediction: {message_lower}")
 		with open("ow2.txt", "a") as f:
 			f.write(message + "\n")
-	elif user in ["gothmom_", "ncal_babygirl24"] and "lucio" in message_lower:
-		send_message("IS UR MAN HERE??")
-		log(f"Sent \"Is your man here?\" to {user}")
+	#elif user in ["gothmom_", "ncal_babygirl24"] and "lucio" in message_lower:
+	#	send_message("IS UR MAN HERE??")
+	#	log(f"Sent \"Is your man here?\" to {user}")
 	elif msg_lower_no_punc == "alexa play despacito":
 		send_message("Now playing Despacito by Luis Fonsi.")
 		log(f"Now playing Despacito for {user}")
 	elif msg_lower_no_punc == "alexa stop":
 		send_message("Now stopping.")
-		log(f"Stopping Alexia for {user}")
+		log(f"Stopping Alexa for {user}")
 	elif len(message_lower.split()) == 2 and message_lower.split()[0] in ["im", "i'm"]:
 		send_message(f"Hi {message.split()[1]}, I'm dad!")
 		log(f"Sent Dad to {user}")
@@ -723,10 +766,16 @@ def respond_message(message_dict):
 		send_message("bUrself")
 		bUrself_sent = True
 		set_data("bUrself_sent", True)
+		log(f"Sent bUrself to {user}")
+	elif not ali_sent and user == "aliadam80":
+		send_message(commands_dict["ali"]["response"])
+		ali_sent = True
+		set_data("ali_sent", True)
+		log(f"Sent Ali pasta to {user}")
 	elif re.fullmatch(patrick_re, message_lower):
 		send_message("No, this is Patrick.")
 		log(f"Sent patrick to {user}")
-	elif msg_lower_no_punc == "you're walking in the woods":
+	elif msg_lower_no_punc == "youre walking in the woods":
 		send_message("There's no-one around and your phone is dead.")
 	elif msg_lower_no_punc == "out of the corner of your eye you spot him":
 		send_message("Shia Lebeuf!")
@@ -763,7 +812,7 @@ for command_name in [o for o in dir(commands_file) if not(o[0] == "_" or o[-1] =
 		pass
 
 if update_command_data:
-	write_command_data(False)
+	write_command_data(force_update_reddit=False)
 
 del update_command_data
 
@@ -771,16 +820,9 @@ if __name__ == "__main__":
 	log("Starting bot..")
 
 	success = False
-	dropoff = 1
+	dropoff = 0.5
 
-	while not success:
-		try:
-			create_bot()
-			success = True
-		except Exception as ex:
-			log(f"Bot raised an exception while starting: {str(ex)}. Waiting {dropoff}s.")
-			sleep(dropoff)
-			dropoff *= 2
+	create_bot()
 
 	authorisation_header = {"Client-ID": robokaywee_client_id, "Authorization":"Bearer " + get_data("app_access_token")}
 
@@ -803,6 +845,7 @@ if __name__ == "__main__":
 	last_message    = {}
 	dropoff         = 1
 	bUrself_sent    = get_data("bUrself_sent", False)
+	ali_sent        = get_data("ali_sent", False)
 	user_messages   = get_data("user_messages", {})
 
 	if user_messages is None:
@@ -892,7 +935,7 @@ if __name__ == "__main__":
 													command_obj["uses"] = 1
 
 												command_obj["last_used"] = time()
-												write_command_data(False)
+												write_command_data(force_update_reddit=False)
 												
 										else:
 											log(f"WARNING: tried to call non-command function: {command}")
@@ -917,7 +960,7 @@ if __name__ == "__main__":
 											command_obj["uses"] = 1
 
 										command_obj["last_used"] = time()
-										write_command_data(False)
+										write_command_data(force_update_reddit=False)
 									else:
 										log(f"WARNING: Stored text command with no response: {command}")
 
@@ -939,7 +982,7 @@ if __name__ == "__main__":
 								excitement = "!"*modwall_data["excitement"]
 
 								send_message(f"#{current_modwall}{'!'*modwall_data['excitement']} {modwall_data['emotes']}")
-								log(f"{current_modwall}!")
+								log(f"{current_modwall}{'!'*modwall_data['excitement']}")
 							if modwall >= 5:
 								set_data("modwall", modwall)
 					else:
@@ -948,7 +991,7 @@ if __name__ == "__main__":
 							current_modwall = modwall_data["name"]
 							break_emotes = modwall_data["break_emotes"]
 							excitement = "!"*modwall_data["excitement"]
-							send_message(f"{current_modwall} has been broken by {user}{excitement} :( {break_emotes}")
+							send_message(f"{current_modwall} has been broken by {user}{excitement} {break_emotes}")
 
 						if modwall >= 5:
 							set_data("modwall", 0)
