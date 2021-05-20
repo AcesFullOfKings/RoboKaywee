@@ -1,5 +1,7 @@
 # this change was pushed from the command line
 
+# ok what about now? this is the second change
+
 #import sqlite3 # one day maybe I'll use an actual database LOL
 import os
 import re
