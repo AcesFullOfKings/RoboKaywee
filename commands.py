@@ -2008,5 +2008,9 @@ def commit(message_dict):
 def _commit_thread():
 	result = os.system("commit.bat")
 
-	send_message(f"The commit result was {result}")
-	log(f"The commit result was {result}")
+	if result == "0":
+		send_message(f"The commit was successful.")
+		log(f"The commit was successful")
+	else:
+		send_message(f"The commit failed with message {result}")
+		log(f"The commit failed with message {result}")
