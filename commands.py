@@ -2001,12 +2001,19 @@ def crypto(message_dict):
 @is_command("Updates the RoboKaywee github with the current codebase.")
 def commit(message_dict):
 	user = message_dict["display-name"].lower()
-	Thread(target=_commit_thread).start()
+	message = message_dict["message"]
+
+	try:
+		commit_message = " ".join(message.split(" ")[1:])
+	except:
+		commit_message = "Bug Fixes and Performance Improvements"
+
+	Thread(target=_commit_thread, args=(commit_message,)).start()
 	send_message("The commit is running..")
 	log(f"Commited to Git for {user}")
 
-def _commit_thread():
-	result = os.system("commit.bat")
+def _commit_thread(message):
+	result = os.system("commit.bat " + message)
 
 	if result == 0:
 		send_message(f"The commit was successful.")
