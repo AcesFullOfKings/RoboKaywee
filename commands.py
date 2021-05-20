@@ -10,11 +10,14 @@ from threading       import Thread
 from credentials     import kaywee_channel_id, robokaywee_client_id, exchange_API_key, weather_API_key 
 from googletrans     import Translator
 from multiprocessing import Process
-from james           import seconds_to_duration
+from james           import seconds_to_duration, timeuntil
+from contextlib      import suppress
 #from james import translate as j_translate
 
 from PyDictionary import PyDictionary
 dic = PyDictionary()
+
+timers = set()
 
 def is_command(description=""):
 	"""
@@ -43,7 +46,7 @@ all_emotes = [] # populated below
 @is_command("Allows mods to add and edit existing commands. Syntax: !rcommand [add/edit/delete/options] <command name> <add/edit: <command text> // options: <[cooldown/usercooldown/permission]>>")
 def rcommand(message_dict):
 	"""
-	format:
+	format:lll
 	!rcommand <action> <command> [<params>]
 
 	examples:
@@ -83,7 +86,7 @@ def rcommand(message_dict):
 				command_dict[command_name]["response"] = response
 
 				send_message(f"Command {command_name} has been updated.")
-				write_command_data(True)
+				write_command_data(force_update_reddit=True)
 			else:
 				send_message(f"The command {command_name} is not updatable.")
 		else:
@@ -104,7 +107,7 @@ def rcommand(message_dict):
 
 			if command_name  in command_dict:
 				command_dict[command_name]["global_cooldown"] = cooldown
-				write_command_data(True)
+				write_command_data(force_update_reddit=True)
 				log(f"{user} updated global cooldown on command {command_name} to {cooldown}")
 				send_message(f"Global Cooldown updated to {cooldown} on {command_name}")
 			else:
@@ -118,7 +121,7 @@ def rcommand(message_dict):
 				return False
 
 			command_dict[command_name]["user_cooldown"] = cooldown
-			write_command_data(True)
+			write_command_data(force_update_reddit=True)
 			log(f"{user} updated user cooldown on command {command_name} to {cooldown}")
 			send_message(f"User Cooldown upated to {cooldown} on {command_name}")
 		elif option == "permission":
@@ -132,7 +135,7 @@ def rcommand(message_dict):
 				for enum in permissions:
 					if enum.value == permission:
 						command_dict[command_name]["permission"] = permission
-						write_command_data(True)
+						write_command_data(force_update_reddit=True)
 						send_message(f"Permission updated to {enum.name} on command {command_name}")
 						log(f"{user} updated permission on command {command_name} to {enum.name}")
 						return True # also exits the for-loop
@@ -159,7 +162,7 @@ def rcommand(message_dict):
 				response = response.replace("|", "/") # pipes break the formatting on the reddit wiki
 				
 				command_dict[command_name] = {'permission': 0, 'global_cooldown': 1, 'user_cooldown': 0, 'coded': False, 'uses':0, 'response': response}
-				write_command_data(True)
+				write_command_data(force_update_reddit=True)
 				send_message("Added command " + command_name)
 				log(f"{user} added command {command_name}")
 		else:
@@ -169,7 +172,7 @@ def rcommand(message_dict):
 		if command_name in command_dict:
 			if command_dict[command_name]["coded"] == False:
 				del command_dict[command_name]
-				write_command_data(True)
+				write_command_data(force_update_reddit=True)
 				send_message("Deleted command " + command_name)
 				log(f"{user} deleted command {command_name}")
 			else:
@@ -266,7 +269,6 @@ def votetoxic(message_dict):
 	global voters
 
 	user = message_dict["display-name"].lower()
-	message = message_dict["message"]
 
 	if toxic_poll and user not in voters:
 		toxic_votes += 1
@@ -283,7 +285,6 @@ def votenice(message_dict):
 	global voters
 
 	user = message_dict["display-name"].lower()
-	message = message_dict["message"]
 
 	if toxic_poll and user not in voters:
 		nottoxic_votes += 1
@@ -665,10 +666,10 @@ def endofseason(message_dict):
 	#user = message_dict["display-name"].lower()
 
 	try:
-		time_left = timeuntil(1615312800)
-		send_message(f"Season 26 ends in {time_left}")
+		time_left = timeuntil(1625162400)
+		send_message(f"Season 28 ends in {time_left}")
 	except ValueError:
-		send_message("Season 26 has now ended!")
+		send_message("Season 28 has now ended!")
 
 @is_command("Translates a Spanish message into English. Syntax: `!toenglish hola` OR to translate a user's last message, `!toenglish @toniki`")
 def toenglish(message_dict):
@@ -714,8 +715,7 @@ def tospanish(message_dict):
 			return False
 
 	#phrase = phrase.replace(".", ",").replace("?", ",").replace("!", ",") # for some reason it only translates the first sentence
-
-	# phrase = phrase.replace(".", ";").replace("?", ";").replace("!", ";") 
+	
 	spanish += translator.translate(phrase, src="en", dest="es").text
 
 	send_message(spanish)
@@ -762,7 +762,7 @@ def lastraid(message_dict):
 	viewers = raid_data["viewers"]
 	time    = raid_data["time"]
 
-	date_num = datetime.utcfromtimestamp(time).strftime('%d') # returns a string with current date number, e.g. "19"
+	date_num = datetime.utcfromtimestamp(time).strftime('%d') # returns a string with date number, e.g. "19"
 	if date_num in ["01", "21", "31"]:
 		suffix = "st"
 	elif date_num in ["02", "22"]:
@@ -864,7 +864,9 @@ def allcolours(message_dict):
 	current_colour = get_data("current_colour")
 	send_message(f"/color {current_colour}")
 
-def _start_timer(user, time_in, reminder):
+def _start_timer(user, time_in, reminder, self):
+	global timers
+
 	hours = 0
 	mins  = 0
 	secs  = 0 # defaults
@@ -877,6 +879,7 @@ def _start_timer(user, time_in, reminder):
 			time_str = time_str.split("h")[1]
 		except:
 			send_message(f"@{user} sorry, I don't recognise that format :(")
+			timers.remove(self)
 			return False
 
 	if "m" in time_str:
@@ -885,6 +888,7 @@ def _start_timer(user, time_in, reminder):
 			time_str = time_str.split("m")[1]
 		except:
 			send_message(f"@{user} sorry, I don't recognise that format :(")
+			timers.remove(self)
 			return False
 
 	if "s" in time_str:
@@ -893,16 +897,19 @@ def _start_timer(user, time_in, reminder):
 			time_str = time_str.split("s")[1]
 		except:
 			send_message(f"@{user} sorry, I don't recognise that format :(")
+			timers.remove(self)
 			return False
 
 	if time_str != "": # or secs >= 60 or mins >= 60 or hours > 24:
 		send_message("That time doesn't look right.")
+		timers.remove(self)
 		return False
 
 	timer_time = 60*60*hours + 60*mins + secs
 
 	if timer_time < 30:
 		send_message("The timer must be for at least 30 seconds.")
+		timers.remove(self)
 		return False
 
 	reminder_type = "reminder" if reminder != "" else "timer"
@@ -913,15 +920,21 @@ def _start_timer(user, time_in, reminder):
 	log(f"Started {time_in} timer for {user}.")
 	sleep(timer_time)
 
-	if reminder_type == "reminder":
-		send_message(f"@{user} Reminder! {reminder}")
-	else:
-		send_message(f"@{user} your {time_in} timer is up!")
+	if not self.deleted:
+		if reminder_type == "reminder":
+			send_message(f"@{user} Reminder! {reminder}")
+		else:
+			send_message(f"@{user} your {time_in} timer is up!")
 
-	log(f"{user}'s {timer_time} timer expired.")
+		log(f"{user}'s {timer_time} timer expired.")
+
+	with suppress(KeyError):
+		timers.remove(self)
 
 @is_command("Starts a timer, after which the bot will send a reminder message in chat. Syntax: `!timer 1h2m3s [<message>]`")
 def timer(message_dict):
+	global timers
+
 	user = message_dict["display-name"].lower()
 	message = message_dict["message"]
 
@@ -935,8 +948,35 @@ def timer(message_dict):
 	except:
 		reminder = ""
 
-	timer_thread = Thread(target=_start_timer, args=(user,time_str,reminder), name=f"{time_str} timer for {user}")
+	timer_thread = Thread(target=_start_timer, name=f"{time_str} timer for {user}.")
+	timer_thread.deleted = False
+	timer_thread._args = (user,time_str,reminder,timer_thread) # I'm not *really* supposed to access private attributes, but hey, this is python so anything goes. And Thread doesn't allow setting the args outside the initialiser.
 	timer_thread.start()
+
+	timers.add(timer_thread)
+
+@is_command("Cancel all of your current timers.")
+def canceltimer(message_dict):
+	global timers
+
+	user = message_dict["display-name"].lower()
+	num_timers = 0
+
+	for timer in set(timers):
+		if f"for {user}." in timer.name:
+			timer.deleted = True
+			num_timers += 1
+			timers.remove(timer)
+
+	if num_timers == 0:
+		send_message(f"@{user} You don't have any timers.")
+		return False
+	elif num_timers == 1:
+		send_message(f"@{user} Your timer has been stopped.")
+		log(f"Stopped {user}'s timer.")
+	else:
+		send_message(f"@{user} Your {num_timers} timers have been stopped.")
+		log(f"Stopped {user}'s {num_timers} timers.")
 
 @is_command("Shows how many times a command has been used. Syntax: `!uses toenglish`")
 def uses(message_dict):
@@ -1180,10 +1220,9 @@ def _perform_calculation(calculation,user):
 	p.start()
 	sleep(6)
 	if p.is_alive():
-		p.terminate() # 
-		send_message("That calculation timed out.")
+		p.terminate() # needs to be a process so that it can be terminated
+		send_message(f"@{user} That calculation timed out. Try something less complex.")
 		log(f"Calculation {calculation} for {user} timed out.")
-
 
 def _process_calculation(calculation, user, bot, log):
 	try:
@@ -1247,9 +1286,11 @@ def spongebob(message_dict):
 	if len(phrase)%2 == 1: # length is odd
 		phrase += " " # make its length even, for the zip() below
 
-	output = "".join(a.lower()+b.upper() for a,b in zip(phrase[::2], phrase[1::2]))
+	# the python-y way
+	#output = "".join(a.lower()+b.upper() for a,b in zip(phrase[::2], phrase[1::2]))
 
-	"""
+	# went back to the old way bc the python-y way doesn't ignore spaces.
+	
 	# the old way:
 	even = True
 	output = ""
@@ -1258,8 +1299,9 @@ def spongebob(message_dict):
 			output += c.lower()
 		else:
 			output += c.upper()
-		even = not even
-	"""
+		if c != " ":
+			even = not even
+	
 
 	send_message(output)
 	if target == "":
@@ -1349,7 +1391,7 @@ def cancelpoll(message_dict):
 		nottoxic_votes = 0
 
 		send_message("Toxicpoll cancelled.")
-		log("Cancelled toxicpoll in response to {user}")
+		log(f"Cancelled toxicpoll in response to {user}")
 	else:
 		send_message("There is no toxicpoll currently active.")
 		return False
@@ -1388,8 +1430,9 @@ def btc(message_dict):
 		log(f"Exception in btc: {str(ex)}")
 		return False
 	
+	if not message_dict.get("suppress_log", False):
+		log(f"Sent BTC of ${value:,} to {user}")
 	send_message(f"Bitcoin is currently worth ${value:,}")
-	log(f"Sent BTC of ${value:,} to {user}")
 
 @is_command("Show the price of etherium")
 def eth(message_dict):
@@ -1401,8 +1444,28 @@ def eth(message_dict):
 		log(f"Exception in eth: {str(ex)}")
 		return False
 	
+	if not message_dict.get("suppress_log", False):
+		log(f"Sent ETH of ${value:,} to {user}")
+
 	send_message(f"Ethereum is currently worth ${value:,}")
-	log(f"Sent ETH of ${value:,} to {user}")
+
+@is_command("Show the price of Dogecoin")
+def doge(message_dict):
+	
+	user = message_dict["display-name"].lower()
+	try:
+		result = requests.get("https://sochain.com/api/v2/get_price/DOGE/USD").json()
+		value = float(result["data"]["prices"][0]["price"])
+	except Exception as ex:
+		log(f"Exception in eth: {str(ex)}")
+		return False
+
+	value = round(value * 100, 2)
+	
+	if not message_dict.get("suppress_log", False):	
+		log(f"Sent DOGE of {value:,} cents to {user}")
+
+	send_message(f"Dogecoin is currently worth {value:,} cents")
 
 @is_command("Display Kaywee's real biological age")
 def age(message_dict):
@@ -1411,7 +1474,7 @@ def age(message_dict):
 	send_message(f"Kaywee is {true_age} years old.")
 
 @is_command("Show how long you've been following")
-def followage(message_dict):
+def followtime(message_dict):
 	user = message_dict["display-name"].lower()
 
 	try:
@@ -1423,7 +1486,7 @@ def followage(message_dict):
 		try:
 			followers = dict(eval(f.read()))
 		except Exception as ex:
-			log("Exception reading followers in followage command: " + str(ex))
+			log("Exception reading followers in followtime command: " + str(ex))
 			followers = {}
 
 	if target in followers:
@@ -1493,8 +1556,9 @@ def urban(message_dict):
 	chat_url = f"www.urbandictionary.com/{url_suffix}"
 	suffix = f" - Source: {chat_url}"
 	max_len = 500-len(suffix)
+	definition = definition[:max_len]
 
-	send_message(f"{definition[:max_len]}{suffix}")
+	send_message(f"{definition}{suffix}")
 	log(f"Sent Urban definition of {term} to {user} - it means {definition}")
 
 def _chatstats(key):
@@ -1807,7 +1871,6 @@ def _get_viewers_worker(message_dict):
 	if viewer_thread.is_alive():
 		send_message(f"@{user} Give me a sec - it might take some time to get the viewers...")
 
-
 def _get_viewers(message_dict):
 	try:
 		name = " ".join(message_dict["message"].split(" ")[1:])
@@ -1857,16 +1920,19 @@ def isitdown(message_dict):
 	try:
 		name = " ".join(message_dict["message"].split(" ")[1:])
 	except:
-		send_message("You must specify which service to search for.")
+		send_message("You must provide a name to search for, e.g. !isitdown twitch")
 		return False
 
 	url = f"https://downdetector.com/status/{name.replace(' ', '-')}"
 	user_agent = {'User-agent': 'Mozilla/5.0'}
 	page = requests.get(url, headers=user_agent)
 
-	if "User reports indicate problems" in page.text:
-		send_message(f"It looks like {name} is having problems - maybe it's down! Sadge Source: {url}")
-		log(f"Sent isitdown to {user}: {name} is down.")
+	if "User reports indicate possible problems" in page.text:
+		send_message(f"It looks like {name} is having possible problems! Sadge Source: {url}")
+		log(f"Sent isitdown to {user}: {name} is having problems.")
+	elif "User reports indicate problems" in page.text:
+		send_message(f"It looks like {name} is down! Sadge Source: {url}")
+		log(f"Sent isitdown to {user}: {name} is down.")		
 	elif "our systems have detected unusual traffic" in page.text:
 		send_message(f"Oops, I can't check downdetector at the moment. Tell Foster he sucks at coding.")
 		log(f"Anti-scraping from downdetector! Can't process command.")
@@ -1890,7 +1956,7 @@ def excuse(message_dict):
 
 	if param == "add":
 		if message_dict["user_permission"] < permissions.Mod:
-			send_message("Only mods can add excuses. Try using !excuse")
+			send_message("Only mods can add excuses. Try using !excuse to see why Kaywee is playing badly.")
 			return False
 		excuse = " ".join(message.split(" ")[2:])
 		with open("excuses.txt", "r", encoding="utf-8") as f:
@@ -1902,8 +1968,8 @@ def excuse(message_dict):
 			f.write("\n".join(excuses))
 
 		responses = ["Ahh that explains a lot.",
-					 "No wonder she's been playing this way.",
-					 "Oh. Does her duo know this?"]
+					 "Oh. Does her duo know this?",
+					 "Oh, I was wondering what was going on."]
 
 		send_message(random.choice(responses))
 		log(f"Added excuse from {user}: {excuse}")
@@ -1913,4 +1979,20 @@ def excuse(message_dict):
 
 		excuse = random.choice(excuses)
 		send_message(excuse)
-		log(f"Sent excuse {excuse} to {user}")
+		log(f"Sent excuse to {user}: {excuse}")
+
+@is_command("Show the colour you're currently using.")
+def mycolour(message_dict):
+	if "color" in message_dict:
+		send_message(f"Your colour is {message_dict['color']}")
+	else:
+		send_message("I don't know what your colour is.")
+
+@is_command("Check all the crypto prices.")
+def crypto(message_dict):
+	user = message_dict["display-name"].lower()
+	message_dict["suppress_log"] = True
+	btc(message_dict)
+	eth(message_dict)
+	doge(message_dict)
+	log(f"Sent Crypto prices to {user}")
