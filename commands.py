@@ -2,6 +2,7 @@ import random
 import requests
 import re
 import subprocess
+import os 
 
 from time            import sleep, time
 from datetime        import date, datetime
@@ -2005,3 +2006,7 @@ def commit(message_dict):
 	log(f"Commited to Git for {user}")
 
 def _commit_thread():
+	result = os.system("commit.bat")
+
+	send_message(f"The commit result was {result}")
+	log(f"The commit result was {result}")
