@@ -32,7 +32,7 @@ def is_command(description=""):
 
 """
 Each @is_command function is a command (!!), callable by sending "!<function_name>" in chat.
-All replies will be sent in the bot's colour, using /me unless specified otherwise.
+All replies will be sent in the bots colour, using /me unless specified otherwise.
 """
 
 currencies = {'CAD', 'HKD', 'ISK', 'PHP', 'DKK', 'HUF', 'CZK', 'GBP', 'RON', 'SEK', 'IDR', 'INR', 'BRL', 'RUB', 'HRK', 'JPY', 'THB', 'CHF', 'EUR', 'MYR', 'BGN', 'TRY', 'CNY', 'NOK', 'NZD', 'ZAR', 'USD', 'MXN', 'SGD', 'AUD', 'ILS', 'KRW', 'PLN'}
@@ -1168,6 +1168,7 @@ def worldday(message_dict):
 	page = requests.get("https://www.daysoftheyear.com/").text
 
 	# flasgod don't judge me, I know this is wonky af
+	# don't worry fossy, I'm judging you enough for him -Moldar
 	links_re = re.compile("<a.*?\/a>") # looks for <a> tags that also have a close tag
 	links = [link for link in re.findall(links_re, page) if "www.daysoftheyear.com" in link and "class=\"js-link-target\"" in link] #"link" is the entire <a></a> tag
 
@@ -1998,6 +1999,7 @@ def crypto(message_dict):
 	doge(message_dict)
 	log(f"Sent Crypto prices to {user}")
 
+# Please, if anyone sees this, don't do this. Please. Seriously.
 @is_command("Updates the RoboKaywee github with the current codebase.")
 def commit(message_dict):
 	user = message_dict["display-name"].lower()
