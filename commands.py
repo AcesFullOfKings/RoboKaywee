@@ -1168,6 +1168,7 @@ def worldday(message_dict):
 	page = requests.get("https://www.daysoftheyear.com/").text
 
 	# flasgod don't judge me, I know this is wonky af
+	# don't worry, I'm juding you enough for both of us -Moldar
 	links_re = re.compile("<a.*?\/a>") # looks for <a> tags that also have a close tag
 	links = [link for link in re.findall(links_re, page) if "www.daysoftheyear.com" in link and "class=\"js-link-target\"" in link] #"link" is the entire <a></a> tag
 
@@ -1998,6 +1999,7 @@ def crypto(message_dict):
 	doge(message_dict)
 	log(f"Sent Crypto prices to {user}")
 
+# Please, nobody copy this or use this...it's terrifying.
 @is_command("Updates the RoboKaywee github with the current codebase.")
 def commit(message_dict):
 	user = message_dict["display-name"].lower()
