@@ -1996,3 +1996,12 @@ def crypto(message_dict):
 	eth(message_dict)
 	doge(message_dict)
 	log(f"Sent Crypto prices to {user}")
+
+@is_command("Updates the RoboKaywee github with the current codebase.")
+def commit(message_dict):
+	user = message_dict["display-name"].lower()
+	Thread(target=_commit_thread).start()
+	send_message("The commit is running..")
+	log(f"Commited to Git for {user}")
+
+def _commit_thread():
