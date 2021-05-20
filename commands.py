@@ -2016,7 +2016,7 @@ def _commit_thread(message):
 	result = os.system("commit.bat " + message)
 
 	if result == 0:
-		send_message(f"The commit was successful.")
+		send_message(f"The commit was successful. https://github.com/theonefoster/RoboKaywee")
 		log(f"The commit was successful")
 	else:
 		send_message(f"The commit failed with message {result}")
