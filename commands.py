@@ -32,7 +32,7 @@ def is_command(description=""):
 
 """
 Each @is_command function is a command (!!), callable by sending "!<function_name>" in chat.
-All replies will be sent in the bots colour, using /me unless specified otherwise.
+All replies will be sent in the bot's colour, using /me unless specified otherwise.
 """
 
 currencies = {'CAD', 'HKD', 'ISK', 'PHP', 'DKK', 'HUF', 'CZK', 'GBP', 'RON', 'SEK', 'IDR', 'INR', 'BRL', 'RUB', 'HRK', 'JPY', 'THB', 'CHF', 'EUR', 'MYR', 'BGN', 'TRY', 'CNY', 'NOK', 'NZD', 'ZAR', 'USD', 'MXN', 'SGD', 'AUD', 'ILS', 'KRW', 'PLN'}
