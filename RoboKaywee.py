@@ -425,7 +425,7 @@ def it_is_worldday_my_dudes():
 
 def wordoftheday_timer():
 	if not get_data("wordoftheday_sent"):
-		sleep(60*60) # wait 60 mins into stream
+		sleep(30*60) # wait 30 mins into stream
 		commands_file.wordoftheday({"display-name":"Timed Event"}) # have to include a message dict param
 		set_data("wordoftheday_sent", True)
 
@@ -441,9 +441,9 @@ def channel_live_messages():
 
 	live_status_checked.wait() # wait for check_live_status to run once
 
-	#if not channel_live.is_set():  # if channels isn't already live when bot starts
-	channel_live.wait()        # wait for channel to go live
-		#send_message("!resetrecord", suppress_colour=True)
+	if not channel_live.is_set():  # if channels isn't already live when bot starts
+		channel_live.wait()        # wait for channel to go live
+		send_message("!resetrecord", suppress_colour=True)
 
 	Thread(target=it_is_worldday_my_dudes).start()
 	Thread(target=wordoftheday_timer).start()
@@ -918,8 +918,8 @@ if __name__ == "__main__":
 
 					if message[0] == "!":
 						command = message[1:].split(" ")[0].lower()
-						#if command in ["win", "loss", "draw"]:
-						#	command = "toxicpoll" # start a toxicpoll when the SE result commands are seen
+						if command in ["win", "loss", "draw"]:
+							command = "toxicpoll" # start a toxicpoll when the SE result commands are seen
 						if command in commands_dict:
 							command_obj = commands_dict[command]
 							                                                     # cooldowns now only apply to non-mods. bc fuck those guys

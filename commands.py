@@ -1529,7 +1529,7 @@ def urban(message_dict):
 
 	try:
 		num = int(term.split(" ")[-1]) - 1
-		assert 0 < num < 5
+		assert 0 < num < 100
 	except:
 		num = 0
 	else:
