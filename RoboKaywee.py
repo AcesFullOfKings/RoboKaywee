@@ -192,8 +192,6 @@ def channel_events():
 				channel_live.clear()
 				channel_offline.set()
 
-				print(f"shutdown_on_offline is {shutdown_on_offline}")
-
 				if shutdown_on_offline:
 					log("Shutting down the PC..")
 					sleep(1)
@@ -232,7 +230,11 @@ def channel_events():
 	live_status_checked.set() # signal to other threads that first run is complete
 
 	while True:
-		check_live_status_subsequent()
+		try:
+			check_live_status_subsequent()
+		except Exception as ex:
+			log("Exception which checking Live Status: " + str(ex))
+
 		sleep(period)
 
 def play_patiently():

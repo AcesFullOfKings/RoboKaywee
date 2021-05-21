@@ -1183,7 +1183,7 @@ def autogamble(message_dict):
 	user = message_dict["display-name"].lower()
 	message = message_dict["message"]
 
-	if user.lower() == "flasgod":
+	if user == "flasgod":
 		send_message("No. Make me.")
 		log("Refused to gamble for flasgod KEKW")
 		return
@@ -2021,5 +2021,5 @@ def _commit_thread(message):
 		send_message(f"The commit was successful. https://github.com/theonefoster/RoboKaywee")
 		log(f"The commit was successful")
 	else:
-		send_message(f"The commit failed with message {result}")
-		log(f"The commit failed with message {result}")
+		send_message(f"The commit failed with code {result}")
+		log(f"The commit failed with code {result}")
