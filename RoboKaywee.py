@@ -800,7 +800,7 @@ class permissions(IntEnum):
 update_command_data = False # does command data on disk/wiki need to be updated?
 
 #check for new commands and add to database:
-for command_name in [o for o in dir(commands_file) if not(o[0] == "_" or o[-1] == "_")]:
+for command_name in [obj for obj in dir(commands_file) if not(obj[0] == "_" or obj[-1] == "_")]:
 	try:
 		if getattr(commands_file, command_name).is_command is True:
 			if command_name not in commands_dict:

@@ -1009,18 +1009,15 @@ def _nochat_mode():
 	nochat_on = True
 
 	duration = 12*60 # 12 mins
-	check_period = 5 # secs
-	try:
-		for secs in range(0, duration, check_period):
-			if not nochat_on: # nochat mode gets turned off externally
-				raise AssertionError("Nochat mode has been turned off.")
+	check_period = 10 # secs
+	for secs in range(0, duration, check_period):
+		if not nochat_on: # nochat mode gets turned off externally
+			break
 
-			sleep(check_period)
-
+		sleep(check_period)
+	else:
 		nochat_on = False # turn nochat mode off after the duration
 
-	except AssertionError:
-		pass # I know.. exceptions aren't control flow. Except here, where they are. Thread exits here.
 
 @is_command("Turns on nochat mode: users who mention kaywee will receive a notification that kaywee isn't looking at chat")
 def nochaton(message_dict):
@@ -1324,7 +1321,7 @@ def weather(message_dict):
 		place = " ".join(message.split(" ")[1:]).title()
 		units = "metric"
 
-	latitude, longitude = memoise_place_name(place) # get coordinates from place name
+	latitude, longitude = _get_place_from_name(place) # get coordinates from place name
 
 	if latitude is None or longitude is None:
 		send_message("That place name wasn't found.")
@@ -1350,7 +1347,7 @@ def weather(message_dict):
 	send_message(output)
 	log(f"Sent weather report to {user} for {place}")
 
-def memoise_place_name(place):
+def _get_place_from_name(place):
 	# memoisation function to only call the geo api for new place names.
 	# if a new place name is seen, the coordinates are looked up from the api
 	# if that name is seen in future, it is recalled from the memo cache
@@ -1359,7 +1356,6 @@ def memoise_place_name(place):
 		places = dict(eval(f.read()))
 
 	if place not in places:
-
 		print(f"Looking up new place name {place}")
 
 		geocode_url = "https://geocode.xyz/{place}?json=1"
@@ -1374,7 +1370,6 @@ def memoise_place_name(place):
 			f.write(str(places))
 
 	return places[place]
-
 
 @is_command("Cancels a Toxicpoll")
 def cancelpoll(message_dict):
@@ -1663,7 +1658,6 @@ def _get_all_emotes():
 	url = "https://api.streamelements.com/kappa/v2/chatstats/kaywee/stats"
 	result = requests.get(url).json()
 
-	# nearly a year later.. turns out there is! :D
 	all_emotes = [emote_info["emote"] for emote_info in result.get("bttvEmotes", []) + result.get("ffzEmotes", []) + result.get("twitchEmotes", [])]
 
 Thread(target=_get_all_emotes, name="Get_All_Emotes").start()
@@ -1859,7 +1853,6 @@ def message(message_dict):
 		log(f"Didn't save user message for {user}: unknown user ({target})")
 		return False
 
-
 @is_command("Get the number of viewers in a game category on Twitch. Example usage: `!viewers overwatch`")
 def viewers(message_dict):
 	Thread(target=_get_viewers_worker, args=(message_dict,), name="Get Viewers Worker").start()
@@ -2007,6 +2000,7 @@ def commit(message_dict):
 
 	try:
 		commit_message = " ".join(message.split(" ")[1:])
+		assert commit_message != ""
 	except:
 		commit_message = "Bug Fixes and Performance Improvements"
 
