@@ -47,7 +47,7 @@ all_emotes = [] # populated below
 @is_command("Allows mods to add and edit existing commands. Syntax: !rcommand [add/edit/delete/options] <command name> <add/edit: <command text> // options: <[cooldown/usercooldown/permission]>>")
 def rcommand(message_dict):
 	"""
-	format:lll
+	format:
 	!rcommand <action> <command> [<params>]
 
 	examples:
@@ -516,10 +516,6 @@ def tofreedom(message_dict):
 	user = message_dict["display-name"].lower()
 	message = message_dict["message"]
 
-	if message == "!tofreedom tea":
-		send_message('"Dinner"')
-		return
-
 	try:
 		input = message.split(" ")[1]
 	except (ValueError, IndexError):
@@ -553,7 +549,7 @@ def tofreedom(message_dict):
 	if quantity == int(quantity): # ditto
 		quantity = int(quantity)
 
-	send_message(f"{quantity}{unit} in incomprehensible Freedom Units is {free_quantity}{free_unit}.")
+	send_message(f"{quantity:,}{unit} in incomprehensible Freedom Units is {free_quantity:,}{free_unit}.")
 	log(f"Tofreedomed {quantity}{unit} for {user}")
 
 @is_command("Convert imperial units into metric. Syntax: !unfreedom <quantity><unit> e.g. `!tofreedom 5lb`")

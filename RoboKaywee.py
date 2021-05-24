@@ -160,6 +160,7 @@ def channel_events():
 				set_data("ali_sent", False)
 				set_data("wordoftheday_sent", False)
 				set_data("unpink_sent", False)
+				set_data("worldday_sent", False)
 				
 			channel_live.set()
 
@@ -213,6 +214,7 @@ def channel_events():
 				set_data("ali_sent", False)
 				set_data("wordoftheday_sent", False)
 				set_data("unpink_sent", False)
+				set_data("worldday_sent", False)
 
 			add_seen_title(title) # save unique stream title
 	try:
@@ -422,8 +424,10 @@ def it_is_thursday_my_dudes():
 		set_data("unpink_sent", True)
 
 def it_is_worldday_my_dudes():
-	sleep(10*60) # wait 10 mins into stream
-	commands_file.worldday({"display-name":"Timed Event"}) # have to include a message dict param
+	if not get_data("worldday_sent"):
+		sleep(10*60) # wait 10 mins into stream
+		commands_file.worldday({"display-name":"Timed Event"}) # have to include a message dict param
+		set_data("worldday_sent", True)
 
 def wordoftheday_timer():
 	if not get_data("wordoftheday_sent"):
@@ -802,13 +806,14 @@ update_command_data = False # does command data on disk/wiki need to be updated?
 #check for new commands and add to database:
 for command_name in [obj for obj in dir(commands_file) if not(obj[0] == "_" or obj[-1] == "_")]:
 	try:
-		if getattr(commands_file, command_name).is_command is True:
+		if getattr(commands_file, command_name).is_command is True: # "is" requires it to be explicitly True, rather than "truthy" e.g. non-empty lists/strings, ints>0 etc
 			if command_name not in commands_dict:
 				commands_dict[command_name] = {'permission': 0, 'global_cooldown': 1, 'user_cooldown': 0, 'coded': True, 'uses': 0, "description": getattr(commands_file, command_name).description}
 				update_command_data = True
 			else:
-				if "description" not in commands_dict[command_name] or commands_dict[command_name]["description"] != getattr(commands_file, command_name).description:
-					commands_dict[command_name]["description"] = getattr(commands_file, command_name).description # add/update description
+				command_description = getattr(commands_file, command_name).description
+				if "description" not in commands_dict[command_name] or commands_dict[command_name]["description"] != command_description:
+					commands_dict[command_name]["description"] = command_description # add/update description
 					update_command_data = True
 	except AttributeError:
 		pass
@@ -938,7 +943,6 @@ if __name__ == "__main__":
 
 												command_obj["last_used"] = time()
 												write_command_data(force_update_reddit=False)
-												
 										else:
 											log(f"WARNING: tried to call non-command function: {command}")
 									else:
@@ -965,7 +969,6 @@ if __name__ == "__main__":
 										write_command_data(force_update_reddit=False)
 									else:
 										log(f"WARNING: Stored text command with no response: {command}")
-
 					else:
 						Thread(target=respond_message, args=(message_dict,)).start()
 
@@ -1029,7 +1032,7 @@ if __name__ == "__main__":
 
 						del user_messages[user]
 						
-						send_message(f"@{user}, you have a message from {from_user}! It says: {user_message}")
+						send_message(f"@{user}, you have a message from {from_user}: {user_message}")
 						log(f"Sent a user message from {from_user} to {user}. It says: {user_message}")
 						set_data("user_messages", user_messages)
 
@@ -1092,7 +1095,6 @@ if __name__ == "__main__":
 								send_message(f"@{user} thank you so much for resubscribing! Kaywee isn't looking at chat right now (!nochat) but she'll see your sub after the current game.")
 								log(f"Sent nochat to {user} for resubscribing")
 
-
 						elif message_dict["msg-id"] == "anonsubgift": # ANONYMOUS GIFTED SUBSCRIPTION
 							# comes through as a gifted sub from AnAnonymousGifter ? So might not need this
 							recipient = message_dict["msg-param-recipient-display-name"].lower()
@@ -1115,7 +1117,6 @@ if __name__ == "__main__":
 							if commands_file.nochat_on:
 								Thread(target=nochat_raid).start() 
 								# sends a message in chat after a short delay
-								# adding a sleep in the Main thread would delay message processing, so it's done on another thread
 
 						elif message_dict["msg-id"] == "submysterygift":
 							gifter = message_dict["login"] # comes as lowercase
@@ -1139,6 +1140,7 @@ if __name__ == "__main__":
 							if commands_file.nochat_on:
 								send_message(f"@{user} thank you so much for continuing your gifted sub! Kaywee isn't looking at chat right now (!nochat) but she'll see your sub after the current game.")
 								log(f"Sent nochat to {user} for subscribing")
+								
 						elif message_dict["msg-id"] == "rewardgift":
 							pass # for when gifted subs produce extra rewards (emotes) for other chat members
 
