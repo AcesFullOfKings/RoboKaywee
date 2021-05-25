@@ -269,9 +269,11 @@ def play_patiently():
 last_wiki_update = 0
 def update_commands_wiki(force_update_reddit=False):
 	global last_wiki_update
+	global permissions
 
 	if force_update_reddit or last_wiki_update < time() - 60*30: # don't update more often than 30 mins unless forced
-		permissions = {0:"Pleb", 2:"Follower", 4:"Subscriber", 6:"VIP", 8:"Mod", 10:"Broadcaster", 12:"Disabled"}
+		#permissions_dict = {0:"Pleb", 2:"Follower", 4:"Subscriber", 6:"VIP", 8:"Mod", 9:"Owner", 10:"Broadcaster", 20:"Disabled"}
+		permissions_dict = {p.value : p.name for p in permissions}
 
 		r = praw.Reddit("RoboKaywee")
 		subreddit = r.subreddit("RoboKaywee")
@@ -289,7 +291,7 @@ def update_commands_wiki(force_update_reddit=False):
 			for command in sorted(commands):
 				if "permission" in commands[command]:
 					try:
-						level = permissions[commands[command]["permission"]]
+						level = permissions_dict[commands[command]["permission"]]
 					except KeyError:
 						level = "Pleb"
 				else:
@@ -792,14 +794,14 @@ def respond_message(message_dict):
 	#		log(f"Sent Haiku to {user}: {str(haiku)}")
 
 class permissions(IntEnum):
-	Disabled    = 12
-	Broadcaster = 10
-	Owner       = 9
-	Mod	        = 8
-	VIP	        = 6
-	Subscriber  = 4
-	Follower    = 2
-	Pleb        = 0
+    Disabled    = 20
+    Broadcaster = 10
+    Owner       = 9
+    Mod	        = 8
+    VIP	        = 6
+    Subscriber  = 4
+    Follower    = 2
+    Pleb        = 0
 
 update_command_data = False # does command data on disk/wiki need to be updated?
 

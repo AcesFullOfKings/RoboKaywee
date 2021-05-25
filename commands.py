@@ -129,7 +129,7 @@ def rcommand(message_dict):
 			try:
 				permission = int(params[3])
 			except (ValueError, IndexError):
-				send_message("Permission must be an integer: 0=All, 4=Subscriber, 6=VIP, 8=Moderator, 10=Broadcaster, 11=Owner, 12=Disabled")
+				send_message("Permission must be an integer: 0=All, 4=Subscriber, 6=VIP, 8=Moderator, 9=Owner, 10=Broadcaster, 20=Disabled")
 				return False
 
 			if command_name in command_dict:
@@ -141,7 +141,7 @@ def rcommand(message_dict):
 						log(f"{user} updated permission on command {command_name} to {enum.name}")
 						return True # also exits the for-loop
 				else:
-					send_message("Invalid Permission: Use 0=All, 4=Subscriber, 6=VIP, 8=Moderator, 10=Broadcaster, 11=Owner, 12=Disabled")
+					send_message("Invalid Permission: Use 0=All, 4=Subscriber, 6=VIP, 8=Moderator, 9=Owner, 10=Broadcaster, 20=Disabled")
 					return False
 			else:
 				send_message(f"No command exists with name {command_name}.")
@@ -516,6 +516,10 @@ def tofreedom(message_dict):
 	user = message_dict["display-name"].lower()
 	message = message_dict["message"]
 
+	if message == "!tofreedom tea":
+		send_message('"Dinner"')
+		return
+
 	try:
 		input = message.split(" ")[1]
 	except (ValueError, IndexError):
@@ -661,7 +665,6 @@ def howmanygifts(message_dict):
 @is_command("Shows a timer until the end of Season 26.")
 def endofseason(message_dict):
 	#user = message_dict["display-name"].lower()
-
 	try:
 		time_left = timeuntil(1625162400)
 		send_message(f"Season 28 ends in {time_left}")
@@ -824,7 +827,7 @@ def setcolour(message_dict):
 	else:
 		send_message(f"@{user} That colour isn't right. Valid colours are: random, default, blue, blueviolet, cadetblue, chocolate, coral, dodgerblue, firebrick, goldenrod, green, hotpink, orangered, red, seagreen, springgreen, yellowgreen")
 
-@is_command("Rainbows the messages into the chat. (big spam warning so 12 chars max) Syntax: `!rainbow hello`")
+@is_command("Rainbows the message into the chat. (big spam warning so 12 chars max) Syntax: `!rainbow hello`")
 def rainbow(message_dict):
 	user = message_dict["display-name"].lower()
 	message = message_dict["message"]
@@ -1108,51 +1111,6 @@ def echo(message_dict):
 		log(f"Echoed \"{phrase}\" for {user}.")
 	else:
 		return False
-
-@is_command("Reloads the translation object to attempt to fix errors.")
-def refreshtranslator(message_dict):
-	user = message_dict["display-name"].lower()
-
-	if _refreshtranslator(): #separate function so it can be called elsewhere without sending the message
-		send_message("The translator object has been refreshed.")
-		log(f"Refreshed Translator in response to {user}.")
-	else:
-		try:
-			send_message("Unable to refresh translator FeelsBadMan")
-			log(f"Unable to refresh translator object in response to {user}.")
-		except: # method might not exist if the bot is still booting up
-			print("Failed to create Translator object")
-
-
-def _refreshtranslator():
-	global translator
-
-	"""
-	The Translate library is sometimes unreliable and can load incorrectly sometimes.
-	This function refreshes the Translator object to guarantee that it works.
-	It does this by creating a new object, and attempting a translation.
-	If the translation excepts, the object is replaced by a fresh object until a translation is successful.
-	Then the global object is replaced with the new object.
-	"""
-
-	exit_loop = False
-	attempts = 0
-
-	while not exit_loop:
-		new_translator = Translator()
-		if attempts <3:
-			try:
-				new_translator.translate("hello!", source="en", dest="es").text
-				translator = new_translator
-				return True
-			except AttributeError as ex:
-				attempts+=1
-				print("Failed to refresh translator: " + str(ex))
-				pass # try again on next loop
-			else:
-				exit_loop = True # exit loop
-		else:
-			return False # give up trying after 3 attempts
 
 @is_command("Looks up the current World Day")
 def worldday(message_dict):
