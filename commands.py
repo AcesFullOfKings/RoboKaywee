@@ -32,7 +32,7 @@ def is_command(description=""):
 
 """
 Each @is_command function is a command (!!), callable by sending "!<function_name>" in chat.
-All replies will be sent in the bot's colour, using /me unless specified otherwise.
+All replies will be sent in the bots colour, using /me unless specified otherwise.
 """
 
 currencies = {'CAD', 'HKD', 'ISK', 'PHP', 'DKK', 'HUF', 'CZK', 'GBP', 'RON', 'SEK', 'IDR', 'INR', 'BRL', 'RUB', 'HRK', 'JPY', 'THB', 'CHF', 'EUR', 'MYR', 'BGN', 'TRY', 'CNY', 'NOK', 'NZD', 'ZAR', 'USD', 'MXN', 'SGD', 'AUD', 'ILS', 'KRW', 'PLN'}
@@ -47,7 +47,7 @@ all_emotes = [] # populated below
 @is_command("Allows mods to add and edit existing commands. Syntax: !rcommand [add/edit/delete/options] <command name> <add/edit: <command text> // options: <[cooldown/usercooldown/permission]>>")
 def rcommand(message_dict):
 	"""
-	format:lll
+	format:
 	!rcommand <action> <command> [<params>]
 
 	examples:
@@ -129,7 +129,7 @@ def rcommand(message_dict):
 			try:
 				permission = int(params[3])
 			except (ValueError, IndexError):
-				send_message("Permission must be an integer: 0=All, 4=Subscriber, 6=VIP, 8=Moderator, 10=Broadcaster, 11=Owner, 12=Disabled")
+				send_message("Permission must be an integer: 0=All, 4=Subscriber, 6=VIP, 8=Moderator, 9=Owner, 10=Broadcaster, 20=Disabled")
 				return False
 
 			if command_name in command_dict:
@@ -141,7 +141,7 @@ def rcommand(message_dict):
 						log(f"{user} updated permission on command {command_name} to {enum.name}")
 						return True # also exits the for-loop
 				else:
-					send_message("Invalid Permission: Use 0=All, 4=Subscriber, 6=VIP, 8=Moderator, 10=Broadcaster, 11=Owner, 12=Disabled")
+					send_message("Invalid Permission: Use 0=All, 4=Subscriber, 6=VIP, 8=Moderator, 9=Owner, 10=Broadcaster, 20=Disabled")
 					return False
 			else:
 				send_message(f"No command exists with name {command_name}.")
@@ -553,7 +553,7 @@ def tofreedom(message_dict):
 	if quantity == int(quantity): # ditto
 		quantity = int(quantity)
 
-	send_message(f"{quantity}{unit} in incomprehensible Freedom Units is {free_quantity}{free_unit}.")
+	send_message(f"{quantity:,}{unit} in incomprehensible Freedom Units is {free_quantity:,}{free_unit}.")
 	log(f"Tofreedomed {quantity}{unit} for {user}")
 
 @is_command("Convert imperial units into metric. Syntax: !unfreedom <quantity><unit> e.g. `!tofreedom 5lb`")
@@ -665,7 +665,6 @@ def howmanygifts(message_dict):
 @is_command("Shows a timer until the end of Season 26.")
 def endofseason(message_dict):
 	#user = message_dict["display-name"].lower()
-
 	try:
 		time_left = timeuntil(1625162400)
 		send_message(f"Season 28 ends in {time_left}")
@@ -828,7 +827,7 @@ def setcolour(message_dict):
 	else:
 		send_message(f"@{user} That colour isn't right. Valid colours are: random, default, blue, blueviolet, cadetblue, chocolate, coral, dodgerblue, firebrick, goldenrod, green, hotpink, orangered, red, seagreen, springgreen, yellowgreen")
 
-@is_command("Rainbows the messages into the chat. (big spam warning so 12 chars max) Syntax: `!rainbow hello`")
+@is_command("Rainbows the message into the chat. (big spam warning so 12 chars max) Syntax: `!rainbow hello`")
 def rainbow(message_dict):
 	user = message_dict["display-name"].lower()
 	message = message_dict["message"]
@@ -1009,18 +1008,15 @@ def _nochat_mode():
 	nochat_on = True
 
 	duration = 12*60 # 12 mins
-	check_period = 5 # secs
-	try:
-		for secs in range(0, duration, check_period):
-			if not nochat_on: # nochat mode gets turned off externally
-				raise AssertionError("Nochat mode has been turned off.")
+	check_period = 10 # secs
+	for secs in range(0, duration, check_period):
+		if not nochat_on: # nochat mode gets turned off externally
+			break
 
-			sleep(check_period)
-
+		sleep(check_period)
+	else:
 		nochat_on = False # turn nochat mode off after the duration
 
-	except AssertionError:
-		pass # I know.. exceptions aren't control flow. Except here, where they are. Thread exits here.
 
 @is_command("Turns on nochat mode: users who mention kaywee will receive a notification that kaywee isn't looking at chat")
 def nochaton(message_dict):
@@ -1116,51 +1112,6 @@ def echo(message_dict):
 	else:
 		return False
 
-@is_command("Reloads the translation object to attempt to fix errors.")
-def refreshtranslator(message_dict):
-	user = message_dict["display-name"].lower()
-
-	if _refreshtranslator(): #separate function so it can be called elsewhere without sending the message
-		send_message("The translator object has been refreshed.")
-		log(f"Refreshed Translator in response to {user}.")
-	else:
-		try:
-			send_message("Unable to refresh translator FeelsBadMan")
-			log(f"Unable to refresh translator object in response to {user}.")
-		except: # method might not exist if the bot is still booting up
-			print("Failed to create Translator object")
-
-
-def _refreshtranslator():
-	global translator
-
-	"""
-	The Translate library is sometimes unreliable and can load incorrectly sometimes.
-	This function refreshes the Translator object to guarantee that it works.
-	It does this by creating a new object, and attempting a translation.
-	If the translation excepts, the object is replaced by a fresh object until a translation is successful.
-	Then the global object is replaced with the new object.
-	"""
-
-	exit_loop = False
-	attempts = 0
-
-	while not exit_loop:
-		new_translator = Translator()
-		if attempts <3:
-			try:
-				new_translator.translate("hello!", source="en", dest="es").text
-				translator = new_translator
-				return True
-			except AttributeError as ex:
-				attempts+=1
-				print("Failed to refresh translator: " + str(ex))
-				pass # try again on next loop
-			else:
-				exit_loop = True # exit loop
-		else:
-			return False # give up trying after 3 attempts
-
 @is_command("Looks up the current World Day")
 def worldday(message_dict):
 	user = message_dict["display-name"].lower()
@@ -1168,6 +1119,7 @@ def worldday(message_dict):
 	page = requests.get("https://www.daysoftheyear.com/").text
 
 	# flasgod don't judge me, I know this is wonky af
+	# don't worry, I'm juding you enough for both of us -Moldar
 	links_re = re.compile("<a.*?\/a>") # looks for <a> tags that also have a close tag
 	links = [link for link in re.findall(links_re, page) if "www.daysoftheyear.com" in link and "class=\"js-link-target\"" in link] #"link" is the entire <a></a> tag
 
@@ -1182,7 +1134,7 @@ def autogamble(message_dict):
 	user = message_dict["display-name"].lower()
 	message = message_dict["message"]
 
-	if user.lower() == "flasgod":
+	if user == "flasgod":
 		send_message("No. Make me.")
 		log("Refused to gamble for flasgod KEKW")
 		return
@@ -1323,7 +1275,7 @@ def weather(message_dict):
 		place = " ".join(message.split(" ")[1:]).title()
 		units = "metric"
 
-	latitude, longitude = memoise_place_name(place) # get coordinates from place name
+	latitude, longitude = _get_place_from_name(place) # get coordinates from place name
 
 	if latitude is None or longitude is None:
 		send_message("That place name wasn't found.")
@@ -1349,7 +1301,7 @@ def weather(message_dict):
 	send_message(output)
 	log(f"Sent weather report to {user} for {place}")
 
-def memoise_place_name(place):
+def _get_place_from_name(place):
 	# memoisation function to only call the geo api for new place names.
 	# if a new place name is seen, the coordinates are looked up from the api
 	# if that name is seen in future, it is recalled from the memo cache
@@ -1358,7 +1310,6 @@ def memoise_place_name(place):
 		places = dict(eval(f.read()))
 
 	if place not in places:
-
 		print(f"Looking up new place name {place}")
 
 		geocode_url = "https://geocode.xyz/{place}?json=1"
@@ -1373,7 +1324,6 @@ def memoise_place_name(place):
 			f.write(str(places))
 
 	return places[place]
-
 
 @is_command("Cancels a Toxicpoll")
 def cancelpoll(message_dict):
@@ -1662,7 +1612,6 @@ def _get_all_emotes():
 	url = "https://api.streamelements.com/kappa/v2/chatstats/kaywee/stats"
 	result = requests.get(url).json()
 
-	# nearly a year later.. turns out there is! :D
 	all_emotes = [emote_info["emote"] for emote_info in result.get("bttvEmotes", []) + result.get("ffzEmotes", []) + result.get("twitchEmotes", [])]
 
 Thread(target=_get_all_emotes, name="Get_All_Emotes").start()
@@ -1858,7 +1807,6 @@ def message(message_dict):
 		log(f"Didn't save user message for {user}: unknown user ({target})")
 		return False
 
-
 @is_command("Get the number of viewers in a game category on Twitch. Example usage: `!viewers overwatch`")
 def viewers(message_dict):
 	Thread(target=_get_viewers_worker, args=(message_dict,), name="Get Viewers Worker").start()
@@ -1998,6 +1946,7 @@ def crypto(message_dict):
 	doge(message_dict)
 	log(f"Sent Crypto prices to {user}")
 
+# Please, nobody copy this or use this...it's terrifying.
 @is_command("Updates the RoboKaywee github with the current codebase.")
 def commit(message_dict):
 	user = message_dict["display-name"].lower()
@@ -2005,6 +1954,7 @@ def commit(message_dict):
 
 	try:
 		commit_message = " ".join(message.split(" ")[1:])
+		assert commit_message != ""
 	except:
 		commit_message = "Bug Fixes and Performance Improvements"
 
@@ -2012,12 +1962,12 @@ def commit(message_dict):
 	send_message("The commit is running..")
 	log(f"Commited to Git for {user}")
 
-def _commit_thread(message):
-	result = os.system("commit.bat " + message)
+def _commit_thread():
+	result = os.system("commit.bat")
 
 	if result == 0:
-		send_message(f"The commit was successful.")
+		send_message(f"The commit was successful. https://github.com/theonefoster/RoboKaywee")
 		log(f"The commit was successful")
 	else:
-		send_message(f"The commit failed with message {result}")
-		log(f"The commit failed with message {result}")
+		send_message(f"The commit failed with code {result}")
+		log(f"The commit failed with code {result}")
