@@ -447,22 +447,25 @@ def channel_live_messages():
 	global channel_live
 	global live_status_checked
 
-	live_status_checked.wait() # wait for check_live_status to run once
+	while True:
+		live_status_checked.wait() # wait for check_live_status to run once
 
-	if not channel_live.is_set():  # if channels isn't already live when bot starts
-		channel_live.wait()        # wait for channel to go live
-		send_message("!resetrecord", suppress_colour=True)
+		if not channel_live.is_set():  # if channels isn't already live when bot starts
+			channel_live.wait()        # wait for channel to go live
+			send_message("!resetrecord", suppress_colour=True)
 
-	Thread(target=it_is_worldday_my_dudes).start()
-	Thread(target=wordoftheday_timer).start()
+		Thread(target=it_is_worldday_my_dudes).start()
+		Thread(target=wordoftheday_timer).start()
 
-	# these will start right away if channel is already live
-	# or if channel is offline, they will wait for channel to go live then start
-	weekday_num = date.today().weekday()
-	if weekday_num == 3:
-		Thread(target=it_is_thursday_my_dudes).start()
-	elif weekday_num == 2:
-		Thread(target=it_is_wednesday_my_dudes).start()
+		# these will start right away if channel is already live
+		# or if channel is offline, they will wait for channel to go live then start
+		weekday_num = date.today().weekday()
+		if weekday_num == 3:
+			Thread(target=it_is_thursday_my_dudes).start()
+		elif weekday_num == 2:
+			Thread(target=it_is_wednesday_my_dudes).start()
+
+		channel_offline.wait() # wait for channel to go offline before running again
 
 def nochat_raid():
 	sleep(10)
