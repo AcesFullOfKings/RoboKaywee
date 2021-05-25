@@ -13,27 +13,14 @@ from googletrans     import Translator
 from multiprocessing import Process
 from james           import seconds_to_duration, timeuntil
 from contextlib      import suppress
+import crypto as crypto_command
+from decorators		 import is_command
 #from james import translate as j_translate
 
 from PyDictionary import PyDictionary
 dic = PyDictionary()
 
 timers = set()
-
-def is_command(description=""):
-	"""
-	This is the decorator function which marks other functions as commands and sets their properties.
-	"""
-	def inner(func, description=description):
-		func.is_command = True
-		func.description = description
-		return func
-	return inner
-
-"""
-Each @is_command function is a command (!!), callable by sending "!<function_name>" in chat.
-All replies will be sent in the bots colour, using /me unless specified otherwise.
-"""
 
 currencies = {'CAD', 'HKD', 'ISK', 'PHP', 'DKK', 'HUF', 'CZK', 'GBP', 'RON', 'SEK', 'IDR', 'INR', 'BRL', 'RUB', 'HRK', 'JPY', 'THB', 'CHF', 'EUR', 'MYR', 'BGN', 'TRY', 'CNY', 'NOK', 'NZD', 'ZAR', 'USD', 'MXN', 'SGD', 'AUD', 'ILS', 'KRW', 'PLN'}
 
@@ -1371,53 +1358,6 @@ def wordoftheday(message_dict):
 	send_message(f"{tag}The Spanish Word of the Day is \"{spa}\", which means \"{eng}\"")
 	log(f"Sent word of the Day to {user}: {spa} means {eng}")
 
-@is_command("Show the price of bitcoin")
-def btc(message_dict):
-	user = message_dict["display-name"].lower()
-	try:
-		result = requests.get("https://api.coinbase.com/v2/prices/BTC-USD/spot").json()
-		value = float(result["data"]["amount"])
-	except Exception as ex:
-		log(f"Exception in btc: {str(ex)}")
-		return False
-	
-	if not message_dict.get("suppress_log", False):
-		log(f"Sent BTC of ${value:,} to {user}")
-	send_message(f"Bitcoin is currently worth ${value:,}")
-
-@is_command("Show the price of etherium")
-def eth(message_dict):
-	user = message_dict["display-name"].lower()
-	try:
-		result = requests.get("https://api.coinbase.com/v2/prices/ETH-USD/spot").json()
-		value = float(result["data"]["amount"])
-	except Exception as ex:
-		log(f"Exception in eth: {str(ex)}")
-		return False
-	
-	if not message_dict.get("suppress_log", False):
-		log(f"Sent ETH of ${value:,} to {user}")
-
-	send_message(f"Ethereum is currently worth ${value:,}")
-
-@is_command("Show the price of Dogecoin")
-def doge(message_dict):
-	
-	user = message_dict["display-name"].lower()
-	try:
-		result = requests.get("https://sochain.com/api/v2/get_price/DOGE/USD").json()
-		value = float(result["data"]["prices"][0]["price"])
-	except Exception as ex:
-		log(f"Exception in eth: {str(ex)}")
-		return False
-
-	value = round(value * 100, 2)
-	
-	if not message_dict.get("suppress_log", False):	
-		log(f"Sent DOGE of {value:,} cents to {user}")
-
-	send_message(f"Dogecoin is currently worth {value:,} cents")
-
 @is_command("Display Kaywee's real biological age")
 def age(message_dict):
 	ages = list(range(19,24)) + list(range(36,43))
@@ -1939,11 +1879,7 @@ def mycolour(message_dict):
 
 @is_command("Check all the crypto prices.")
 def crypto(message_dict):
-	user = message_dict["display-name"].lower()
-	message_dict["suppress_log"] = True
-	btc(message_dict)
-	eth(message_dict)
-	doge(message_dict)
+	crypto_command.crypto(message_dict)
 	log(f"Sent Crypto prices to {user}")
 
 # Please, nobody copy this or use this...it's terrifying.
