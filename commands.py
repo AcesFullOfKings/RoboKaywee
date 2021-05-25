@@ -1880,7 +1880,6 @@ def mycolour(message_dict):
 @is_command("Check all the crypto prices.")
 def crypto(message_dict):
 	crypto_command.crypto(message_dict)
-	log(f"Sent Crypto prices to {user}")
 
 # Please, nobody copy this or use this...it's terrifying.
 @is_command("Updates the RoboKaywee github with the current codebase.")
