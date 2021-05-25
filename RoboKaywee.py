@@ -160,6 +160,7 @@ def channel_events():
 				set_data("ali_sent", False)
 				set_data("wordoftheday_sent", False)
 				set_data("unpink_sent", False)
+				set_data("worldday_sent", False)
 				
 			channel_live.set()
 
@@ -192,8 +193,6 @@ def channel_events():
 				channel_live.clear()
 				channel_offline.set()
 
-				print(f"shutdown_on_offline is {shutdown_on_offline}")
-
 				if shutdown_on_offline:
 					log("Shutting down the PC..")
 					sleep(1)
@@ -215,6 +214,7 @@ def channel_events():
 				set_data("ali_sent", False)
 				set_data("wordoftheday_sent", False)
 				set_data("unpink_sent", False)
+				set_data("worldday_sent", False)
 
 			add_seen_title(title) # save unique stream title
 	try:
@@ -232,7 +232,11 @@ def channel_events():
 	live_status_checked.set() # signal to other threads that first run is complete
 
 	while True:
-		check_live_status_subsequent()
+		try:
+			check_live_status_subsequent()
+		except Exception as ex:
+			log("Exception which checking Live Status: " + str(ex))
+
 		sleep(period)
 
 def play_patiently():
@@ -265,9 +269,11 @@ def play_patiently():
 last_wiki_update = 0
 def update_commands_wiki(force_update_reddit=False):
 	global last_wiki_update
+	global permissions
 
 	if force_update_reddit or last_wiki_update < time() - 60*30: # don't update more often than 30 mins unless forced
-		permissions = {0:"Pleb", 2:"Follower", 4:"Subscriber", 6:"VIP", 8:"Mod", 10:"Broadcaster", 12:"Disabled"}
+		#permissions_dict = {0:"Pleb", 2:"Follower", 4:"Subscriber", 6:"VIP", 8:"Mod", 9:"Owner", 10:"Broadcaster", 20:"Disabled"}
+		permissions_dict = {p.value : p.name for p in permissions}
 
 		r = praw.Reddit("RoboKaywee")
 		subreddit = r.subreddit("RoboKaywee")
@@ -285,7 +291,7 @@ def update_commands_wiki(force_update_reddit=False):
 			for command in sorted(commands):
 				if "permission" in commands[command]:
 					try:
-						level = permissions[commands[command]["permission"]]
+						level = permissions_dict[commands[command]["permission"]]
 					except KeyError:
 						level = "Pleb"
 				else:
@@ -420,8 +426,10 @@ def it_is_thursday_my_dudes():
 		set_data("unpink_sent", True)
 
 def it_is_worldday_my_dudes():
-	sleep(10*60) # wait 10 mins into stream
-	commands_file.worldday({"display-name":"Timed Event"}) # have to include a message dict param
+	if not get_data("worldday_sent"):
+		sleep(10*60) # wait 10 mins into stream
+		commands_file.worldday({"display-name":"Timed Event"}) # have to include a message dict param
+		set_data("worldday_sent", True)
 
 def wordoftheday_timer():
 	if not get_data("wordoftheday_sent"):
@@ -439,22 +447,25 @@ def channel_live_messages():
 	global channel_live
 	global live_status_checked
 
-	live_status_checked.wait() # wait for check_live_status to run once
+	while True:
+		live_status_checked.wait() # wait for check_live_status to run once
 
-	if not channel_live.is_set():  # if channels isn't already live when bot starts
-		channel_live.wait()        # wait for channel to go live
-		send_message("!resetrecord", suppress_colour=True)
+		if not channel_live.is_set():  # if channels isn't already live when bot starts
+			channel_live.wait()        # wait for channel to go live
+			send_message("!resetrecord", suppress_colour=True)
 
-	Thread(target=it_is_worldday_my_dudes).start()
-	Thread(target=wordoftheday_timer).start()
+		Thread(target=it_is_worldday_my_dudes).start()
+		Thread(target=wordoftheday_timer).start()
 
-	# these will start right away if channel is already live
-	# or if channel is offline, they will wait for channel to go live then start
-	weekday_num = date.today().weekday()
-	if weekday_num == 3:
-		Thread(target=it_is_thursday_my_dudes).start()
-	elif weekday_num == 2:
-		Thread(target=it_is_wednesday_my_dudes).start()
+		# these will start right away if channel is already live
+		# or if channel is offline, they will wait for channel to go live then start
+		weekday_num = date.today().weekday()
+		if weekday_num == 3:
+			Thread(target=it_is_thursday_my_dudes).start()
+		elif weekday_num == 2:
+			Thread(target=it_is_wednesday_my_dudes).start()
+
+		channel_offline.wait() # wait for channel to go offline before running again
 
 def nochat_raid():
 	sleep(10)
@@ -786,27 +797,28 @@ def respond_message(message_dict):
 	#		log(f"Sent Haiku to {user}: {str(haiku)}")
 
 class permissions(IntEnum):
-	Disabled    = 12
-	Broadcaster = 10
-	Owner       = 9
-	Mod	        = 8
-	VIP	        = 6
-	Subscriber  = 4
-	Follower    = 2
-	Pleb        = 0
+    Disabled    = 20
+    Broadcaster = 10
+    Owner       = 9
+    Mod	        = 8
+    VIP	        = 6
+    Subscriber  = 4
+    Follower    = 2
+    Pleb        = 0
 
 update_command_data = False # does command data on disk/wiki need to be updated?
 
 #check for new commands and add to database:
-for command_name in [o for o in dir(commands_file) if not(o[0] == "_" or o[-1] == "_")]:
+for command_name in [obj for obj in dir(commands_file) if not(obj[0] == "_" or obj[-1] == "_")]:
 	try:
-		if getattr(commands_file, command_name).is_command is True:
+		if getattr(commands_file, command_name).is_command is True: # "is" requires it to be explicitly True, rather than "truthy" e.g. non-empty lists/strings, ints>0 etc
 			if command_name not in commands_dict:
 				commands_dict[command_name] = {'permission': 0, 'global_cooldown': 1, 'user_cooldown': 0, 'coded': True, 'uses': 0, "description": getattr(commands_file, command_name).description}
 				update_command_data = True
 			else:
-				if "description" not in commands_dict[command_name] or commands_dict[command_name]["description"] != getattr(commands_file, command_name).description:
-					commands_dict[command_name]["description"] = getattr(commands_file, command_name).description # add/update description
+				command_description = getattr(commands_file, command_name).description
+				if "description" not in commands_dict[command_name] or commands_dict[command_name]["description"] != command_description:
+					commands_dict[command_name]["description"] = command_description # add/update description
 					update_command_data = True
 	except AttributeError:
 		pass
@@ -936,7 +948,6 @@ if __name__ == "__main__":
 
 												command_obj["last_used"] = time()
 												write_command_data(force_update_reddit=False)
-												
 										else:
 											log(f"WARNING: tried to call non-command function: {command}")
 									else:
@@ -963,7 +974,6 @@ if __name__ == "__main__":
 										write_command_data(force_update_reddit=False)
 									else:
 										log(f"WARNING: Stored text command with no response: {command}")
-
 					else:
 						Thread(target=respond_message, args=(message_dict,)).start()
 
@@ -1027,7 +1037,7 @@ if __name__ == "__main__":
 
 						del user_messages[user]
 						
-						send_message(f"@{user}, you have a message from {from_user}! It says: {user_message}")
+						send_message(f"@{user}, you have a message from {from_user}: {user_message}")
 						log(f"Sent a user message from {from_user} to {user}. It says: {user_message}")
 						set_data("user_messages", user_messages)
 
@@ -1090,7 +1100,6 @@ if __name__ == "__main__":
 								send_message(f"@{user} thank you so much for resubscribing! Kaywee isn't looking at chat right now (!nochat) but she'll see your sub after the current game.")
 								log(f"Sent nochat to {user} for resubscribing")
 
-
 						elif message_dict["msg-id"] == "anonsubgift": # ANONYMOUS GIFTED SUBSCRIPTION
 							# comes through as a gifted sub from AnAnonymousGifter ? So might not need this
 							recipient = message_dict["msg-param-recipient-display-name"].lower()
@@ -1113,7 +1122,6 @@ if __name__ == "__main__":
 							if commands_file.nochat_on:
 								Thread(target=nochat_raid).start() 
 								# sends a message in chat after a short delay
-								# adding a sleep in the Main thread would delay message processing, so it's done on another thread
 
 						elif message_dict["msg-id"] == "submysterygift":
 							gifter = message_dict["login"] # comes as lowercase
@@ -1137,6 +1145,7 @@ if __name__ == "__main__":
 							if commands_file.nochat_on:
 								send_message(f"@{user} thank you so much for continuing your gifted sub! Kaywee isn't looking at chat right now (!nochat) but she'll see your sub after the current game.")
 								log(f"Sent nochat to {user} for subscribing")
+								
 						elif message_dict["msg-id"] == "rewardgift":
 							pass # for when gifted subs produce extra rewards (emotes) for other chat members
 
