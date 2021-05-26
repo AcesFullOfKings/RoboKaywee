@@ -22,6 +22,21 @@ dic = PyDictionary()
 
 timers = set()
 
+def is_command(description=""):
+	"""
+	This is the decorator function which marks other functions as commands and sets their properties.
+	"""
+	def inner(func, description=description):
+		func.is_command = True
+		func.description = description
+		return func
+	return inner
+
+"""
+Each @is_command function is a command (!!), callable by sending "!<function_name>" in chat.
+All replies will be sent in the bots colour, using /me unless specified otherwise.
+"""
+
 currencies = {'CAD', 'HKD', 'ISK', 'PHP', 'DKK', 'HUF', 'CZK', 'GBP', 'RON', 'SEK', 'IDR', 'INR', 'BRL', 'RUB', 'HRK', 'JPY', 'THB', 'CHF', 'EUR', 'MYR', 'BGN', 'TRY', 'CNY', 'NOK', 'NZD', 'ZAR', 'USD', 'MXN', 'SGD', 'AUD', 'ILS', 'KRW', 'PLN'}
 
 toxic_poll = False
@@ -1879,7 +1894,25 @@ def mycolour(message_dict):
 
 @is_command("Check all the crypto prices.")
 def crypto(message_dict):
-	crypto_command.crypto(message_dict)
+	user = message_dict["display-name"].lower()
+	message = message_dict["message"]
+
+	# If the message is empty, return the default values
+	if message[1] == "":
+		crypto_codes = ["BTC", "ETH", "DOGE"]
+
+	# Return the current value(s) of the requested crypto
+	crypto_codes = message.split(" ")[1:]
+	for item in crypto_codes:
+		try:
+			result = requests.get(f"https://api.coinbase.com/v2/prices/{item.upper()}-USD/spot").json()
+			value = float(result["data"]["amount"])
+		except Exception as ex:
+			log(f"Exception in crypto.crypto: {str(ex)}")
+			send_message(f"{item.upper()} is not currently available via coinbase")
+			return False
+
+		send_message(f"{item.upper()} is currently worth ${value:,}")
 
 # Please, nobody copy this or use this...it's terrifying.
 @is_command("Updates the RoboKaywee github with the current codebase.")
