@@ -1402,7 +1402,6 @@ def eth(message_dict):
 
 @is_command("Show the price of Dogecoin")
 def doge(message_dict):
-	
 	user = message_dict["display-name"].lower()
 	try:
 		result = requests.get("https://sochain.com/api/v2/get_price/DOGE/USD").json()
@@ -1442,14 +1441,7 @@ def followtime(message_dict):
 
 	if target in followers:
 		follow_time = time() - datetime.strptime(followers[target], "%Y-%m-%dT%H:%M:%SZ").timestamp()
-
-		#days = int(follow_time // 86400)
-		#hours = int((follow_time % 86400) // 3600)
-		#mins = int((follow_time % 3600) // 60)
-		#seconds = int(follow_time % 60)
-
 		duration = seconds_to_duration(follow_time)
-
 		send_message(f"{target} followed Kaywee {duration} ago.")
 	else:
 		send_message(f"{target} is not following Kaywee. FeelsBadMan")
@@ -1971,3 +1963,9 @@ def _commit_thread(message):
 	else:
 		send_message(f"The commit failed with code {result}")
 		log(f"The commit failed with code {result}")
+
+@is_command("Appends a line of code to RoboKaywee's code")
+def append(message_dict):
+	line = " ".join(message.split(" ")[1:])
+	with open("commands.py", "a") as f:
+		f.write(line + "\n")
