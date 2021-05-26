@@ -1966,6 +1966,14 @@ def _commit_thread(message):
 
 @is_command("Appends a line of code to RoboKaywee's code")
 def append(message_dict):
+	message = message_dict["message"]
+	user = message_dict["display-name"].lower()
+
 	line = " ".join(message.split(" ")[1:])
 	with open("commands.py", "a") as f:
-		f.write(line + "\n")
+		f.write("\n" + line)
+
+	log(f"Appended {line} for {user}")
+	send_message("Append was successful!")
+
+# this is flasgod's comment, here forever as a sign of his contribution to the project
