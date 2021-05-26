@@ -258,7 +258,7 @@ def play_patiently():
 	while True:
 		try:
 			title = requests.get(url, headers=authorisation_header).json()["data"][0]["title"] # makes sure streamer is live
-			send_message("@Kaywee - don't forget to play patiently!")
+			send_message("@Kaywee - Reminder: play patiently!")
 			log("Sent patient reminder.")
 			set_data("last_patient_reminder", int(time()))
 		except:
