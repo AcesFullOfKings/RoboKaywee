@@ -13,8 +13,6 @@ from googletrans     import Translator
 from multiprocessing import Process
 from james           import seconds_to_duration, timeuntil
 from contextlib      import suppress
-import crypto as crypto_command
-from decorators		 import is_command
 #from james import translate as j_translate
 
 from PyDictionary import PyDictionary
@@ -34,7 +32,7 @@ def is_command(description=""):
 
 """
 Each @is_command function is a command (!!), callable by sending "!<function_name>" in chat.
-All replies will be sent in the bots colour, using /me unless specified otherwise.
+All replies will be sent in the bot's colour, using /me unless specified otherwise.
 """
 
 currencies = {'CAD', 'HKD', 'ISK', 'PHP', 'DKK', 'HUF', 'CZK', 'GBP', 'RON', 'SEK', 'IDR', 'INR', 'BRL', 'RUB', 'HRK', 'JPY', 'THB', 'CHF', 'EUR', 'MYR', 'BGN', 'TRY', 'CNY', 'NOK', 'NZD', 'ZAR', 'USD', 'MXN', 'SGD', 'AUD', 'ILS', 'KRW', 'PLN'}
@@ -1892,27 +1890,48 @@ def mycolour(message_dict):
 	else:
 		send_message("I don't know what your colour is.")
 
+@is_command("Show the price of etherium")
+def eth(message_dict):
+	new_message_dict = message_dict
+	new_message_dict["message"] = "!eth eth"
+	crypto(new_message_dict)
+
+@is_command("Show the price of bitcoin")
+def btc(message_dict):
+	new_message_dict = message_dict
+	new_message_dict["message"] = "!btc btc"
+	crypto(new_message_dict)
+
+@is_command("Show the price of dogecoin")
+def eth(message_dict):
+	new_message_dict = message_dict
+	new_message_dict["message"] = "!doge doge"
+	crypto(new_message_dict)
+
 @is_command("Check all the crypto prices.")
 def crypto(message_dict):
 	user = message_dict["display-name"].lower()
 	message = message_dict["message"]
 
-	# If the message is empty, return the default values
-	if message[1] == "":
+	try:
+		crypto_codes = message.split(" ")[1:]
+	except:
 		crypto_codes = ["BTC", "ETH", "DOGE"]
 
-	# Return the current value(s) of the requested crypto
-	crypto_codes = message.split(" ")[1:]
 	for item in crypto_codes:
 		try:
-			result = requests.get(f"https://api.coinbase.com/v2/prices/{item.upper()}-USD/spot").json()
+			if (item.upper() == "DOGE"):
+				result = requests.get(f"https://sochain.com/api/v2/get_price/{item.upper()}/USD").json()
+			else:
+				result = requests.get(f"https://api.coinbase.com/v2/prices/{item.upper()}-USD/spot").json()
 			value = float(result["data"]["amount"])
 		except Exception as ex:
-			log(f"Exception in crypto.crypto: {str(ex)}")
+			log(f"Exception in crypto: {str(ex)}")
 			send_message(f"{item.upper()} is not currently available via coinbase")
 			return False
 
-		send_message(f"{item.upper()} is currently worth ${value:,}")
+		send_message(f"{item.upper()} is currently worth ${round(value, 4):,}")
+		log(f"Sent {item.upper()} of ${round(value, 4)} to {user}")
 
 # Please, nobody copy this or use this...it's terrifying.
 @is_command("Updates the RoboKaywee github with the current codebase.")
