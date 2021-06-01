@@ -1775,10 +1775,6 @@ def message(message_dict):
 		log(f"Didn't save user message for {user}: invalid syntax.")
 		return False
 
-	if user == "flasgod":
-		send_message("No.")
-		return False
-
 	if target == user:
 		send_message("Don't be silly, you can't message yourself.")
 		log(f"Didn't save user message for {user}: tried to message self")
