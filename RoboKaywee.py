@@ -10,8 +10,8 @@ from os          import getcwd
 from time        import time, sleep, localtime
 from enum        import IntEnum
 from math        import ceil
-from string      import ascii_lowercase
 from james       import timeuntil #, is_haiku # takes 0.4s to import!
+from string      import ascii_lowercase
 from shutil      import copy2 as copy_with_metadata
 from chatbot     import ChatBot # see https://github.com/theonefoster/pyTwitchChatBot
 from datetime    import date, datetime
@@ -830,6 +830,8 @@ del update_command_data
 
 if __name__ == "__main__":
 	log("Starting bot..")
+
+	write_command_data(force_update_reddit=True)
 
 	success = False
 	dropoff = 0.5

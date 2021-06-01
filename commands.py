@@ -2,7 +2,8 @@ import random
 import requests
 import re
 import subprocess
-import os 
+import os
+import sys
 
 from time            import sleep, time
 from datetime        import date, datetime
@@ -1171,7 +1172,7 @@ def calculate(message_dict):
 def _perform_calculation(calculation,user):
 	p = Process(target=_process_calculation, args=(calculation,user,bot,log))
 	p.start()
-	sleep(6)
+	sleep(5)
 	if p.is_alive():
 		p.terminate() # needs to be a process so that it can be terminated
 		send_message(f"@{user} That calculation timed out. Try something less complex.")
@@ -1490,7 +1491,7 @@ def urban(message_dict):
 	definition = definition.replace("[", "").replace("]", "")
 	if " " in term:
 		url_term   = term.replace(" ", "%20")
-		url_suffix = "define.php?term={url_term}"
+		url_suffix = f"define.php?term={url_term}"
 	else:
 		url_suffix = term # it seems to accept just /word at the end as long as there are no spaces.. so this is smaller
 
@@ -1789,11 +1790,21 @@ def message(message_dict):
 			log(f"Didn't save user message for {user}: duplicate user ({target})")
 			return False
 		else:
-			user_messages[target] = {"from_user": user, "user_message": user_message}
-			set_data("user_messages", user_messages)
-			send_message(f"Your message was saved! It'll be sent next time {target} sends a chat.")
-			log(f"Saved a user message from {user} to {target}.")
-			return True
+			if any(x in user_message for x in ["extended", "warranty", "vehicle", "courtesy"]):
+				send_message("That mesasge is invalid.")
+				return False
+
+			else:
+				for msg in user_messages:
+					if user_messages[msg]["from_user"] == user:
+						send_message("You've already sent someone a message. To avoid spam, you can only send one at once.")
+						return False
+
+				user_messages[target] = {"from_user": user, "user_message": user_message}
+				set_data("user_messages", user_messages)
+				send_message(f"Your message was saved! It'll be sent next time {target} sends a chat.")
+				log(f"Saved a user message from {user} to {target}.")
+				return True
 	else:
 		send_message("That user has never been seen in chat. Messages can only be sent to known users.")
 		log(f"Didn't save user message for {user}: unknown user ({target})")
@@ -1977,3 +1988,24 @@ def append(message_dict):
 	send_message("Append was successful!")
 
 # this is flasgod's comment, here forever as a sign of his contribution to the project
+
+"""
+@is_command("Restarts the bot.")
+def restart(message_dict):
+    #After like 15 mins of work I couldn't get this to work so for now it is undefined
+    return False
+    DETACHED_PROCESS = 0x00000008
+    process = subprocess.Popen([sys.executable, "RoboKaywee.py"],creationflags=DETACHED_PROCESS)# .pid
+    print(process)
+    sleep(3) # give it time to fail if it's going to not start
+    #if not process.is_alive:
+    #    send_message("The restart failed.")
+    #    return False
+    #else:
+    send_message("RoboKaywee has restarted.")
+    exit()
+
+
+def _start_bot():
+	process = subprocess.Popen([sys.executable, "RoboKaywee.py"])
+"""
