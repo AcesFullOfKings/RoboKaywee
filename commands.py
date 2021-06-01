@@ -67,6 +67,7 @@ def rcommand(message_dict):
 	"""
 	user = message_dict["display-name"].lower()
 	message = message_dict["message"]
+	user_permission = message_dict["user_permission"] 
 
 	params = message.split(" ")[1:]
 	try:
@@ -130,17 +131,24 @@ def rcommand(message_dict):
 			try:
 				permission = int(params[3])
 			except (ValueError, IndexError):
-				send_message("Permission must be an integer: 0=All, 4=Subscriber, 6=VIP, 8=Moderator, 9=Owner, 10=Broadcaster, 20=Disabled")
+				send_message("Permission must be an integer: 0=All, 4=Subscriber, 6=VIP, 8=Moderator, 10=Broadcaster, 12=Owner, 20=Disabled")
 				return False
 
 			if command_name in command_dict:
 				for enum in permissions:
 					if enum.value == permission:
-						command_dict[command_name]["permission"] = permission
-						write_command_data(force_update_reddit=True)
-						send_message(f"Permission updated to {enum.name} on command {command_name}")
-						log(f"{user} updated permission on command {command_name} to {enum.name}")
-						return True # also exits the for-loop
+						current_permission = command_dict[command_name]["permission"]
+						if current_permission == 20:
+							current_permission = 8
+
+						if user_permission >= current_permission:
+							command_dict[command_name]["permission"] = permission
+							write_command_data(force_update_reddit=True)
+							send_message(f"Permission updated to {enum.name} on command {command_name}")
+							log(f"{user} updated permission on command {command_name} to {enum.name}")
+							return True # also exits the for-loop
+						else:
+							send_message("You don't have permission to do that.")
 				else:
 					send_message("Invalid Permission: Use 0=All, 4=Subscriber, 6=VIP, 8=Moderator, 9=Owner, 10=Broadcaster, 20=Disabled")
 					return False

@@ -788,8 +788,10 @@ def respond_message(message_dict):
 		log(f"Sent patrick to {user}")
 	elif msg_lower_no_punc == "youre walking in the woods":
 		send_message("There's no-one around and your phone is dead.")
+		log(f"Sent Shia (part 1) to {user}")
 	elif msg_lower_no_punc == "out of the corner of your eye you spot him":
 		send_message("Shia Lebeuf!")
+		log(f"Sent Shia (part 2) to {user}")
 	#else:
 	#	haiku = is_haiku(message_lower)
 	#	if haiku:
@@ -798,8 +800,8 @@ def respond_message(message_dict):
 
 class permissions(IntEnum):
     Disabled    = 20
+    Owner       = 12
     Broadcaster = 10
-    Owner       = 9
     Mod	        = 8
     VIP	        = 6
     Subscriber  = 4
