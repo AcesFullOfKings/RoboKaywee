@@ -704,8 +704,10 @@ def ban_lurker_bots():
 	while True:	
 		bots = requests.get(bots_url).json()["bots"]
 
-		# bot[0] is the name; bot[1] is the number of channels it's in. (Idk that's just how it comes through ok)
-		# so this makes a dict of {name: numchannels}:
+		# the above returns a list of lists like [["botname", number_of_channels, "something else idk"]]
+		# so for each bot in the list, bot[0] is the name; bot[1] is the number of channels it's in.
+		# Idk that's just how it comes through ok
+		# so this makes it into a dict of {name: numchannels}:
 		bots = dict([(bot[0], bot[1]) for bot in bots]) 
 
 		for _ in range(5): # only update the known bots list every 5 checks. Reduces api calls and there's a lot of data
@@ -878,8 +880,6 @@ if __name__ == "__main__":
 	dropoff = 0.5
 
 	create_bot()
-
-	send_discord_message("Testing Testing one two three")
 
 	authorisation_header = {"Client-ID": robokaywee_client_id, "Authorization":"Bearer " + get_data("app_access_token")}
 
