@@ -125,6 +125,8 @@ def channel_events():
 	global channel_offline
 	global live_status_checked
 	global shutdown_on_offline
+	global bUrself_sent
+	global ali_sent
 
 	def check_live_status_first():
 		nonlocal online_time 
@@ -693,6 +695,40 @@ def create_bot():
 			sleep(dropoff)
 			dropoff *= 2
 
+def ban_lurker_bots():
+	viewers_url = "https://tmi.twitch.tv/group/user/kaywee/chatters"
+	bots_url = "https://api.twitchinsights.net/v1/bots/all"
+	allowed_bots = {"robokaywee", "streamelements", "nightbot"}
+	check_period = 60*30
+
+	while True:	
+		bots = requests.get(bots_url).json()["bots"]
+
+		# bot[0] is the name; bot[1] is the number of channels it's in. (Idk that's just how it comes through ok)
+		# so this makes a dict of {name: numchannels}:
+		bots = dict([(bot[0], bot[1]) for bot in bots]) 
+
+		for _ in range(5): # only update the known bots list every 5 checks. Reduces api calls and there's a lot of data
+			viewers = requests.get(viewers_url).json()["chatters"]["viewers"] # doesn't list broadcaster, vips, mods, staff, admins, or global mods
+			for viewer in viewers:
+				if viewer not in allowed_bots and viewer in bots and bots[viewer] > 100:
+					send_message(f"/ban {viewer}")
+					send_discord_message(f"The known bot {viewer} has been banned on Twitch for uninvited lurking.")
+					log(f"Banned known bot {viewer} for uninvited lurking.")
+					sleep(3) # just helps space the messages out a bit
+			sleep(check_period)
+
+def send_discord_message(message):
+	# don't wanna block up the main thread while the discord bot starts up and sends the message
+	p = Thread(target=_send_discord_message, args=(message,)).start()
+
+def _send_discord_message(message):
+	#this takes a few seconds and probably shouldn't be used too much LOL
+	try:
+		# fuck discory.py and it's async bs for making me do this
+		subprocess.run("python discord.py " + message, capture_output=True) # capture_output=True means the output doesn't go to console.. When it exit()s it prints the exception stack lol
+	except:
+		pass
 
 def respond_message(message_dict):
 	# For random non-command responses/rules
@@ -761,9 +797,9 @@ def respond_message(message_dict):
 		log(f"Saved new ow2 prediction: {message_lower}")
 		with open("ow2.txt", "a") as f:
 			f.write(message + "\n")
-	#elif user in ["gothmom_", "ncal_babygirl24"] and "lucio" in message_lower:
-	#	send_message("IS UR MAN HERE??")
-	#	log(f"Sent \"Is your man here?\" to {user}")
+	elif user in ["gothmom_", "ncal_babygirl24"] and "lucio" in message_lower:
+		send_message("IS UR MAN HERE??")
+		log(f"Sent \"Is your man here?\" to {user}")
 	elif msg_lower_no_punc == "alexa play despacito":
 		send_message("Now playing Despacito by Luis Fonsi.")
 		log(f"Now playing Despacito for {user}")
@@ -792,6 +828,9 @@ def respond_message(message_dict):
 	elif msg_lower_no_punc == "out of the corner of your eye you spot him":
 		send_message("Shia Lebeuf!")
 		log(f"Sent Shia (part 2) to {user}")
+	elif msg_lower_no_punc in ["modcheck", "mod check"]:
+		send_message(":eyes:")
+		log(f"Sent ModCheck to {user}")
 	#else:
 	#	haiku = is_haiku(message_lower)
 	#	if haiku:
@@ -840,6 +879,8 @@ if __name__ == "__main__":
 
 	create_bot()
 
+	send_discord_message("Testing Testing one two three")
+
 	authorisation_header = {"Client-ID": robokaywee_client_id, "Authorization":"Bearer " + get_data("app_access_token")}
 
 	Thread(target=channel_events,          name="Channel Events").start()
@@ -850,6 +891,7 @@ if __name__ == "__main__":
 	Thread(target=channel_live_messages,   name="Channel Live Messages").start()
 	Thread(target=automatic_backup,        name="Automatic Backup").start()
 	Thread(target=play_patiently,          name="Play Patiently").start()
+	Thread(target=ban_lurker_bots,         name="Ban Lurker Bots").start()
 	#Thread(target=ow2_msgs,                name="OW2 messages").start()
 	
 	user_cooldowns  = {}

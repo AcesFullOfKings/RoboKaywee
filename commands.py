@@ -149,6 +149,7 @@ def rcommand(message_dict):
 							return True # also exits the for-loop
 						else:
 							send_message("You don't have permission to do that.")
+							return False
 				else:
 					send_message("Invalid Permission: Use 0=All, 4=Subscriber, 6=VIP, 8=Moderator, 9=Owner, 10=Broadcaster, 20=Disabled")
 					return False
@@ -1527,7 +1528,7 @@ def totalmessages(message_dict):
 	user = message_dict["display-name"].lower()
 
 	messages = int(_chatstats("totalMessages")) + 1
-	send_message(f"This is message number {messages:,} to be sent in Kaywee's chat.")
+	send_message(f"This is message number {messages:,} to be sent in Kaywee's chat. Source: https://stats.streamelements.com/c/kaywee")
 	log(f"Sent totalmessages of {messages:,} to {user}")
 
 @is_command("Show the total number of messages sent in Kaywee's chat by a given user. Syntax: !chats [@]<user>, e.g. `!chats @kaywee`")
@@ -1549,7 +1550,10 @@ def chats(message_dict):
 		send_message(f"User not found in top 100 chatters - use !chatstats for full info.")
 		return True
 
-	send_message(f"{target} has sent {chats:,} messages in Kaywee's channel!")
+	if user == "theonefoster":
+		chats += 5048 + 9920 # from AcesFullOfKings and theonefoster_
+
+	send_message(f"{target} has sent {chats:,} messages in Kaywee's channel! Source: https://stats.streamelements.com/c/kaywee")
 	log(f"Sent {target}'s chat count of {chats:,} to {user}")
 
 @is_command("Show the current BTTV emotes.")
