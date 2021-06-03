@@ -1978,7 +1978,7 @@ def commit(message_dict):
 	log(f"Commited to Git for {user}")
 
 def _commit_thread(message):
-	result = subprocess.run("commit.bat " + message, capture_output=True)
+	result = subprocess.run("commit.bat " + message, capture_output=True).returncode
 
 	if result == 0:
 		send_message(f"The commit was successful. https://github.com/theonefoster/RoboKaywee")
