@@ -66,15 +66,21 @@ live_status_checked = Event()
 live_status_checked.clear()
 
 bots = {"robokaywee", "streamelements", "nightbot"}
-channel_emotes = {"kaywee1AYAYA", "kaywee1Wut", "kaywee1Dale", "kaywee1Imout", "kaywee1GASM", "KKaywee"}
 
 bot = None
-shutdown_on_offline = False
+shutdown_on_offline = False # can be set to true to shutdown pc when streamer goes offline
 
-ayy_re     = re.compile("a+y+")
-hello_re   = re.compile("h+i+|h+e+y+|h+e+l+o+|h+o+l+a+|h+i+y+a+")
-patrick_re = re.compile("is this [^ ]*\?{0,}$")
+# some regexes for detecting certain message patterns
+ayy_re     = re.compile("a+y+") # one or more "a" followed by one or more "y", e.g. aayyyyy
+hello_re   = re.compile("h+i+|h+e+y+|h+e+l+o+|h+o+l+a+|h+i+y+a+") # various ways of saying hello
+patrick_re = re.compile("is this [^ ]*\?*$") # "is this " followed by a word, followed by zero or more question marks. e.g. "is this kaywee??"
 
+# when only mods send messages into chat for at least X messages, the bot will announce the modwall.
+# the Name is the type of modwall which gets announced into chat
+# the emotes are what get appended to the announcement
+# the excitement is the number of exclamation marks to use
+# when a modwall is interrupted by a non-mod sending a message, the bot will announce the modwall breaking with the break_emotes
+# a broken modwall will only be announced if the size is > modwall_break_level, defined below
 modwalls = {
 	15:  {"name": "Modwall",                 "emotes": "kaywee1AYAYA",                                                           "excitement": 1, "break_emotes": ":("},
 	30:  {"name": "Supermodwall",            "emotes": "SeemsGood kaywee1Wut",                                                   "excitement": 1, "break_emotes": ":( FeelsBadMan"},
@@ -90,7 +96,8 @@ modwalls = {
 	# also I know that the SI prefixes don't match the numbers but whatever, I needed increasing prefixes
 }
 
-get_modwall = lambda x: modwalls[sorted(list(key for key in modwalls.keys() if key <= x))[-1]] # you can do it flasgod
+get_modwall = lambda x: modwalls[sorted(list(key for key in modwalls.keys() if key <= x))[-1]] # you can do it moldar
+modwall_break_level = sorted(modwalls.keys())[1] # the second smallest modwall size
 
 with open("usernames.txt", "r", encoding="utf-8") as f:
 	usernames = set(f.read().split("\n"))
@@ -480,7 +487,7 @@ def update_subs():
 			if subscribers[sub]["subscribe_time"] < time() - 60*60*24*30:
 				del subscribers[sub]
 		commit_subscribers()
-		sleep(30*60)
+		sleep(10*60)
 
 def update_followers():
 	global followers 
@@ -696,28 +703,47 @@ def create_bot():
 			dropoff *= 2
 
 def ban_lurker_bots():
+	global bots
 	viewers_url = "https://tmi.twitch.tv/group/user/kaywee/chatters"
 	bots_url = "https://api.twitchinsights.net/v1/bots/all"
-	allowed_bots = {"robokaywee", "streamelements", "nightbot"}
+	allowed_bots = bots
 	check_period = 60*30
 
-	while True:	
-		bots = requests.get(bots_url).json()["bots"]
+	last_lurker_check = get_data("last_lurker_check", 0)
+
+	time_since = time() - last_lurker_check
+	if time_since <= check_period:
+		wait_time = check_period - time_since
+	else:
+		wait_time = 0
+
+	sleep(wait_time)
+
+	recently_banned = get_data("recently_banned", [])
+
+	while True:
+		known_bots = requests.get(bots_url).json()["bots"]
 
 		# the above returns a list of lists like [["botname", number_of_channels, "something else idk"]]
 		# so for each bot in the list, bot[0] is the name; bot[1] is the number of channels it's in.
 		# Idk that's just how it comes through ok
 		# so this makes it into a dict of {name: numchannels}:
-		bots = dict([(bot[0], bot[1]) for bot in bots]) 
+		known_bots = dict([(bot[0], bot[1]) for bot in known_bots]) 
 
-		for _ in range(5): # only update the known bots list every 5 checks. Reduces api calls and there's a lot of data
+		for _ in range(5): # only update the known_bots list every 5 checks. Reduces api calls and there's a lot of data
 			viewers = requests.get(viewers_url).json()["chatters"]["viewers"] # doesn't list broadcaster, vips, mods, staff, admins, or global mods
 			for viewer in viewers:
-				if viewer not in allowed_bots and viewer in bots and bots[viewer] > 100:
+				if viewer not in allowed_bots and viewer in known_bots and known_bots[viewer] > 100 and viewer not in recently_banned:
 					send_message(f"/ban {viewer}")
 					send_discord_message(f"The known bot {viewer} has been banned on Twitch for uninvited lurking.")
 					log(f"Banned known bot {viewer} for uninvited lurking.")
+					recently_banned.append(viewer)
+					if len(recently_banned) > 10:
+						recently_banned = recently_banned[:10]
+					set_data("recently_banned", recently_banned)
 					sleep(3) # just helps space the messages out a bit
+
+			set_data("last_lurker_check", int(time()))
 			sleep(check_period)
 
 def send_discord_message(message):
@@ -732,12 +758,34 @@ def _send_discord_message(message):
 	except:
 		pass
 
+twitch_emotes = []
+def get_twitch_emotes():
+	global twitch_emotes
+	result = requests.get("https://api.streamelements.com/kappa/v2/chatstats/kaywee/stats").json()
+	twitchEmotes = result.get("twitchEmotes", [])
+	twitch_emotes = [item["emote"] for item in twitchEmotes]
+
+def get_emote(emote):
+	global subscribers
+	global twitch_emotes
+
+	if emote[:7] == "kaywee1" and "robokaywee" not in subscribers: # sub emotes can only be used while bot is subbed
+		return ""
+	else:
+		if emote in twitch_emotes: # emote must be valid
+			return emote
+		else:
+			return ""
+
+Thread(target=get_twitch_emotes).start()
+
 def respond_message(message_dict):
 	# For random non-command responses/rules
 	# This is run on a second thread
 
 	global bUrself_sent # this is needed
 	global ali_sent     # this too
+	global twitch_emotes
 
 	user       = message_dict["display-name"].lower()
 	message    = message_dict["message"]
@@ -750,7 +798,7 @@ def respond_message(message_dict):
 		log(f"Sent \"I'm a bot\" to {user}")
 
 	elif commands_file.nochat_on and user not in bots and "kaywee" in message_lower:
-		msg_words = [word for word in message_lower.split(" ") if "kaywee1" not in word] # remove channel emotes, including unknown emotes with the right prefix
+		msg_words = [word for word in message_lower.split(" ") if word not in twitch_emotes] # remove emotes
 		message_lower = " ".join(msg_words).replace("robokaywee", "") # stitch message back together and remove robokaywee
 
 		if "kaywee" in message_lower:
@@ -780,7 +828,7 @@ def respond_message(message_dict):
 		log(f"Sent KEKW to {user}")
 
 	elif message_lower in ["hewwo", "hewwo?", "hewwo??"]:
-		send_message("HEWWO! UwU kaywee1AYAYA")
+		send_message(f"HEWWO! UwU {get_emote('kaywee1AYAYA')}")
 		log(f"Sent hewwo to {user}")
 
 	elif message_lower == "hello there":
@@ -1042,7 +1090,7 @@ if __name__ == "__main__":
 							if modwall >= 5:
 								set_data("modwall", modwall)
 					else:
-						if modwall >= 30:
+						if modwall >= modwall_break_level:
 							modwall_data = get_modwall(modwall)
 							current_modwall = modwall_data["name"]
 							break_emotes = modwall_data["break_emotes"]
@@ -1061,7 +1109,7 @@ if __name__ == "__main__":
 						vip_wall += 1
 
 						if vip_wall == 15:
-							send_message("#VIPwall! kaywee1AYAYA")
+							send_message(f"#VIPwall! {get_emote('kaywee1AYAYA')}")
 							log("VIPwall!")
 						elif vip_wall == 30:
 							send_message("#SUPER VIPwall! PogChamp")
@@ -1070,7 +1118,7 @@ if __name__ == "__main__":
 							send_message("#MEGA VIPwall! PogChamp Kreygasm CurseLit")
 							log("MEGA VIPwall!")
 						elif vip_wall == 120:
-							send_message("#U L T R A VIPwall! PogChamp Kreygasm CurseLit FootGoal kaywee1Wut")
+							send_message(f"#U L T R A VIPwall! PogChamp Kreygasm CurseLit FootGoal {get_emote('kaywee1Wut')}")
 							log("U L T R A VIPwall!")
 					else:
 						vip_wall = 0
@@ -1117,7 +1165,7 @@ if __name__ == "__main__":
 
 							if recipient == "robokaywee":
 								sleep(1)
-								send_message(f"OMG {gifter}!! Thank you so much for my gifted sub, you're the best!! <3 <3 kaywee1AYAYA")
+								send_message(f"OMG {gifter}!! Thank you so much for my gifted sub, you're the best!! <3 <3 {get_emote('kaywee1AYAYA')}")
 							elif commands_file.nochat_on:
 								send_message(f"@{gifter} thank you so much for gifting a subscription to {recipient}! Kaywee isn't looking at chat right now (!nochat) but she'll see your gift after the current game.")
 								log(f"Sent nochat to {gifter} for gifting a sub")
@@ -1159,7 +1207,7 @@ if __name__ == "__main__":
 							viewer_count = message_dict["msg-param-viewerCount"]
 							with open("chatlog.txt", "a", encoding="utf-8") as f:
 								f.write(f"USERNOTICE: {raider} is raiding with {viewer_count} viewers!\n")
-							send_message(f"Wow! {raider} is raiding us with {viewer_count} new friends! Thank you! kaywee1AYAYA")
+							send_message(f"Wow! {raider} is raiding us with {viewer_count} new friends! Thank you! {get_emote('kaywee1AYAYA')}")
 							log(f"{raider} is raiding with {viewer_count} viewers.")
 							raid_data = {"raider": raider, "viewers": viewer_count, "time": time()}
 							raid_data = str(raid_data).replace(", ", ",") # set_data() replaces ", " with ",\n", but I don't want that to apply to this dict, so removing the space stops it being picked up by that .replace()
