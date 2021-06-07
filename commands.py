@@ -1893,19 +1893,19 @@ def mycolour(message_dict):
 @is_command("Show the price of etherium")
 def eth(message_dict):
 	new_message_dict = message_dict
-	new_message_dict["message"] = "!eth eth"
+	new_message_dict["message"] = "!crypto eth"
 	crypto(new_message_dict)
 
 @is_command("Show the price of bitcoin")
 def btc(message_dict):
 	new_message_dict = message_dict
-	new_message_dict["message"] = "!btc btc"
+	new_message_dict["message"] = "!crypto btc"
 	crypto(new_message_dict)
 
 @is_command("Show the price of dogecoin")
 def eth(message_dict):
 	new_message_dict = message_dict
-	new_message_dict["message"] = "!doge doge"
+	new_message_dict["message"] = "!crypto doge"
 	crypto(new_message_dict)
 
 @is_command("Check all the crypto prices.")
@@ -1919,19 +1919,21 @@ def crypto(message_dict):
 		crypto_codes = ["BTC", "ETH", "DOGE"]
 
 	for item in crypto_codes:
+		item = item.upper()
 		try:
-			if (item.upper() == "DOGE"):
-				result = requests.get(f"https://sochain.com/api/v2/get_price/{item.upper()}/USD").json()
+			if item == "DOGE":
+				result = requests.get(f"https://sochain.com/api/v2/get_price/{item}/USD").json()
+				value = float(result["data"]["prices"][0]["price"])
 			else:
-				result = requests.get(f"https://api.coinbase.com/v2/prices/{item.upper()}-USD/spot").json()
-			value = float(result["data"]["amount"])
+				result = requests.get(f"https://api.coinbase.com/v2/prices/{item}-USD/spot").json()
+				value = float(result["data"]["amount"])
 		except Exception as ex:
 			log(f"Exception in crypto: {str(ex)}")
-			send_message(f"{item.upper()} is not currently available via coinbase")
+			send_message(f"{item} is not currently available via coinbase")
 			return False
 
-		send_message(f"{item.upper()} is currently worth ${round(value, 4):,}")
-		log(f"Sent {item.upper()} of ${round(value, 4)} to {user}")
+		send_message(f"{item} is currently worth ${round(value, 4):,}")
+		log(f"Sent {item} of ${round(value, 4)} to {user}")
 
 # Please, nobody copy this or use this...it's terrifying.
 @is_command("Updates the RoboKaywee github with the current codebase.")
