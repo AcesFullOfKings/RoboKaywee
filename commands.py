@@ -1617,18 +1617,18 @@ def _get_all_emotes():
 	url = "https://api.streamelements.com/kappa/v2/chatstats/kaywee/stats"
 	result = requests.get(url).json()
 
-	all_emotes = [emote_info["emote"] for emote_info in result.get("bttvEmotes", []) + result.get("ffzEmotes", []) + result.get("twitchEmotes", [])]
+	all_emotes = [(emote_info["emote"], emote_info["amount"]) for emote_info in result.get("bttvEmotes", []) + result.get("ffzEmotes", []) + result.get("twitchEmotes", [])]
+	all_emotes = dict(all_emotes) # dict of emote: uses
 
 Thread(target=_get_all_emotes, name="Get_All_Emotes").start()
 
 def _emote_uses(emote):
-	emotes = _get_all_emotes()
-	emotes_dict = {}
-
-	for e in emotes:
-		emotes_dict[e["emote"]] = e["amount"]
-
-	return emotes_dict.get(emote, 0)
+	global all_emotes
+	if emote in all_emotes:
+		_get_all_emotes() # update number of uses
+		return all_emotes.get(emote, 0)
+	else: 
+		return 0
 
 @is_command("Show the current stream title.")
 def title(message_dict):
