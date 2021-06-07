@@ -2,7 +2,8 @@ import random
 import requests
 import re
 import subprocess
-import os 
+import os
+import sys
 
 from time            import sleep, time
 from datetime        import date, datetime
@@ -66,6 +67,7 @@ def rcommand(message_dict):
 	"""
 	user = message_dict["display-name"].lower()
 	message = message_dict["message"]
+	user_permission = message_dict["user_permission"] 
 
 	params = message.split(" ")[1:]
 	try:
@@ -129,17 +131,25 @@ def rcommand(message_dict):
 			try:
 				permission = int(params[3])
 			except (ValueError, IndexError):
-				send_message("Permission must be an integer: 0=All, 4=Subscriber, 6=VIP, 8=Moderator, 9=Owner, 10=Broadcaster, 20=Disabled")
+				send_message("Permission must be an integer: 0=All, 4=Subscriber, 6=VIP, 8=Moderator, 10=Broadcaster, 12=Owner, 20=Disabled")
 				return False
 
 			if command_name in command_dict:
 				for enum in permissions:
 					if enum.value == permission:
-						command_dict[command_name]["permission"] = permission
-						write_command_data(force_update_reddit=True)
-						send_message(f"Permission updated to {enum.name} on command {command_name}")
-						log(f"{user} updated permission on command {command_name} to {enum.name}")
-						return True # also exits the for-loop
+						current_permission = command_dict[command_name]["permission"]
+						if current_permission == 20:
+							current_permission = 8
+
+						if user_permission >= current_permission:
+							command_dict[command_name]["permission"] = permission
+							write_command_data(force_update_reddit=True)
+							send_message(f"Permission updated to {enum.name} on command {command_name}")
+							log(f"{user} updated permission on command {command_name} to {enum.name}")
+							return True # also exits the for-loop
+						else:
+							send_message("You don't have permission to do that.")
+							return False
 				else:
 					send_message("Invalid Permission: Use 0=All, 4=Subscriber, 6=VIP, 8=Moderator, 9=Owner, 10=Broadcaster, 20=Disabled")
 					return False
@@ -1171,7 +1181,7 @@ def calculate(message_dict):
 def _perform_calculation(calculation,user):
 	p = Process(target=_process_calculation, args=(calculation,user,bot,log))
 	p.start()
-	sleep(6)
+	sleep(5)
 	if p.is_alive():
 		p.terminate() # needs to be a process so that it can be terminated
 		send_message(f"@{user} That calculation timed out. Try something less complex.")
@@ -1371,6 +1381,52 @@ def wordoftheday(message_dict):
 	send_message(f"{tag}The Spanish Word of the Day is \"{spa}\", which means \"{eng}\"")
 	log(f"Sent word of the Day to {user}: {spa} means {eng}")
 
+@is_command("Show the price of bitcoin")
+def btc(message_dict):
+	user = message_dict["display-name"].lower()
+	try:
+		result = requests.get("https://api.coinbase.com/v2/prices/BTC-USD/spot").json()
+		value = float(result["data"]["amount"])
+	except Exception as ex:
+		log(f"Exception in btc: {str(ex)}")
+		return False
+	
+	if not message_dict.get("suppress_log", False):
+		log(f"Sent BTC of ${value:,} to {user}")
+	send_message(f"Bitcoin is currently worth ${value:,}")
+
+@is_command("Show the price of etherium")
+def eth(message_dict):
+	user = message_dict["display-name"].lower()
+	try:
+		result = requests.get("https://api.coinbase.com/v2/prices/ETH-USD/spot").json()
+		value = float(result["data"]["amount"])
+	except Exception as ex:
+		log(f"Exception in eth: {str(ex)}")
+		return False
+	
+	if not message_dict.get("suppress_log", False):
+		log(f"Sent ETH of ${value:,} to {user}")
+
+	send_message(f"Ethereum is currently worth ${value:,}")
+
+@is_command("Show the price of Dogecoin")
+def doge(message_dict):
+	user = message_dict["display-name"].lower()
+	try:
+		result = requests.get("https://sochain.com/api/v2/get_price/DOGE/USD").json()
+		value = float(result["data"]["prices"][0]["price"])
+	except Exception as ex:
+		log(f"Exception in eth: {str(ex)}")
+		return False
+
+	value = round(value * 100, 2)
+	
+	if not message_dict.get("suppress_log", False):	
+		log(f"Sent DOGE of {value:,} cents to {user}")
+
+	send_message(f"Dogecoin is currently worth {value:,} cents")
+
 @is_command("Display Kaywee's real biological age")
 def age(message_dict):
 	ages = list(range(19,24)) + list(range(36,43))
@@ -1395,14 +1451,7 @@ def followtime(message_dict):
 
 	if target in followers:
 		follow_time = time() - datetime.strptime(followers[target], "%Y-%m-%dT%H:%M:%SZ").timestamp()
-
-		#days = int(follow_time // 86400)
-		#hours = int((follow_time % 86400) // 3600)
-		#mins = int((follow_time % 3600) // 60)
-		#seconds = int(follow_time % 60)
-
 		duration = seconds_to_duration(follow_time)
-
 		send_message(f"{target} followed Kaywee {duration} ago.")
 	else:
 		send_message(f"{target} is not following Kaywee. FeelsBadMan")
@@ -1451,7 +1500,7 @@ def urban(message_dict):
 	definition = definition.replace("[", "").replace("]", "")
 	if " " in term:
 		url_term   = term.replace(" ", "%20")
-		url_suffix = "define.php?term={url_term}"
+		url_suffix = f"define.php?term={url_term}"
 	else:
 		url_suffix = term # it seems to accept just /word at the end as long as there are no spaces.. so this is smaller
 
@@ -1479,7 +1528,7 @@ def totalmessages(message_dict):
 	user = message_dict["display-name"].lower()
 
 	messages = int(_chatstats("totalMessages")) + 1
-	send_message(f"This is message number {messages:,} to be sent in Kaywee's chat.")
+	send_message(f"This is message number {messages:,} to be sent in Kaywee's chat. Source: https://stats.streamelements.com/c/kaywee")
 	log(f"Sent totalmessages of {messages:,} to {user}")
 
 @is_command("Show the total number of messages sent in Kaywee's chat by a given user. Syntax: !chats [@]<user>, e.g. `!chats @kaywee`")
@@ -1501,7 +1550,10 @@ def chats(message_dict):
 		send_message(f"User not found in top 100 chatters - use !chatstats for full info.")
 		return True
 
-	send_message(f"{target} has sent {chats:,} messages in Kaywee's channel!")
+	if user == "theonefoster":
+		chats += 5048 + 9920 # from AcesFullOfKings and theonefoster_
+
+	send_message(f"{target} has sent {chats:,} messages in Kaywee's channel! Source: https://stats.streamelements.com/c/kaywee")
 	log(f"Sent {target}'s chat count of {chats:,} to {user}")
 
 @is_command("Show the current BTTV emotes.")
@@ -1750,11 +1802,21 @@ def message(message_dict):
 			log(f"Didn't save user message for {user}: duplicate user ({target})")
 			return False
 		else:
-			user_messages[target] = {"from_user": user, "user_message": user_message}
-			set_data("user_messages", user_messages)
-			send_message(f"Your message was saved! It'll be sent next time {target} sends a chat.")
-			log(f"Saved a user message from {user} to {target}.")
-			return True
+			if any(x in user_message for x in ["extended", "warranty", "vehicle", "courtesy"]):
+				send_message("That mesasge is invalid.")
+				return False
+
+			else:
+				for msg in user_messages:
+					if user_messages[msg]["from_user"] == user:
+						send_message("You've already sent someone a message. To avoid spam, you can only send one at once.")
+						return False
+
+				user_messages[target] = {"from_user": user, "user_message": user_message}
+				set_data("user_messages", user_messages)
+				send_message(f"Your message was saved! It'll be sent next time {target} sends a chat.")
+				log(f"Saved a user message from {user} to {target}.")
+				return True
 	else:
 		send_message("That user has never been seen in chat. Messages can only be sent to known users.")
 		log(f"Didn't save user message for {user}: unknown user ({target})")
@@ -1952,7 +2014,7 @@ def commit(message_dict):
 	log(f"Commited to Git for {user}")
 
 def _commit_thread(message):
-	result = os.system("commit.bat " + message)
+	result = subprocess.run("commit.bat " + message, capture_output=True).returncode
 
 	if result == 0:
 		send_message(f"The commit was successful. https://github.com/theonefoster/RoboKaywee")
@@ -1960,3 +2022,38 @@ def _commit_thread(message):
 	else:
 		send_message(f"The commit failed with code {result}")
 		log(f"The commit failed with code {result}")
+
+@is_command("Appends a line of code to RoboKaywee's code")
+def append(message_dict):
+	message = message_dict["message"]
+	user = message_dict["display-name"].lower()
+
+	line = " ".join(message.split(" ")[1:])
+	with open("commands.py", "a") as f:
+		f.write("\n" + line)
+
+	log(f"Appended {line} for {user}")
+	send_message("Append was successful!")
+
+# this is flasgod's comment, here forever as a sign of his contribution to the project
+
+"""
+@is_command("Restarts the bot.")
+def restart(message_dict):
+    #After like 15 mins of work I couldn't get this to work so for now it is undefined
+    return False
+    DETACHED_PROCESS = 0x00000008
+    process = subprocess.Popen([sys.executable, "RoboKaywee.py"],creationflags=DETACHED_PROCESS)# .pid
+    print(process)
+    sleep(3) # give it time to fail if it's going to not start
+    #if not process.is_alive:
+    #    send_message("The restart failed.")
+    #    return False
+    #else:
+    send_message("RoboKaywee has restarted.")
+    exit()
+
+
+def _start_bot():
+	process = subprocess.Popen([sys.executable, "RoboKaywee.py"])
+"""
