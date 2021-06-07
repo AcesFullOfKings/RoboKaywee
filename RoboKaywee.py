@@ -724,7 +724,7 @@ def ban_lurker_bots():
 	while True:
 		known_bots = requests.get(bots_url).json()["bots"]
 
-		# the above returns a list of lists like [["botname", number_of_channels, "something else idk"]]
+		# the above returns a list of lists like [["botname", number_of_channels, "something else idk"], [..]]
 		# so for each bot in the list, bot[0] is the name; bot[1] is the number of channels it's in.
 		# Idk that's just how it comes through ok
 		# so this makes it into a dict of {name: numchannels}:
@@ -735,7 +735,7 @@ def ban_lurker_bots():
 			for viewer in viewers:
 				if viewer not in allowed_bots and viewer in known_bots and known_bots[viewer] > 100 and viewer not in recently_banned:
 					send_message(f"/ban {viewer}")
-					send_discord_message(f"The known bot {viewer} has been banned on Twitch for uninvited lurking.")
+					send_discord_message(f"The following uninvited lurker bot has been banned on Twitch: {viewer}")
 					log(f"Banned known bot {viewer} for uninvited lurking.")
 					recently_banned.append(viewer)
 					if len(recently_banned) > 10:
@@ -754,7 +754,10 @@ def _send_discord_message(message):
 	#this takes a few seconds and probably shouldn't be used too much LOL
 	try:
 		# fuck discory.py and it's async bs for making me do this
-		subprocess.run("python discord.py " + message, capture_output=True) # capture_output=True means the output doesn't go to console.. When it exit()s it prints the exception stack lol
+		if os.name == "nt": # WINDOWS:
+			subprocess.run("python discord.py " + message, capture_output=True) # capture_output=True means the output doesn't go to console.. When it exit()s it prints the exception stack lol
+		else: # NOT WINDOWS (rpi)
+			subprocess.run("python3.9 Discord.py " + message, capture_output=True) # capture_output=True means the output doesn't go to console.. When it exit()s it prints the exception stack lol
 	except:
 		pass
 
