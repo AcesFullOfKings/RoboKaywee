@@ -96,7 +96,7 @@ modwalls = {
 	# also I know that the SI prefixes don't match the numbers but whatever, I needed increasing prefixes
 }
 
-get_modwall = lambda x: modwalls[sorted(list(key for key in modwalls.keys() if key <= x))[-1]] # you can do it moldar
+get_modwall = lambda x: modwalls[sorted(list(key for key in modwalls.keys() if key <= x))[-1]]
 modwall_break_level = sorted(modwalls.keys())[1] # the second smallest modwall size
 
 with open("usernames.txt", "r", encoding="utf-8") as f:
@@ -244,7 +244,7 @@ def channel_events():
 		try:
 			check_live_status_subsequent()
 		except Exception as ex:
-			log("Exception which checking Live Status: " + str(ex))
+			log("Exception while checking Live Status: " + str(ex))
 
 		sleep(period)
 
@@ -583,7 +583,7 @@ def automatic_backup():
 	Autmatically makes a backup of all bot files once per week. Does not delete old files.
 	"""
 	
-	backup_period  = 86400 * 7 # backup once per 7 days
+	backup_period  = 86400 * 4 # backup once per 4 days
 	check_interval = 60*60     # check once per hour
 
 	while True:
@@ -733,7 +733,7 @@ def ban_lurker_bots():
 		for _ in range(5): # only update the known_bots list every 5 checks. Reduces api calls and there's a lot of data
 			viewers = requests.get(viewers_url).json()["chatters"]["viewers"] # doesn't list broadcaster, vips, mods, staff, admins, or global mods
 			for viewer in viewers:
-				if viewer not in allowed_bots and viewer in known_bots and known_bots[viewer] > 100 and viewer not in recently_banned:
+				if viewer not in usernames and viewer not in allowed_bots and viewer in known_bots and known_bots[viewer] > 100 and viewer not in recently_banned:
 					send_message(f"/ban {viewer}")
 					send_discord_message(f"The following uninvited lurker bot has been banned on Twitch: {viewer}")
 					log(f"Banned known bot {viewer} for uninvited lurking.")

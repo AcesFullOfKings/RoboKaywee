@@ -1381,52 +1381,6 @@ def wordoftheday(message_dict):
 	send_message(f"{tag}The Spanish Word of the Day is \"{spa}\", which means \"{eng}\"")
 	log(f"Sent word of the Day to {user}: {spa} means {eng}")
 
-@is_command("Show the price of bitcoin")
-def btc(message_dict):
-	user = message_dict["display-name"].lower()
-	try:
-		result = requests.get("https://api.coinbase.com/v2/prices/BTC-USD/spot").json()
-		value = float(result["data"]["amount"])
-	except Exception as ex:
-		log(f"Exception in btc: {str(ex)}")
-		return False
-	
-	if not message_dict.get("suppress_log", False):
-		log(f"Sent BTC of ${value:,} to {user}")
-	send_message(f"Bitcoin is currently worth ${value:,}")
-
-@is_command("Show the price of etherium")
-def eth(message_dict):
-	user = message_dict["display-name"].lower()
-	try:
-		result = requests.get("https://api.coinbase.com/v2/prices/ETH-USD/spot").json()
-		value = float(result["data"]["amount"])
-	except Exception as ex:
-		log(f"Exception in eth: {str(ex)}")
-		return False
-	
-	if not message_dict.get("suppress_log", False):
-		log(f"Sent ETH of ${value:,} to {user}")
-
-	send_message(f"Ethereum is currently worth ${value:,}")
-
-@is_command("Show the price of Dogecoin")
-def doge(message_dict):
-	user = message_dict["display-name"].lower()
-	try:
-		result = requests.get("https://sochain.com/api/v2/get_price/DOGE/USD").json()
-		value = float(result["data"]["prices"][0]["price"])
-	except Exception as ex:
-		log(f"Exception in eth: {str(ex)}")
-		return False
-
-	value = round(value * 100, 2)
-	
-	if not message_dict.get("suppress_log", False):	
-		log(f"Sent DOGE of {value:,} cents to {user}")
-
-	send_message(f"Dogecoin is currently worth {value:,} cents")
-
 @is_command("Display Kaywee's real biological age")
 def age(message_dict):
 	ages = list(range(19,24)) + list(range(36,43))
@@ -1952,15 +1906,6 @@ def mycolour(message_dict):
 	else:
 		send_message("I don't know what your colour is.")
 
-@is_command("Check all the crypto prices.")
-def crypto(message_dict):
-	user = message_dict["display-name"].lower()
-	message_dict["suppress_log"] = True
-	btc(message_dict)
-	eth(message_dict)
-	doge(message_dict)
-	log(f"Sent Crypto prices to {user}")
-
 # Please, nobody copy this or use this...it's terrifying.
 @is_command("Updates the RoboKaywee github with the current codebase.")
 def commit(message_dict):
@@ -1998,6 +1943,52 @@ def append(message_dict):
 
 	log(f"Appended {line} for {user}")
 	send_message("Append was successful!")
+
+@is_command("Show the price of etherium")
+def eth(message_dict):
+	new_message_dict = message_dict
+	new_message_dict["message"] = "!crypto eth"
+	crypto(new_message_dict)
+
+@is_command("Show the price of bitcoin")
+def btc(message_dict):
+	new_message_dict = message_dict
+	new_message_dict["message"] = "!crypto btc"
+	crypto(new_message_dict)
+
+@is_command("Show the price of dogecoin")
+def doge(message_dict):
+	new_message_dict = message_dict
+	new_message_dict["message"] = "!crypto doge"
+	crypto(new_message_dict)
+
+@is_command("Check all the crypto prices.")
+def crypto(message_dict):
+	user = message_dict["display-name"].lower()
+	message = message_dict["message"]
+
+	try:
+		crypto_codes = message.split(" ")[1:]
+		assert len(crypto_codes) >= 1
+	except:
+		crypto_codes = ["BTC", "ETH", "DOGE"]
+
+	for item in crypto_codes:
+		item = item.upper()
+		try:
+			if item == "DOGE":
+				result = requests.get(f"https://sochain.com/api/v2/get_price/{item}/USD").json()
+				value = float(result["data"]["prices"][0]["price"])
+			else:
+				result = requests.get(f"https://api.coinbase.com/v2/prices/{item}-USD/spot").json()
+				value = float(result["data"]["amount"])
+		except Exception as ex:
+			log(f"Exception in crypto: {str(ex)}")
+			send_message(f"{item} is not currently available via coinbase")
+			return False
+
+		send_message(f"{item} is currently worth ${round(value, 4):,}")
+		log(f"Sent {item} of ${round(value, 4)} to {user}")
 
 # this is flasgod's comment, here forever as a sign of his contribution to the project
 
