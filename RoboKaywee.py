@@ -583,7 +583,7 @@ def automatic_backup():
 	Autmatically makes a backup of all bot files once per week. Does not delete old files.
 	"""
 	
-	backup_period  = 86400 * 7 # backup once per 7 days
+	backup_period  = 86400 * 4 # backup once per 4 days
 	check_interval = 60*60     # check once per hour
 
 	while True:
