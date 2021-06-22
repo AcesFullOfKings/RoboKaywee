@@ -564,7 +564,7 @@ def tofreedom(message_dict):
 		quantity = int(quantity)
 
 	send_message(f"{quantity:,}{unit} in incomprehensible Freedom Units is {free_quantity:,}{free_unit}.")
-	log(f"Tofreedomed {quantity}{unit} for {user}")
+	log(f"Tofreedomed {quantity}{unit} (= {free_quantity:,}{free_unit}) for {user}")
 
 @is_command("Convert imperial units into metric. Syntax: !unfreedom <quantity><unit> e.g. `!tofreedom 5lb`")
 def unfreedom(message_dict):
@@ -604,7 +604,7 @@ def unfreedom(message_dict):
 		quantity = int(quantity) 
 
 	send_message(f"{quantity}{unit} in units which actually make sense is {sensible_quantity}{sensible_unit}.")
-	log(f"Unfreedomed {quantity}{unit} for {user}")
+	log(f"Unfreedomed {quantity}{unit} (= {sensible_quantity}{sensible_unit}) for {user}")
 
 @is_command("Looks up who gifted the current subscription to the given user. Syntax: !whogifted [@]kaywee")
 def whogifted(message_dict):
@@ -699,12 +699,22 @@ def toenglish(message_dict):
 		except KeyError:
 			return False
 
-	#phrase = phrase.replace(".", ",").replace("?", ",").replace("!", ",") # for some reason it only translates the first sentence
+	errors = 0
 
-	english += translator.translate(phrase, src="es", dest="en").text
+	while errors < 3: # <3
+		#phrase = phrase.replace(".", ",").replace("?", ",").replace("!", ",") # for some reason it only translates the first sentence
+		try:
+			english += translator.translate(phrase, src="es", dest="en").text
+			send_message(english)
+			log(f"Translated \"{phrase}\" into English for {user}: it says \"{english}\"")
+			return True
+		except Exception as ex:
+			log(f"Exception trying to translate \"{phrase}\" for {user} in toenglish: " + str(ex))
+			errors += 1
+			sleep(1)
 
-	send_message(english)
-	log(f"Translated \"{phrase}\" into English for {user}: it says \"{english}\"")
+	send_message("Translation failed. FeelsBadMan")
+	return False
 
 @is_command("Translates an English message into Spanish. Syntax: `!tospanish hello` OR to translate a user's last message, `!tospanish @kaywee`")
 def tospanish(message_dict):
@@ -724,12 +734,25 @@ def tospanish(message_dict):
 		except KeyError:
 			return False
 
-	#phrase = phrase.replace(".", ",").replace("?", ",").replace("!", ",") # for some reason it only translates the first sentence
-	
-	spanish += translator.translate(phrase, src="en", dest="es").text
+	errors = 0
 
-	send_message(spanish)
-	log(f"Translated \"{phrase}\" into Spanish for {user}: it says \"{spanish}\"")
+	while errors < 3: # <3
+
+		#phrase = phrase.replace(".", ",").replace("?", ",").replace("!", ",") # for some reason it only translates the first sentence
+		
+		try:
+			spanish += translator.translate(phrase, src="en", dest="es").text
+			send_message(spanish)
+			log(f"Translated \"{phrase}\" into Spanish for {user}: it says \"{spanish}\"")
+			return True
+
+		except Exception as ex:
+			log(f"Exception trying to translate \"{phrase}\" for {user} in tospanish: " + str(ex))
+			errors += 1
+			sleep(1)
+
+	send_message("Translation failed. FeelsBadMan")
+	return False
 
 @is_command("Translates a message from one language to another, powered by Google Translate. Languages are specified as a two-letter code, e.g. en/es/nl/fr. Syntax: !translate <source_lang> <dest_lang> <message>")
 def translate(message_dict):
@@ -742,6 +765,7 @@ def translate(message_dict):
 		phrase = " ".join(message.split(" ")[3:]).replace(".", ",").replace("?", ",").replace("!", ",")
 	except IndexError:
 		send_message("Syntax Error. Usage: !translate <source_lang> <dest_lang> <text>")
+		return False
 	
 	output = ""
 	if phrase.lower() in ["robokaywee", user, "@" + user, ""]:
@@ -753,14 +777,21 @@ def translate(message_dict):
 			output = target + ": "
 		except KeyError:
 			return False
-	try:
-		# phrase = phrase.replace(".", ";").replace("?", ";").replace("!", ";") # for some reason it only translates the first sentence
-		output += translator.translate(phrase, src=source, dest=dest).text
-		send_message(output)
-		log(f"Translated \"{phrase}\" into {dest} for {user}: it says \"{output}\"")
-	except Exception as ex:
-		send_message("Translation failed. FeelsBadMan")
-		return
+
+	errors = 0
+
+	while errors < 3: # <3
+		try:
+			# phrase = phrase.replace(".", ";").replace("?", ";").replace("!", ";") # for some reason it only translates the first sentence
+			output += translator.translate(phrase, src=source, dest=dest).text
+			send_message(output)
+			log(f"Translated \"{phrase}\" into {dest} for {user}: it says \"{output}\"")
+		except Exception as ex:
+			log(f"Exception trying to translate \"{phrase}\" for {user} in translate: " + str(ex))
+			errors += 1
+			sleep(1)
+	send_message("Translation failed. FeelsBadMan")
+	return False
 
 @is_command("Shows the user who most recently raided, and the time of the raid.")
 def lastraid(message_dict):
@@ -1444,17 +1475,19 @@ def urban(message_dict):
 
 	try:
 		result = requests.get(f"http://api.urbandictionary.com/v0/define?term={term}")
-		definition = result.json()["list"][num]["definition"]
+		definitions = result.json()["list"]
+		definitions.sort(key = lambda x: x["thumbs_up"] - x["thumbs_down"])
+		definition = definitions[num]["definition"]
 		assert definition != ""
 	except:
 		send_message("No definition found :( FeelsBadMan")
-		log(f"No Urban definition found for {term} in response to {user}")
+		log(f"No Urban definition (in position {num}) found for {term} in response to {user}")
 		return True
 
 	definition = definition.replace("[", "").replace("]", "")
 	if " " in term:
 		url_term   = term.replace(" ", "%20")
-		url_suffix = f"define.php?term={url_term}"
+		url_suffix = "define.php?term=" + url_term
 	else:
 		url_suffix = term # it seems to accept just /word at the end as long as there are no spaces.. so this is smaller
 
@@ -1635,7 +1668,7 @@ def _sr_thread(message,user):
 
 	if "error" in result:
 		send_message(result["error"] + " (names are case sensitive!)")
-		return True
+		return False
 	elif result["private"] is True:
 		send_message("That profile is private! PepeHands")
 		return True
@@ -1679,7 +1712,7 @@ def _sr_thread(message,user):
 			return True
 		else:
 			send_message(f"No SRs were found.")
-			return True
+			return False
 
 	elif "rating" in result:
 		if result["rating"] > 0:
@@ -1688,10 +1721,10 @@ def _sr_thread(message,user):
 			return True
 		else:
 			send_message(f"No SR was found.")
-			return True
+			return False
 	
 	send_message(f"Unable to find {target}'s SR rating. (Player names are case-sensitive!)")
-	return True
+	return False
 
 @is_command("Checks whether a channel is live. Syntax: !islive [@]<channel> e.g. `!islive kaywee`")
 def islive(message_dict):
@@ -1761,10 +1794,11 @@ def message(message_dict):
 				return False
 
 			else:
-				for msg in user_messages:
-					if user_messages[msg]["from_user"] == user:
-						send_message("You've already sent someone a message. To avoid spam, you can only send one at once.")
-						return False
+				# trialling large cooldown instead of message limit
+				#for msg in user_messages:
+				#	if user_messages[msg]["from_user"] == user:
+				#		send_message("You've already sent someone a message. To avoid spam, you can only send one at once.")
+				#		return False
 
 				user_messages[target] = {"from_user": user, "user_message": user_message}
 				set_data("user_messages", user_messages)
@@ -1787,7 +1821,7 @@ def _get_viewers_worker(message_dict):
 
 	sleep(3.5)
 	if viewer_thread.is_alive():
-		send_message(f"@{user} Give me a sec - it might take some time to get the viewers...")
+		send_message(f"@{user} Just a sec - it might take some time to get the viewers...")
 
 def _get_viewers(message_dict):
 	try:
@@ -1826,7 +1860,9 @@ def _get_viewers(message_dict):
 		except Exception as ex:
 			break
 
-	send_message(f"@{user} There are currently {viewers:,} people watching a {name} stream.")
+	n = "n" if name[0] in "aeiou" else ""
+
+	send_message(f"@{user} There are currently {viewers:,} people watching a{n} {name} stream.")
 	log(f"Sent viewers of {viewers:,} in category {name} to {user}.")
 	return
 
@@ -1983,7 +2019,6 @@ def crypto(message_dict):
 				result = requests.get(f"https://api.coinbase.com/v2/prices/{item}-USD/spot").json()
 				value = float(result["data"]["amount"])
 		except Exception as ex:
-			log(f"Exception in crypto: {str(ex)}")
 			send_message(f"{item} is not currently available via coinbase")
 			return False
 

@@ -12,7 +12,7 @@ from enum        import IntEnum
 from math        import ceil
 from james       import timeuntil #, is_haiku # takes 0.4s to import!
 from string      import ascii_lowercase
-from shutil      import copy2 as copy_with_metadata
+from shutil      import copy2 as copy_with_metadata # who the fuck calls something "copy2"? Get your shit together Python Foundation, damn. BuT iTs ThE sEcOnD vErSiOn oF CoPy, gtfo
 from chatbot     import ChatBot # see https://github.com/theonefoster/pyTwitchChatBot
 from datetime    import date, datetime
 from threading   import Thread, Lock, Event
@@ -408,6 +408,8 @@ def it_is_wednesday_my_dudes():
 	reminder_period = 60*60
 	last_pink_reminder = get_data("last_pink_reminder", 0)
 
+	sleep(90) # always wait a bit bc otherwise it sends play patiently messages at the same time
+
 	time_since = time() - last_pink_reminder
 	if time_since <= reminder_period:
 		wait_time = reminder_period - time_since
@@ -435,7 +437,9 @@ def it_is_thursday_my_dudes():
 		set_data("unpink_sent", True)
 
 def it_is_worldday_my_dudes():
+	#this assumes the bot restarts..
 	if not get_data("worldday_sent"):
+		print("Waiting 10m for worldday..")
 		sleep(10*60) # wait 10 mins into stream
 		commands_file.worldday({"display-name":"Timed Event"}) # have to include a message dict param
 		set_data("worldday_sent", True)
@@ -826,9 +830,9 @@ def respond_message(message_dict):
 		send_message("lmao")
 		log(f"Sent lmao to {user}")
 
-	elif message == "KEKW":
-		send_message("KEKWHD Jebaited")
-		log(f"Sent KEKW to {user}")
+	#elif message == "KEKW":
+	#	send_message("KEKWHD Jebaited")
+	#	log(f"Sent KEKW to {user}")
 
 	elif message_lower in ["hewwo", "hewwo?", "hewwo??"]:
 		send_message(f"HEWWO! UwU {get_emote('kaywee1AYAYA')}")
