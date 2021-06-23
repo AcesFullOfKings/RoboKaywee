@@ -1755,7 +1755,7 @@ def message(message_dict):
 	global user_messages
 	global usernames
 
-	valid_chars = "abcdefghijklmnopqrstuvwxyz0123456789!£$%^&*()-=_+[]{};'#:@~,./<>? "
+	valid_chars = "abcdefghijklmnopqrstuvwxyz0123456789!£$%^&*()-=_+[]{};'#:@~,./<>? " # copied from string.printable but with some control chars removed
 
 	try:
 		message = message_dict["message"]
@@ -1789,7 +1789,7 @@ def message(message_dict):
 			log(f"Didn't save user message for {user}: duplicate user ({target})")
 			return False
 		else:
-			if any(x in user_message for x in ["extended", "warranty", "vehicle", "courtesy"]):
+			if any(x in user_message for x in ["extended", "warranty", "vehicle", "courtesy", "trying to reach you", "notice in the mail", "car's", "eligibility", "gotten a response", "close out your file"]):
 				send_message("That mesasge is invalid.")
 				return False
 
@@ -2024,6 +2024,71 @@ def crypto(message_dict):
 
 		send_message(f"{item} is currently worth ${round(value, 4):,}")
 		log(f"Sent {item} of ${round(value, 4)} to {user}")
+
+@is_command("Start a prediction")
+def predict(message_dict):
+	user = message_dict["display-name"].lower()
+	message = message_dict["message"]
+
+	try:
+		words = message.split(" ")[1:]
+
+		try:
+			window = int(words[-1]) # if this is a number we continue: if not then no window was provided so except
+			assert len(words) >= 4 # if it's a number we need at least 4 words
+			title = " ".join(words[:-3])
+			outcome1 = words[-3]
+			outcome2 = words[-2]
+		except (ValueError, IndexError, AssertionError):
+			assert len(words) >= 3
+			title = " ".join(words[:-2])
+			outcome1 = words[-2]
+			outcome2 = words[-1]
+			window = 120
+	except:
+		title = "Will Kaywee win her next game?"
+		outcome1 = "Yes"
+		outcome2 = "No"
+		window = 120
+
+	if len(title) > 45:
+		send_message("The title is too long. Max length is 45 chars.")
+		log(f"{user}'s title was too long for a prediction: {title}")
+		return False
+	elif len(outcome1) > 25 or len(outcome2) > 25:
+		send_message("The outcome is too long. Max length is 25 chars.")
+		log(f"{user}'s option was too long for a prediction: {outcome2} / {outcome2}")
+		return False
+	elif not (1 <= window <= 1800):
+		send_message("The duration must be between 1-1800 seconds.")
+		log(f"{user}'s duration was too long for a prediction: {window}")
+		return False
+
+	if _predict(title, outcome1, outcome2, window):
+		send_message("Prediction started!")
+		log(f"Started prediction in response to {user}. Title: {title}; Option1: {outcome1}; Option2: {outcome2}; Duration: {window}")
+		return True
+	else:
+		send_message("Failed to start prediction. FeelsBadMan")
+		log(f"Failed to start prediction in response to {user}. Message was: {message}")
+		return False
+
+def _predict(title, outcome1, outcome2, window=120):
+	global get_oauth_token
+	token = get_oauth_token()
+	authorisation_header = {"Client-ID": robokaywee_client_id, "Authorization":"Bearer " + token, 'Content-Type': 'application/json'}
+
+	title = title[:45] # only allows 45 chars on title
+	outcome1 = outcome1[:25]
+	outcome2 = outcome2[:25] # only allows 25 chars on outcomes
+
+	if not (1 <= window <= 1800):
+		window = 120
+
+	prediction_dict = "{\"broadcaster_id\": \"" + kaywee_channel_id + "\", \"title\": \"" + title + "\", \"outcomes\": [{\"title\": \"" + outcome1 + "\"},{\"title\": \"" + outcome2 + "\"}],\"prediction_window\": " + str(window) + "}"
+
+	result = requests.post("https://api.twitch.tv/helix/predictions", data=str(prediction_dict), headers=authorisation_header)
+	return result.ok
 
 # this is flasgod's comment, here forever as a sign of his contribution to the project
 

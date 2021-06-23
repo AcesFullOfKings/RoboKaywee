@@ -784,6 +784,42 @@ def get_emote(emote):
 		else:
 			return ""
 
+def get_oauth_token(force_new_token=False):
+	kaywee_oauth_expiry = get_data("kaywee_oauth_expiry")
+
+	if force_new_token or kaywee_oauth_expiry < time():
+		kaywee_oauth_refresh_token = get_data("kaywee_oauth_refresh_token")
+		url = "https://id.twitch.tv/oauth2/token"
+		refresh_params = {"grant_type": "refresh_token",
+				  "refresh_token": kaywee_oauth_refresh_token,
+				  "client_id": robokaywee_client_id,
+				  "client_secret": robokaywee_secret}
+		result = requests.post(url, params=refresh_params).json()
+
+		kaywee_oauth_token = result["access_token"]
+		new_expiry = result["expires_in"]
+		new_refresh_token = result["refresh_token"]
+
+		set_data("kaywee_oauth_expiry", int(time() + new_expiry))
+		set_data("kaywee_oauth_refresh_token", new_refresh_token)
+		set_data("kaywee_oauth_token", kaywee_oauth_token)
+
+		return kaywee_oauth_token
+
+	else:
+		kaywee_oauth_token = get_data("kaywee_oauth_token")
+
+		try:
+			result = requests.get("https://id.twitch.tv/oauth2/validate", headers={"Authorization": "OAuth " + kaywee_oauth_token}).json()
+			new_expiry = result["expires_in"]
+			assert new_expiry > 0
+
+			set_data("kaywee_oauth_expiry", int(time() + new_expiry))
+			return kaywee_oauth_token # validate this before returning it
+
+		except:
+			return get_oauth_token(force_new_token=True)
+
 Thread(target=get_twitch_emotes).start()
 
 def respond_message(message_dict):
@@ -978,6 +1014,7 @@ if __name__ == "__main__":
 	commands_file.command_dict       = commands_dict
 	commands_file.last_message       = last_message
 	commands_file.user_messages      = user_messages
+	commands_file.get_oauth_token    = get_oauth_token
 	commands_file.write_command_data = write_command_data
 
 	print("Setup complete. Now listening in chat.")
