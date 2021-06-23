@@ -9,7 +9,7 @@ from time            import sleep, time
 from datetime        import date, datetime
 from fortunes        import fortunes
 from threading       import Thread
-from credentials     import kaywee_channel_id, robokaywee_client_id, exchange_API_key, weather_API_key 
+from credentials     import kaywee_channel_id, robokaywee_client_id, kaywee_channel_id, exchange_API_key, weather_API_key
 from googletrans     import Translator
 from multiprocessing import Process
 from james           import seconds_to_duration, timeuntil
@@ -2064,14 +2064,20 @@ def predict(message_dict):
 		log(f"{user}'s duration was too long for a prediction: {window}")
 		return False
 
-	if _predict(title, outcome1, outcome2, window):
+	result = _predict(title, outcome1, outcome2, window)
+
+	if result is True:
 		send_message("Prediction started!")
 		log(f"Started prediction in response to {user}. Title: {title}; Option1: {outcome1}; Option2: {outcome2}; Duration: {window}")
 		return True
 	else:
-		send_message("Failed to start prediction. FeelsBadMan")
-		log(f"Failed to start prediction in response to {user}. Message was: {message}")
-		return False
+		if result == "alreadyactive":
+			send_message("There's already a prediction in progress. To make another, end or delete the current one.")
+			return False
+		else:
+			send_message("Failed to start prediction. FeelsBadMan")
+			log(f"Failed to start prediction in response to {user}. Message was: {message}")
+			return False
 
 def _predict(title, outcome1, outcome2, window=120):
 	global get_oauth_token
@@ -2088,7 +2094,56 @@ def _predict(title, outcome1, outcome2, window=120):
 	prediction_dict = "{\"broadcaster_id\": \"" + kaywee_channel_id + "\", \"title\": \"" + title + "\", \"outcomes\": [{\"title\": \"" + outcome1 + "\"},{\"title\": \"" + outcome2 + "\"}],\"prediction_window\": " + str(window) + "}"
 
 	result = requests.post("https://api.twitch.tv/helix/predictions", data=str(prediction_dict), headers=authorisation_header)
+	response = result.json()
+	print(response)
+
+	if response.get("message", "") == "prediction event already active, only one allowed at a time":
+		return "alreadyactive"
+	else:
+		prediction_id = response["data"][0]["id"]
+		print("Prediction ID: " + prediction_id)
+		Thread(target=_summarise_prediction, args=(prediction_id, window+5)).start() # add 5 secs to the duration to make sure it's definitely ended
+
 	return result.ok
+
+def _summarise_prediction(prediction_id, wait_time):
+	print(f"Waiting {wait_time}s for ID {prediction_id}")
+	sleep(wait_time)
+	url = "https://api.twitch.tv/helix/predictions"
+	token = get_oauth_token()
+	authorisation_header = {"Client-ID": robokaywee_client_id, "Authorization":"Bearer " + token}
+
+	results = requests.get(url, headers=authorisation_header, params={"broadcaster_id":kaywee_channel_id}).json()["data"] # list of dicts
+
+	for result in results:
+		if result["id"] == prediction_id:
+			print("Found result")
+			if result["status"] == "LOCKED":
+				outcome1 = result["outcomes"][0]
+				outcome2 = result["outcomes"][1]
+
+				top_1 = sorted(outcome1["top_predictors"], key=lambda x: x["channel_points_used"]) if outcome1["top_predictors"] is not None else []
+				top_2 = sorted(outcome2["top_predictors"], key=lambda x: x["channel_points_used"]) if outcome2["top_predictors"] is not None else []
+
+				top_voter_1 = top_1[0]["user_name"] if len(top_1) > 0 else "Nobody"
+				top_voter_2 = top_2[0]["user_name"] if len(top_2) > 0 else "Nobody"
+
+				top_points1 = top_1[0]["channel_points_used"] if len(top_1) > 0 else "0"
+				top_points2 = top_2[0]["channel_points_used"] if len(top_2) > 0 else "0"
+
+				votes1 = "vote" if {outcome1["users"]} == 1 else "votes"
+				votes2 = "vote" if {outcome2["users"]} == 1 else "votes"
+
+				message1 = f'Prediction is now closed! {outcome1["title"]} got {outcome1["users"]} {votes1}, totalling {outcome1["channel_points"]} points, while {outcome2["title"]} got {outcome2["users"]} {votes2} totalling {outcome2["channel_points"]} points.'
+				message2 = f'The biggest bet on {outcome1["title"]} was by {top_voter_1} with {top_points1}, and on {outcome2["title"]} was by {top_voter_2} with {top_points2}. Good luck!'
+
+				send_message(message1)
+				sleep(0.2)
+				send_message(message2)
+				return
+			else:
+				print(f"Result status was {result['status']}, skipping")
+
 
 # this is flasgod's comment, here forever as a sign of his contribution to the project
 
