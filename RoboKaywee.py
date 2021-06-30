@@ -768,7 +768,7 @@ def send_discord_message(message):
 def _send_discord_message(message):
 	# this takes a few seconds and probably shouldn't be used too much LOL
 	try:
-		# fuck discory.py and it's async bs for making me do this
+		# fuck discord.py and it's async bs for making me do this
 		if os.name == "nt": # WINDOWS:
 			subprocess.run("python discord.py " + message, capture_output=True) # capture_output=True means the output doesn't go to console.. Otherwise when it exit()s it prints the exception stack lol
 		else: # NOT WINDOWS (rpi)
@@ -935,11 +935,6 @@ def respond_message(message_dict):
 	elif msg_lower_no_punc in ["modcheck", "mod check"]:
 		send_message(":eyes:")
 		log(f"Sent ModCheck to {user}")
-	#else:
-	#	haiku = is_haiku(message_lower)
-	#	if haiku:
-	#		send_message(f"@{user} That was a haiku!! {' // '.join(haiku)}")
-	#		log(f"Sent Haiku to {user}: {str(haiku)}")
 
 class permissions(IntEnum):
     Disabled    = 20
