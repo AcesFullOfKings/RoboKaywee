@@ -17,7 +17,7 @@ from chatbot     import ChatBot # see https://github.com/theonefoster/pyTwitchCh
 from datetime    import date, datetime
 from threading   import Thread, Lock, Event
 from contextlib  import suppress
-from credentials import bot_name, password, channel_name, kaywee_channel_id, robokaywee_client_id, tof_channel_id
+from credentials import bot_name, password, channel_name, kaywee_channel_id, robokaywee_client_id, tof_channel_id, robokaywee_secret
 
 import commands as commands_file # takes 0.3s to import!
 from API_functions import get_app_access_token, get_name_from_user_ID, get_followers
@@ -711,7 +711,7 @@ def ban_lurker_bots():
 	viewers_url = "https://tmi.twitch.tv/group/user/kaywee/chatters"
 	bots_url = "https://api.twitchinsights.net/v1/bots/all"
 	allowed_bots = bots
-	check_period = 60*30
+	check_period = 60*30 # 30 minutes
 
 	last_lurker_check = get_data("last_lurker_check", 0)
 
@@ -726,29 +726,43 @@ def ban_lurker_bots():
 	recently_banned = get_data("recently_banned", [])
 
 	while True:
-		known_bots = requests.get(bots_url).json()["bots"]
+		try:
+			known_bots = requests.get(bots_url).json()["bots"]
 
-		# the above returns a list of lists like [["botname", number_of_channels, "something else idk"], [..]]
-		# so for each bot in the list, bot[0] is the name; bot[1] is the number of channels it's in.
-		# Idk that's just how it comes through ok
-		# so this makes it into a dict of {name: numchannels}:
-		known_bots = dict([(bot[0], bot[1]) for bot in known_bots]) 
-
-		for _ in range(5): # only update the known_bots list every 5 checks. Reduces api calls and there's a lot of data
-			viewers = requests.get(viewers_url).json()["chatters"]["viewers"] # doesn't list broadcaster, vips, mods, staff, admins, or global mods
-			for viewer in viewers:
-				if viewer not in usernames and viewer not in allowed_bots and viewer in known_bots and known_bots[viewer] > 100 and viewer not in recently_banned:
-					send_message(f"/ban {viewer}")
-					send_discord_message(f"The following uninvited lurker bot has been banned on Twitch: {viewer}")
-					log(f"Banned known bot {viewer} for uninvited lurking.")
-					recently_banned.append(viewer)
-					if len(recently_banned) > 10:
-						recently_banned = recently_banned[:10]
-					set_data("recently_banned", recently_banned)
-					sleep(3) # just helps space the messages out a bit
-
-			set_data("last_lurker_check", int(time()))
+			# the above returns a list of lists like [["botname", number_of_channels, "something else idk"], [..]]
+			# so for each bot in the list, bot[0] is the name; bot[1] is the number of channels it's in.
+			# Idk that's just how it comes through ok
+			# so this makes it into a dict of {name: numchannels}:
+			known_bots = dict([(bot[0], bot[1]) for bot in known_bots]) 
+		except Exception as ex:
+			print("Exception while fetching lurker bots list: " + str(ex))
 			sleep(check_period)
+		else:
+			for _ in range(24): # only update the known_bots list every 24 checks (currently 12 hours). Reduces api calls and there's a lot of data
+				try:
+					viewers = requests.get(viewers_url).json()["chatters"]["viewers"] # doesn't list broadcaster, vips, mods, staff, admins, or global mods. Which is good here.
+				except Exception as ex:
+					print("Exception while checking for lurker bots: " + str(ex))
+					sleep(check_period)
+				else:
+					for viewer in viewers:
+						# allow anyone who's ever chatted (usernames list)
+						# exclude allowed bots
+						# check they're in the known bot list
+						# check they're lurking in at least 100 channels
+						# check we've not already banned them
+						if (viewer not in usernames) and (viewer not in allowed_bots) and (viewer in known_bots) and (known_bots[viewer] > 100) and (viewer not in recently_banned):
+							send_message(f"/ban {viewer}")
+							send_discord_message(f"The following uninvited lurker bot has been banned on Twitch: {viewer}")
+							log(f"Banned known bot {viewer} for uninvited lurking.")
+							recently_banned.append(viewer)
+							if len(recently_banned) > 10:
+								recently_banned = recently_banned[-10:]
+							set_data("recently_banned", recently_banned)
+							sleep(3) # just helps space the messages out a bit
+
+					set_data("last_lurker_check", int(time()))
+					sleep(check_period)
 
 def send_discord_message(message):
 	# don't wanna block up the main thread while the discord bot starts up and sends the message
@@ -1034,8 +1048,8 @@ if __name__ == "__main__":
 
 					if user not in usernames:
 						Thread(target=add_new_username,args=(user,)).start() # probably saves like.. idk 50ms? over just calling it.. trims reaction time though
-					elif hello_re.fullmatch(message_lower):
-						if user.lower() == "littlehummingbird":
+					elif hello_re.fullmatch(message_lower): # this way Hello isn't sent to new users - they get the greeting instead, not as well.
+						if user == "littlehummingbird":
 							send_message("HELLO MADDIE THIS IS TOTALLY NOT A SASSY MESSAGE BUT HI") # little easter egg for maddie :)
 							log("Said Hello to Maddie, but in a totally not-sassy way")
 						else:

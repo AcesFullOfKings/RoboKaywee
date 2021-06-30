@@ -709,7 +709,7 @@ def toenglish(message_dict):
 			log(f"Translated \"{phrase}\" into English for {user}: it says \"{english}\"")
 			return True
 		except Exception as ex:
-			log(f"Exception trying to translate \"{phrase}\" for {user} in toenglish: " + str(ex))
+			log(f"Exception in toenglish: " + str(ex))
 			errors += 1
 			sleep(1)
 
@@ -747,7 +747,7 @@ def tospanish(message_dict):
 			return True
 
 		except Exception as ex:
-			log(f"Exception trying to translate \"{phrase}\" for {user} in tospanish: " + str(ex))
+			log(f"Exception in tospanish: " + str(ex))
 			errors += 1
 			sleep(1)
 
@@ -786,8 +786,9 @@ def translate(message_dict):
 			output += translator.translate(phrase, src=source, dest=dest).text
 			send_message(output)
 			log(f"Translated \"{phrase}\" into {dest} for {user}: it says \"{output}\"")
+			return True
 		except Exception as ex:
-			log(f"Exception trying to translate \"{phrase}\" for {user} in translate: " + str(ex))
+			log(f"Exception in translate: " + str(ex))
 			errors += 1
 			sleep(1)
 	send_message("Translation failed. FeelsBadMan")
@@ -2044,12 +2045,12 @@ def predict(message_dict):
 			title = " ".join(words[:-2])
 			outcome1 = words[-2]
 			outcome2 = words[-1]
-			window = 120
+			window = 180
 	except:
 		title = "Will Kaywee win her next game?"
 		outcome1 = "Yes"
 		outcome2 = "No"
-		window = 120
+		window = 180
 
 	if len(title) > 45:
 		send_message("The title is too long. Max length is 45 chars.")
@@ -2067,7 +2068,7 @@ def predict(message_dict):
 	result = _predict(title, outcome1, outcome2, window)
 
 	if result is True:
-		send_message("Prediction started!")
+		send_message("Prediction started! Chatters can use the buttons in chat to predict the outcome and win Channel Points!")
 		log(f"Started prediction in response to {user}. Title: {title}; Option1: {outcome1}; Option2: {outcome2}; Duration: {window}")
 		return True
 	else:
@@ -2079,7 +2080,7 @@ def predict(message_dict):
 			log(f"Failed to start prediction in response to {user}. Message was: {message}")
 			return False
 
-def _predict(title, outcome1, outcome2, window=120):
+def _predict(title, outcome1, outcome2, window=180):
 	global get_oauth_token
 	token = get_oauth_token()
 	authorisation_header = {"Client-ID": robokaywee_client_id, "Authorization":"Bearer " + token, 'Content-Type': 'application/json'}
@@ -2089,25 +2090,22 @@ def _predict(title, outcome1, outcome2, window=120):
 	outcome2 = outcome2[:25] # only allows 25 chars on outcomes
 
 	if not (1 <= window <= 1800):
-		window = 120
+		window = 180
 
 	prediction_dict = "{\"broadcaster_id\": \"" + kaywee_channel_id + "\", \"title\": \"" + title + "\", \"outcomes\": [{\"title\": \"" + outcome1 + "\"},{\"title\": \"" + outcome2 + "\"}],\"prediction_window\": " + str(window) + "}"
 
 	result = requests.post("https://api.twitch.tv/helix/predictions", data=str(prediction_dict), headers=authorisation_header)
 	response = result.json()
-	print(response)
 
 	if response.get("message", "") == "prediction event already active, only one allowed at a time":
 		return "alreadyactive"
 	else:
 		prediction_id = response["data"][0]["id"]
-		print("Prediction ID: " + prediction_id)
-		Thread(target=_summarise_prediction, args=(prediction_id, window+5)).start() # add 5 secs to the duration to make sure it's definitely ended
+		Thread(target=_summarise_prediction, args=(prediction_id, window+3)).start() # add 3 secs to the duration to make sure it's definitely ended
 
 	return result.ok
 
 def _summarise_prediction(prediction_id, wait_time):
-	print(f"Waiting {wait_time}s for ID {prediction_id}")
 	sleep(wait_time)
 	url = "https://api.twitch.tv/helix/predictions"
 	token = get_oauth_token()
@@ -2115,41 +2113,104 @@ def _summarise_prediction(prediction_id, wait_time):
 
 	results = requests.get(url, headers=authorisation_header, params={"broadcaster_id":kaywee_channel_id}).json()["data"] # list of dicts
 
-	for result in results:
+	for result in results: # we can't request a specific result, so we have to iterate through all of them. Dumb!
 		if result["id"] == prediction_id:
-			print("Found result")
 			if result["status"] == "LOCKED":
 				outcome1 = result["outcomes"][0]
 				outcome2 = result["outcomes"][1]
 
-				top_1 = sorted(outcome1["top_predictors"], key=lambda x: x["channel_points_used"]) if outcome1["top_predictors"] is not None else []
-				top_2 = sorted(outcome2["top_predictors"], key=lambda x: x["channel_points_used"]) if outcome2["top_predictors"] is not None else []
+				top_1 = sorted(outcome1["top_predictors"], key=lambda x: x["channel_points_used"], reverse=True) if outcome1["top_predictors"] is not None else []
+				top_2 = sorted(outcome2["top_predictors"], key=lambda x: x["channel_points_used"], reverse=True) if outcome2["top_predictors"] is not None else []
 
 				top_voter_1 = top_1[0]["user_name"] if len(top_1) > 0 else "Nobody"
 				top_voter_2 = top_2[0]["user_name"] if len(top_2) > 0 else "Nobody"
 
-				top_points1 = top_1[0]["channel_points_used"] if len(top_1) > 0 else "0"
-				top_points2 = top_2[0]["channel_points_used"] if len(top_2) > 0 else "0"
+				top_points1 = int(top_1[0]["channel_points_used"]) if len(top_1) > 0 else 0
+				top_points2 = int(top_2[0]["channel_points_used"]) if len(top_2) > 0 else 0
 
-				votes1 = "vote" if {outcome1["users"]} == 1 else "votes"
-				votes2 = "vote" if {outcome2["users"]} == 1 else "votes"
+				if top_points1 + top_points2 > 0: # if anyone voted at all. If not don't bother with summary
+					votes1 = "vote" if outcome1["users"] == 1 else "votes"
+					votes2 = "vote" if outcome2["users"] == 1 else "votes"
 
-				message1 = f'Prediction is now closed! {outcome1["title"]} got {outcome1["users"]} {votes1}, totalling {outcome1["channel_points"]} points, while {outcome2["title"]} got {outcome2["users"]} {votes2} totalling {outcome2["channel_points"]} points.'
-				message2 = f'The biggest bet on {outcome1["title"]} was by {top_voter_1} with {top_points1}, and on {outcome2["title"]} was by {top_voter_2} with {top_points2}. Good luck!'
+					# do I need this? It's also not really a "winner" just because it got more prediction points. Maybe use phrasing "Chat predicts.."
+					# winner_name   = outcome1["title"] if outcome1["channel_points"] > outcome2["channel_points"] else outcome2["title"]
+					# winner_points = outcome1["title"] if outcome1["channel_points"] > outcome2["channel_points"] else outcome2["title"]
 
-				send_message(message1)
-				sleep(0.2)
-				send_message(message2)
-				return
+					percent_1 = round(100 * (outcome1["channel_points"] / (outcome1["channel_points"] + outcome2["channel_points"])), 1)
+					percent_2 = round(100 * (outcome2["channel_points"] / (outcome1["channel_points"] + outcome2["channel_points"])), 1)
+
+					percent_1 = int(percent_1) if int(percent_1) == percent_1 else percent_1 # this converts a float into an int, but only if there's no decimal component. e.g. 50.0 -> 50, but 33.3 -> 33.3
+					percent_2 = int(percent_2) if int(percent_2) == percent_2 else percent_2
+
+					total1 = f', totalling {outcome1["channel_points"]:,} points ({percent_1}%)' if outcome1["users"] > 0 else ""
+					total2 = f', totalling {outcome2["channel_points"]:,} points ({percent_2}%)' if outcome2["users"] > 0 else ""
+
+					message1 = f'Prediction is now closed! {outcome1["title"]} got {outcome1["users"]} {votes1}{total1}; {outcome2["title"]} got {outcome2["users"]} {votes2}{total2}.'
+
+					message2 = "The biggest bet on "
+
+					if top_points1 > 0:
+						message2 += f'{outcome1["title"]} was by {top_voter_1} with {top_points1:,}'
+						votes_on_1 = True
+					else:
+						votes_on_1 = False
+
+					if top_points2 > 0:
+						if votes_on_1:
+							message2 += ", and on "
+						message2 += f'{outcome2["title"]} was by {top_voter_2} with {top_points2:,}'
+
+					message2 += ". Good luck!"
+
+					send_message(message1)
+					sleep(0.5)
+					send_message(message2)
+					break
+				else:
+					log("Skipped prediction summary - nobody voted.")
+					break
 			else:
-				print(f"Result status was {result['status']}, skipping")
+				log(f"Skipped prediction summary - status was {result['status']}")
+				break
 
+	else: # if the for loop completed without breaking..
+		log("Skipped prediction summary - prediction ID wasn't found!")
+
+"""
+@is_command("Starts a chant in chat.")
+def chant(message_dict):
+	# doesn't work, twitch rejects the command. Sadge
+	user = message_dict["display-name"].lower()
+	message = message_dict["message"]
+
+	chat_chant = " ".join(message.split(" ")[1:])
+
+	if len(chat_chant) > 120:
+		send_message("That's too long - character limit is 120.")
+		return False
+	else:
+		send_message(f"/chant {chat_chant}")
+		log(f"Started chant for {user} saying: {chat_chant}")
+"""
 
 # this is flasgod's comment, here forever as a sign of his contribution to the project
 
-"""
 @is_command("Restarts the bot.")
 def restart(message_dict):
+	return False
+
+"""
+	rk_path = os.path.join(os.getcwd(), "RoboKaywee.py")
+	print(rk_path)
+	#os.execvp("python", ("RoboKaywee.py",)) # will exit current process and run RoboKaywee.py in a new process
+	os.execl("RoboKaywee.py", "This is the first arg")
+
+
+
+
+
+
+
     #After like 15 mins of work I couldn't get this to work so for now it is undefined
     return False
     DETACHED_PROCESS = 0x00000008
