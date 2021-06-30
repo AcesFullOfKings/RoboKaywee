@@ -357,7 +357,7 @@ def commit_subscribers():
 			command_lock.release()
 
 def add_new_username(username):
-	send_message(f"Welcome to Kaywee's channel {username}! Get cosy and enjoy your stay kaywee1AYAYA <3")
+	send_message(f"Welcome to Kaywee's channel {username}! Get cosy and enjoy your stay {get_emote(kaywee1AYAYA)} <3")
 	log(f"Welcomed new user {username}")
 
 	global usernames	
@@ -718,10 +718,7 @@ def ban_lurker_bots():
 	time_since = time() - last_lurker_check
 	if time_since <= check_period:
 		wait_time = check_period - time_since
-	else:
-		wait_time = 0
-
-	sleep(wait_time)
+		sleep(wait_time)	
 
 	recently_banned = get_data("recently_banned", [])
 
@@ -769,13 +766,13 @@ def send_discord_message(message):
 	p = Thread(target=_send_discord_message, args=(message,)).start()
 
 def _send_discord_message(message):
-	#this takes a few seconds and probably shouldn't be used too much LOL
+	# this takes a few seconds and probably shouldn't be used too much LOL
 	try:
 		# fuck discory.py and it's async bs for making me do this
 		if os.name == "nt": # WINDOWS:
-			subprocess.run("python discord.py " + message, capture_output=True) # capture_output=True means the output doesn't go to console.. When it exit()s it prints the exception stack lol
+			subprocess.run("python discord.py " + message, capture_output=True) # capture_output=True means the output doesn't go to console.. Otherwise when it exit()s it prints the exception stack lol
 		else: # NOT WINDOWS (rpi)
-			subprocess.run("python3.9 Discord.py " + message, capture_output=True) # capture_output=True means the output doesn't go to console.. When it exit()s it prints the exception stack lol
+			subprocess.run("python3.9 Discord.py " + message, capture_output=True)
 	except:
 		pass
 
@@ -896,9 +893,9 @@ def respond_message(message_dict):
 		send_message("!romper")
 		log(f"Sent romper to {user}")
 
-	elif user == "theonefoster" and message_lower == "*sd":
-		shutdown_on_offline = True
-		log("Will now shutdown when Kaywee goes offline.")
+	#elif user == "theonefoster" and message_lower == "*sd":
+	#	shutdown_on_offline = True
+	#	log("Will now shutdown when Kaywee goes offline.")
 
 	elif user == "nightroad2593" and message_lower[:6] == "in ow2":
 		log(f"Saved new ow2 prediction: {message_lower}")
