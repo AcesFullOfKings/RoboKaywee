@@ -4,6 +4,7 @@ import re
 import subprocess
 import os
 import sys
+import wikipedia as wikip
 
 from time            import sleep, time
 from datetime        import date, datetime
@@ -2175,6 +2176,29 @@ def _summarise_prediction(prediction_id, wait_time):
 
 	else: # if the for loop completed without breaking..
 		log("Skipped prediction summary - prediction ID wasn't found!")
+
+@is_command("Show a summary of a topic from Wikipedia.")
+def wikipedia(message_dict):
+	user = message_dict["display-name"].lower()
+	message = message_dict["message"]
+
+	try:
+		topic = " ".join(message.split(" ")[1:])
+	except (ValueError, IndexError):
+		send_message("You have to provide a topic, like !wikipedia twitch")
+		return False
+
+	try:
+		page = wikip.summary(topic, sentences=2)
+		page = re.sub(r" ?\([^()]+\)", "", page) # remove brackets
+		page = re.sub(r" ?\([^()]+\)", "", page) # remove second-level brackets
+		send_message(page)
+	except Exception as ex:
+		print(str(ex))
+		send_message("That page wasn't found. Did you spell it correctly?")
+		return False
+
+	log(f"Sent wikipedia summary of {topic} to {user}")
 
 """
 @is_command("Starts a chant in chat.")

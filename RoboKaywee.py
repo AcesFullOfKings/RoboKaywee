@@ -247,7 +247,7 @@ def channel_events():
 			log("Exception while checking Live Status: " + str(ex))
 
 		sleep(period)
-
+		
 def play_patiently():
 	url = "https://api.twitch.tv/helix/streams?user_id=" + kaywee_channel_id
 	global authorisation_header
@@ -357,7 +357,7 @@ def commit_subscribers():
 			command_lock.release()
 
 def add_new_username(username):
-	send_message(f"Welcome to Kaywee's channel {username}! Get cosy and enjoy your stay {get_emote(kaywee1AYAYA)} <3")
+	send_message(f"Welcome to Kaywee's channel {username}! Get cosy and enjoy your stay {get_emote('kaywee1AYAYA')} <3")
 	log(f"Welcomed new user {username}")
 
 	global usernames	
@@ -613,7 +613,7 @@ def automatic_backup():
 
 		sleep(60*60) # check once per hour
 
-def update_app_access_token():
+def update_app_access_token(force_refresh=False):
 	global authorisation_header
 	url = "https://id.twitch.tv/oauth2/validate"
 
@@ -631,10 +631,12 @@ def update_app_access_token():
 			log("Exception when checking App Access Token: " + str(ex))
 			expires_in = 0
 
-		if expires_in < 48*60*60: # if token expires in the next 48h
+		if expires_in < 48*60*60 or force_refresh: # if token expires in the next 48h
 			new_token = get_app_access_token(log)
+			print("New token is " + new_token)
 			set_data("app_access_token", new_token) # get a new one
 			authorisation_header = {"Client-ID": robokaywee_client_id, "Authorization":"Bearer " + new_token}
+			force_refresh = False
 
 		sleep(23*60*60) # wait 23 hours
 
@@ -731,35 +733,48 @@ def ban_lurker_bots():
 			# Idk that's just how it comes through ok
 			# so this makes it into a dict of {name: numchannels}:
 			known_bots = dict([(bot[0], bot[1]) for bot in known_bots]) 
+			assert len(known_bots) > 0 # bit of a sanity check
 		except Exception as ex:
-			print("Exception while fetching lurker bots list: " + str(ex))
-			sleep(check_period)
-		else:
-			for _ in range(24): # only update the known_bots list every 24 checks (currently 12 hours). Reduces api calls and there's a lot of data
-				try:
-					viewers = requests.get(viewers_url).json()["chatters"]["viewers"] # doesn't list broadcaster, vips, mods, staff, admins, or global mods. Which is good here.
-				except Exception as ex:
-					print("Exception while checking for lurker bots: " + str(ex))
-					sleep(check_period)
-				else:
-					for viewer in viewers:
-						# allow anyone who's ever chatted (usernames list)
-						# exclude allowed bots
-						# check they're in the known bot list
-						# check they're lurking in at least 100 channels
-						# check we've not already banned them
-						if (viewer not in usernames) and (viewer not in allowed_bots) and (viewer in known_bots) and (known_bots[viewer] > 100) and (viewer not in recently_banned):
-							send_message(f"/ban {viewer}")
-							send_discord_message(f"The following uninvited lurker bot has been banned on Twitch: {viewer}")
-							log(f"Banned known bot {viewer} for uninvited lurking.")
-							recently_banned.append(viewer)
-							if len(recently_banned) > 10:
-								recently_banned = recently_banned[-10:]
-							set_data("recently_banned", recently_banned)
-							sleep(3) # just helps space the messages out a bit
+			print("Exception while fetching lurker bots list: " + str(ex) + " - using cached bots list")
+			try:
+				with open("known_bots.txt", "r", encoding="utf-8") as f:
+					known_bots = dict(eval(f.read()))
 
-					set_data("last_lurker_check", int(time()))
-					sleep(check_period)
+				assert len(known_bots) > 0 # bit of a sanity check
+			except Exception as ex:
+				print("Failed to read cached bots list. Sleeping - trying again later.")
+				sleep(check_period)
+				continue # restarts at the while True above
+
+		else:
+			with open("known_bots.txt", "w", encoding="utf-8") as f:
+				f.write(str(known_bots))
+
+		for _ in range(24): # only update the known_bots list every 24 checks (12 hours @ 30m/check). Reduces api calls and there's a lot of data (4MB?!)
+			try:
+				viewers = requests.get(viewers_url).json()["chatters"]["viewers"] # doesn't list broadcaster, vips, mods, staff, admins, or global mods. Which is good here.
+			except Exception as ex:
+				print("Exception while checking for lurker bots: " + str(ex))
+				sleep(check_period)
+			else:
+				for viewer in viewers:
+					# allow anyone who's ever chatted (usernames list)
+					# exclude allowed bots
+					# check they're in the known bot list
+					# check they're lurking in at least 100 channels
+					# check we've not already banned them
+					if (viewer not in usernames) and (viewer not in allowed_bots) and (viewer in known_bots) and (known_bots[viewer] > 100) and (viewer not in recently_banned):
+						send_message(f"/ban {viewer}")
+						send_discord_message(f"The following uninvited lurker bot has been banned on Twitch: {viewer}")
+						log(f"Banned known bot {viewer} for uninvited lurking.")
+						recently_banned.append(viewer)
+						if len(recently_banned) > 10:
+							recently_banned = recently_banned[-10:]
+						set_data("recently_banned", recently_banned)
+						sleep(3) # just helps space the messages out a bit
+
+				set_data("last_lurker_check", int(time()))
+				sleep(check_period)
 
 def send_discord_message(message):
 	# don't wanna block up the main thread while the discord bot starts up and sends the message
@@ -877,10 +892,6 @@ def respond_message(message_dict):
 		send_message("lmao")
 		log(f"Sent lmao to {user}")
 
-	#elif message == "KEKW":
-	#	send_message("KEKWHD Jebaited")
-	#	log(f"Sent KEKW to {user}")
-
 	elif message_lower in ["hewwo", "hewwo?", "hewwo??"]:
 		send_message(f"HEWWO! UwU {get_emote('kaywee1AYAYA')}")
 		log(f"Sent hewwo to {user}")
@@ -935,6 +946,10 @@ def respond_message(message_dict):
 	elif msg_lower_no_punc in ["modcheck", "mod check"]:
 		send_message(":eyes:")
 		log(f"Sent ModCheck to {user}")
+	elif message == "Jebaited":
+		send_message("Jebaited https://www.youtube.com/watch?v=d1YBv2mWll0 Jebaited")
+		log(f"Sent Jebaited song to {user}")
+
 
 class permissions(IntEnum):
     Disabled    = 20
@@ -1255,17 +1270,18 @@ if __name__ == "__main__":
 						elif message_dict["msg-id"] == "raid": # RAID
 							raider = message_dict["msg-param-displayName"]
 							viewer_count = message_dict["msg-param-viewerCount"]
-							with open("chatlog.txt", "a", encoding="utf-8") as f:
-								f.write(f"USERNOTICE: {raider} is raiding with {viewer_count} viewers!\n")
-							send_message(f"Wow! {raider} is raiding us with {viewer_count} new friends! Thank you! {get_emote('kaywee1AYAYA')}")
-							log(f"{raider} is raiding with {viewer_count} viewers.")
-							raid_data = {"raider": raider, "viewers": viewer_count, "time": time()}
-							raid_data = str(raid_data).replace(", ", ",") # set_data() replaces ", " with ",\n", but I don't want that to apply to this dict, so removing the space stops it being picked up by that .replace()
-							set_data("last_raid", raid_data)
+							if int(viewer_count) >= 2:
+								with open("chatlog.txt", "a", encoding="utf-8") as f:
+									f.write(f"USERNOTICE: {raider} is raiding with {viewer_count} viewers!\n")
+								send_message(f"Wow! {raider} is raiding us with {viewer_count} new friends! Thank you! {get_emote('kaywee1AYAYA')}")
+								log(f"{raider} is raiding with {viewer_count} viewers.")
+								raid_data = {"raider": raider, "viewers": viewer_count, "time": time()}
+								raid_data = str(raid_data).replace(", ", ",") # set_data() replaces ", " with ",\n", but I don't want that to apply to this dict, so removing the space stops it being picked up by that .replace()
+								set_data("last_raid", raid_data)
 
-							if commands_file.nochat_on:
-								Thread(target=nochat_raid).start() 
-								# sends a message in chat after a short delay
+								if commands_file.nochat_on:
+									Thread(target=nochat_raid).start() 
+									# sends a message in chat after a short delay
 
 						elif message_dict["msg-id"] == "submysterygift":
 							gifter = message_dict["login"] # comes as lowercase
