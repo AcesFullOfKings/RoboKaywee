@@ -70,10 +70,13 @@ bots = {"robokaywee", "streamelements", "nightbot"}
 bot = None
 shutdown_on_offline = False # can be set to true to shutdown pc when streamer goes offline
 
+twitch_emotes = [] # populated by get_twitch_emotes() below
+
 # some regexes for detecting certain message patterns
 ayy_re     = re.compile("a+y+") # one or more "a" followed by one or more "y", e.g. aayyyyy
 hello_re   = re.compile("h+i+|h+e+y+|h+e+l+o+|h+o+l+a+|h+i+y+a+") # various ways of saying hello
 patrick_re = re.compile("is this [^ ]*\?*$") # "is this " followed by a word, followed by zero or more question marks. e.g. "is this kaywee??"
+sheesh_re  = re.compile("s*h*e*s*h*") # sheesh
 
 # when only mods send messages into chat for at least X messages, the bot will announce the modwall.
 # the Name is the type of modwall which gets announced into chat
@@ -587,7 +590,7 @@ def automatic_backup():
 	Autmatically makes a backup of all bot files once per week. Does not delete old files.
 	"""
 	
-	backup_period  = 86400 * 4 # backup once per 4 days
+	backup_period  = 86400 * 7 # backup once per 7 days
 	check_interval = 60*60     # check once per hour
 
 	while True:
@@ -611,7 +614,7 @@ def automatic_backup():
 
 			set_data("last_backup", int(time()))
 
-		sleep(60*60) # check once per hour
+		sleep(check_interval)
 
 def update_app_access_token(force_refresh=False):
 	global authorisation_header
@@ -791,12 +794,13 @@ def _send_discord_message(message):
 	except:
 		pass
 
-twitch_emotes = []
 def get_twitch_emotes():
 	global twitch_emotes
 	result = requests.get("https://api.streamelements.com/kappa/v2/chatstats/kaywee/stats").json()
 	twitchEmotes = result.get("twitchEmotes", [])
 	twitch_emotes = [item["emote"] for item in twitchEmotes]
+
+Thread(target=get_twitch_emotes).start()
 
 def get_emote(emote):
 	global subscribers
@@ -816,10 +820,12 @@ def get_oauth_token(force_new_token=False):
 	if force_new_token or kaywee_oauth_expiry < time():
 		kaywee_oauth_refresh_token = get_data("kaywee_oauth_refresh_token")
 		url = "https://id.twitch.tv/oauth2/token"
-		refresh_params = {"grant_type": "refresh_token",
-				  "refresh_token": kaywee_oauth_refresh_token,
-				  "client_id": robokaywee_client_id,
-				  "client_secret": robokaywee_secret}
+		refresh_params = {
+					"grant_type"    : "refresh_token",
+					"refresh_token" : kaywee_oauth_refresh_token,
+					"client_id"     : robokaywee_client_id,
+					"client_secret" : robokaywee_secret
+					}
 		result = requests.post(url, params=refresh_params).json()
 
 		kaywee_oauth_token = result["access_token"]
@@ -838,15 +844,14 @@ def get_oauth_token(force_new_token=False):
 		try:
 			result = requests.get("https://id.twitch.tv/oauth2/validate", headers={"Authorization": "OAuth " + kaywee_oauth_token}).json()
 			new_expiry = result["expires_in"]
-			assert new_expiry > 0
+			assert new_expiry > 0 and new_expiry - time() > 0
 
 			set_data("kaywee_oauth_expiry", int(time() + new_expiry))
-			return kaywee_oauth_token # validate this before returning it
+			return kaywee_oauth_token
 
-		except:
+		except Exception as ex:
+			log(f"Exception when fetching oauth token - {str(ex)} - trying again with force_new_token..")
 			return get_oauth_token(force_new_token=True)
-
-Thread(target=get_twitch_emotes).start()
 
 def respond_message(message_dict):
 	# For random non-command responses/rules
@@ -874,11 +879,11 @@ def respond_message(message_dict):
 			send_message(f"@{user} {commands_dict['nochat']['response']}")
 			log(f"Sent nochat to {user} in response to @kaywee during nochat mode.")
 
-	elif permission < permissions.Subscriber:
-		msg_without_spaces = message_lower.replace(" ", "")
-		if any(x in msg_without_spaces for x in ["bigfollows.com", "bigfollows*com", "bigfollowsdotcom"]):
-			send_message(f"/ban {user}")
-			log(f"Banned {user} for linking to bigfollows")
+	#elif permission < permissions.Subscriber:
+	#	msg_without_spaces = message_lower.replace(" ", "")
+	#	if any(x in msg_without_spaces for x in ["bigfollows.com", "bigfollows*com", "bigfollowsdotcom"]):
+	#		send_message(f"/ban {user}")
+	#		log(f"Banned {user} for linking to bigfollows")
 
 	# EASTER EGGS:
 
@@ -921,7 +926,7 @@ def respond_message(message_dict):
 	elif msg_lower_no_punc == "alexa stop":
 		send_message("Now stopping.")
 		log(f"Stopping Alexa for {user}")
-	elif len(message_lower.split()) == 2 and message_lower.split()[0] in ["im", "i'm"]:
+	elif len(message_lower.split()) == 2 and message_lower.split()[0] in ["im", "i'm", "i’m"]:
 		send_message(f"Hi {message.split()[1]}, I'm dad!")
 		log(f"Sent Dad to {user}")
 	elif not bUrself_sent and user == "billneethesciencebee":
@@ -949,6 +954,15 @@ def respond_message(message_dict):
 	elif message == "Jebaited":
 		send_message("Jebaited https://www.youtube.com/watch?v=d1YBv2mWll0 Jebaited")
 		log(f"Sent Jebaited song to {user}")
+	elif message_lower == "boom boom boom boom":
+		send_message("I want you in my room")
+		log(f"Sent I want you in my room to {user}")
+	elif "birthday" in message_lower:
+		send_message("FeelsBirthdayMan")
+		log(f"Sent FeelsBirthdayMan to {user}")
+	elif re.fullmatch(sheesh_re, message_lower):
+		send_message("SHEEEEEEEEESH")
+		log(f"Sent SHEEEEEEEEESH to {user}")
 
 
 class permissions(IntEnum):

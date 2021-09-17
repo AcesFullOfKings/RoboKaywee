@@ -45,6 +45,8 @@ nottoxic_votes = 0
 voters = set()
 translator = Translator(service_urls=['translate.googleapis.com','translate.google.com','translate.google.co.kr'])
 all_emotes = [] # populated below
+olympic_medals = dict() # for olympics commands
+last_medals_check = 0 # for olympics commands
 
 @is_command("Allows mods to add and edit existing commands. Syntax: !rcommand [add/edit/delete/options] <command name> <add/edit: <command text> // options: <[cooldown/usercooldown/permission]>>")
 def rcommand(message_dict):
@@ -229,7 +231,7 @@ def triangle(message_dict):
 	except:
 		return False
 
-	valid_emote = emote in all_emotes
+	valid_emote = emote in all_emotes or user == "theonefoster"
 
 	if not valid_emote:
 		try:
@@ -443,7 +445,7 @@ def followgoal(message_dict):
 			followers_left = goal - followers
 			send_message(f"Our new follow goal is {goal:,}! kaywee1AYAYA")
 	except (ValueError, KeyError) as ex:
-		print("Error in followgoal command: " + ex)
+		log("Error in followgoal command: " + ex)
 
 def _tofreedom(unit, quantity):
 	"""Intentionally doesn't handle errors"""
@@ -802,7 +804,7 @@ def lastraid(message_dict):
 	raid_data = eval(get_data("last_raid"))
 
 	name    = raid_data["raider"]
-	viewers = raid_data["viewers"]
+	viewers = int(raid_data["viewers"])
 	time    = raid_data["time"]
 
 	date_num = datetime.utcfromtimestamp(time).strftime('%d') # returns a string with date number, e.g. "19"
@@ -818,10 +820,10 @@ def lastraid(message_dict):
 	date_num = str(date_num).lstrip("0")
 	time_str = datetime.utcfromtimestamp(time).strftime("%A " + date_num + suffix + " of %B at %H:%M UTC")
 
-	plural = "" if viewers == 1 else "s"
+	# viewers must be >=2 for it to have saved, so no need to check if viewers should be plural
 
-	send_message(f"The latest raid was by {name}, who raided with {viewers} viewer{plural} on {time_str}!")
-	log(f"Sent last raid to {user}: it was {name}, who raided with {viewers} viewer{plural} on {time_str}!")
+	send_message(f"The latest raid was by {name}, who raided with {viewers:,} viewers on {time_str}!")
+	log(f"Sent last raid to {user}: it was {name}, who raided with {viewers:,} viewers on {time_str}!")
 
 @is_command("Changes the colour of the bot's username. Syntax: !setcolour [<colour>|random] e.g.`!setcolour HotPink` OR `!setcolour random`")
 def setcolour(message_dict):
@@ -1167,7 +1169,7 @@ def worldday(message_dict):
 	links = [link for link in re.findall(links_re, page) if "www.daysoftheyear.com" in link and "class=\"js-link-target\"" in link] #"link" is the entire <a></a> tag
 
 	day_re = re.compile("<.*?>([^<]*)<")# text between the tags
-	world_day = re.search(day_re, links[0]).group(1).replace("&#8217;", "'") # first group of 0th match (0th group is the whole match, 1st group is between ())
+	world_day = re.search(day_re, links[0]).group(1).replace("&#8217;", "'").replace("&nbsp;", " ") # first group of 0th match (0th group is the whole match, 1st group is between ())
 
 	send_message(f"Happy {world_day}! (Source: https://www.daysoftheyear.com)" )
 	log(f"Sent World Day ({world_day}) to {user}")
@@ -1353,7 +1355,7 @@ def _get_place_from_name(place):
 		places = dict(eval(f.read()))
 
 	if place not in places:
-		print(f"Looking up new place name {place}")
+		log(f"Looking up new place name {place}")
 
 		geocode_url = "https://geocode.xyz/{place}?json=1"
 		geo_response = requests.get(geocode_url.format(place=place)).json()
@@ -2114,22 +2116,22 @@ def _summarise_prediction(prediction_id, wait_time):
 
 	results = requests.get(url, headers=authorisation_header, params={"broadcaster_id":kaywee_channel_id}).json()["data"] # list of dicts
 
-	for result in results: # we can't request a specific result, so we have to iterate through all of them. Dumb!
+	for result in results: # we can't request a specific result, so we have to iterate through all of them. Dumb! (It's very likely the most recent one so first in the list.. but not necessarily?)
 		if result["id"] == prediction_id:
 			if result["status"] == "LOCKED":
 				outcome1 = result["outcomes"][0]
 				outcome2 = result["outcomes"][1]
 
-				top_1 = sorted(outcome1["top_predictors"], key=lambda x: x["channel_points_used"], reverse=True) if outcome1["top_predictors"] is not None else []
-				top_2 = sorted(outcome2["top_predictors"], key=lambda x: x["channel_points_used"], reverse=True) if outcome2["top_predictors"] is not None else []
-
-				top_voter_1 = top_1[0]["user_name"] if len(top_1) > 0 else "Nobody"
-				top_voter_2 = top_2[0]["user_name"] if len(top_2) > 0 else "Nobody"
+				top_1 = sorted(outcome1["top_predictors"], key=lambda x: x["channel_points_used"], reverse=True) if outcome1.get("top_predictors", None) is not None else []
+				top_2 = sorted(outcome2["top_predictors"], key=lambda x: x["channel_points_used"], reverse=True) if outcome2.get("top_predictors", None) is not None else []
 
 				top_points1 = int(top_1[0]["channel_points_used"]) if len(top_1) > 0 else 0
 				top_points2 = int(top_2[0]["channel_points_used"]) if len(top_2) > 0 else 0
 
 				if top_points1 + top_points2 > 0: # if anyone voted at all. If not don't bother with summary
+					top_voter_1 = top_1[0]["user_name"] if len(top_1) > 0 else "Nobody"
+					top_voter_2 = top_2[0]["user_name"] if len(top_2) > 0 else "Nobody"
+
 					votes1 = "vote" if outcome1["users"] == 1 else "votes"
 					votes2 = "vote" if outcome2["users"] == 1 else "votes"
 
@@ -2147,7 +2149,6 @@ def _summarise_prediction(prediction_id, wait_time):
 					total2 = f', totalling {outcome2["channel_points"]:,} points ({percent_2}%)' if outcome2["users"] > 0 else ""
 
 					message1 = f'Prediction is now closed! {outcome1["title"]} got {outcome1["users"]} {votes1}{total1}; {outcome2["title"]} got {outcome2["users"]} {votes2}{total2}.'
-
 					message2 = "The biggest bet on "
 
 					if top_points1 > 0:
@@ -2166,14 +2167,13 @@ def _summarise_prediction(prediction_id, wait_time):
 					send_message(message1)
 					sleep(0.5)
 					send_message(message2)
-					break
 				else:
 					log("Skipped prediction summary - nobody voted.")
-					break
+				break # breaks the `for result in results:` - i.e. skip the rest of the prediction results
 			else:
 				log(f"Skipped prediction summary - status was {result['status']}")
-				break
-
+				break # ditto
+				
 	else: # if the for loop completed without breaking..
 		log("Skipped prediction summary - prediction ID wasn't found!")
 
@@ -2200,6 +2200,119 @@ def wikipedia(message_dict):
 
 	log(f"Sent wikipedia summary of {topic} to {user}")
 
+def _get_medals():
+	global olympic_medals
+	global last_medals_check
+	if olympic_medals == dict() or time()-last_medals_check >= 30*60:
+		table_re = re.compile("<table.*</table>")
+		row_re   = re.compile("<tr.*</tr>")
+		span_re  = re.compile("<span[^>]*>([^<]*)</span")
+
+		page = requests.get("https://www.bbc.co.uk/sport/olympics/57836709").text
+		matches = re.findall(table_re, page)
+
+		for m in matches:
+			if "China" in m and "Japan" in m: #simple sanity check to ensure it's the right table. There's only one but still
+				rows = re.findall(row_re, m)
+				for row in rows: 
+					cols = re.findall(span_re, row) # list of strings
+					while len(cols) >= 6:
+						if cols[0] != "Rank":
+							olympic_medals[cols[1]] = {"golds":cols[2].lower(),"silvers":cols[3],"bronzes":cols[4],"total":cols[5], "rank":cols[0]}
+						cols = cols[6:]
+		last_medals_check = time()
+
+def _make_ordinal(n):
+    '''
+    Convert an integer into its ordinal representation::
+
+        make_ordinal(0)   => '0th'
+        make_ordinal(3)   => '3rd'
+        make_ordinal(122) => '122nd'
+        make_ordinal(213) => '213th'
+    '''
+    n = int(n)
+    suffix = ['th', 'st', 'nd', 'rd', 'th'][min(n % 10, 4)]
+    if 11 <= (n % 100) <= 13:
+        suffix = 'th'
+    return str(n) + suffix
+
+@is_command("Get the current number of Olympic Medals by a given country in the 2021 Olympics. e.g. `!medals Russia`")
+def medals(message_dict):
+	user = message_dict["display-name"].lower()
+	message = message_dict["message"]
+
+	try:
+		country = " ".join(message.split(" ")[1:])
+	except:
+		send_message("You have to provide a country, e.g. !medals China")
+		return False
+
+	_get_medals()
+	country = country.title()
+	if country in ["Roc", "Russia"]:
+		country = "Russian Olympic Committee"
+	elif country in ["Uk", "United Kingdom", "Britain"]:
+		country = "Great Britain"
+	elif country in ["Usa", "America", "Murica"]:
+		country = "United States"
+	elif country == "Korea":
+		country = "South Korea"
+	elif country == "Taipei":
+		country = "Chinese Taipei"
+	elif country in ["Holland", "The Netherlands"]:
+		country = "Netherlands"
+
+	global olympic_medals
+	country_results = olympic_medals.get(country, None)
+
+	if country_results is not None:
+		golds   = int(country_results.get("golds", 0))
+		silvers = int(country_results.get("silvers", 0))
+		bronzes = int(country_results.get("bronzes", 0))
+		total   = int(country_results.get("total", 0))
+		rank    = _make_ordinal(int(country_results.get("rank", 0)))
+
+		g_pl = "" if golds == 1 else "s"
+		s_pl = "" if silvers == 1 else "s"
+		b_pl = "" if bronzes == 1 else "s"
+		t_pl = "" if total == 1 else "s"
+
+		send_message(f"{country} is ranked {rank} with {golds} Gold{g_pl}, {silvers} Silver{s_pl}, and {bronzes} Bronze{b_pl}, totalling {total} medal{t_pl}. Source: https://www.bbc.co.uk/sport/olympics/57836709")		
+		log(f"Sent medals to {user} - {country} has {golds}G, {silvers}S, {bronzes}B, {total}T")
+	else:
+		send_message(f"Couldn't find {country} on the leaderboard (maybe they have no medals yet? FeelsBadMan ). Source: https://www.bbc.co.uk/sport/olympics/57836709")
+		log(f"Couldn't find medals for country {country} in response to {user}")
+
+@is_command("Get the current Olypics 2021 leader.")
+def olympics(message_dict):
+	user = message_dict["display-name"].lower()
+	message = message_dict["message"]
+
+	country = ""
+	try:
+		country = " ".join(message.split(" ")[1:])
+		if country != "":
+			return medals(message_dict) # don't run the rest of the code; redirect to medals instead
+	except:
+		pass # no country provided - continue running this function
+
+	_get_medals()
+	countries = sorted(olympic_medals.keys(), key=lambda country: int(olympic_medals[country]["golds"])+0.001*float(olympic_medals[country]["silvers"])+0.00001*float(olympic_medals[country]["bronzes"]), reverse=True)
+	
+	leader  = countries[0]
+	golds   = olympic_medals[leader].get("golds", 0)
+	silvers = olympic_medals[leader].get("silvers", 0)
+	bronzes = olympic_medals[leader].get("bronzes", 0)
+	total   = olympic_medals[leader].get("total", 0)
+
+	g_pl = "" if golds == 1 else "s"
+	s_pl = "" if silvers == 1 else "s"
+	b_pl = "" if bronzes == 1 else "s"
+	t_pl = "" if total == 1 else "s"
+
+	send_message(f"The current Olympics leader is {leader} with {golds} Gold{g_pl}, {silvers} Silver{s_pl}, and {bronzes} Bronze{b_pl}, totalling {total} medal{t_pl}. Source: https://www.bbc.co.uk/sport/olympics/57836709")
+	log(f"Sent olympic leader of {leader} to {user}")
 """
 @is_command("Starts a chant in chat.")
 def chant(message_dict):
