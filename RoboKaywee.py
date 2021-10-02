@@ -76,7 +76,7 @@ twitch_emotes = [] # populated by get_twitch_emotes() below
 ayy_re     = re.compile("a+y+") # one or more "a" followed by one or more "y", e.g. aayyyyy
 hello_re   = re.compile("h+i+|h+e+y+|h+e+l+o+|h+o+l+a+|h+i+y+a+") # various ways of saying hello
 patrick_re = re.compile("is this [^ ]*\?*$") # "is this " followed by a word, followed by zero or more question marks. e.g. "is this kaywee??"
-sheesh_re  = re.compile("s*h*e*s*h*") # sheesh
+sheesh_re  = re.compile("s+h+e+s+h+") # sheesh
 
 # when only mods send messages into chat for at least X messages, the bot will announce the modwall.
 # the Name is the type of modwall which gets announced into chat
@@ -867,12 +867,13 @@ def respond_message(message_dict):
 
 	message_lower = message.lower()
 
+	msg_words = [word for word in message_lower.split(" ") if word not in twitch_emotes] # remove emotes
+
 	if "@robokaywee" in message_lower and user not in bots:
 		send_message(f"@{user} I'm a bot, so I can't reply. Try talking to one of the helpful human mods instead.")
 		log(f"Sent \"I'm a bot\" to {user}")
 
 	elif commands_file.nochat_on and user not in bots and "kaywee" in message_lower:
-		msg_words = [word for word in message_lower.split(" ") if word not in twitch_emotes] # remove emotes
 		message_lower = " ".join(msg_words).replace("robokaywee", "") # stitch message back together and remove robokaywee
 
 		if "kaywee" in message_lower:
@@ -963,6 +964,9 @@ def respond_message(message_dict):
 	elif re.fullmatch(sheesh_re, message_lower):
 		send_message("SHEEEEEEEEESH")
 		log(f"Sent SHEEEEEEEEESH to {user}")
+	elif any(len(word) > 3 and word.startswith("xqc") for word in msg_words):
+		send_message("KEKW Using KEKW xQc KEKW emotes KEKW unironically KEKW")
+		log(f"Sent KEKW to {user}'s xQc emote")
 
 
 class permissions(IntEnum):

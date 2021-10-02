@@ -1297,7 +1297,7 @@ def spongebob(message_dict):
 			output += c.lower()
 		else:
 			output += c.upper()
-		if c != " ":
+		if c.lower() in "abcdefghijklmnopqrstuvwxyz":
 			even = not even
 	
 
@@ -1793,7 +1793,7 @@ def message(message_dict):
 			log(f"Didn't save user message for {user}: duplicate user ({target})")
 			return False
 		else:
-			if any(x in user_message for x in ["extended", "warranty", "vehicle", "courtesy", "trying to reach you", "notice in the mail", "car's", "eligibility", "gotten a response", "close out your file"]):
+			if any(x in user_message for x in ["g165lZckwyo", "extended", "warranty", "vehicle", "courtesy", "trying to reach you", "notice in the mail", "car's", "eligibility", "gotten a response", "close out your file"]):
 				send_message("That mesasge is invalid.")
 				return False
 
@@ -2050,10 +2050,17 @@ def predict(message_dict):
 			outcome2 = words[-1]
 			window = 180
 	except:
+		words = message.split(" ")
 		title = "Will Kaywee win her next game?"
 		outcome1 = "Yes"
 		outcome2 = "No"
-		window = 180
+		if len(words) == 2:
+			try:
+				window = int(words[1])
+			except:
+				window = 180
+		else:
+			window = 180
 
 	if len(title) > 45:
 		send_message("The title is too long. Max length is 45 chars.")
@@ -2365,3 +2372,27 @@ def restart(message_dict):
 def _start_bot():
 	process = subprocess.Popen([sys.executable, "RoboKaywee.py"])
 """
+
+
+#@is_command("Shows how long is left on the 30-hour stream")
+"""def hours(message_dict):
+	user = message_dict["display-name"].lower()
+
+	finish_time = 1632000681
+
+	try:
+		time_left = seconds_to_duration(finish_time - time())
+		time_live = seconds_to_duration(30*60*60 - (finish_time - time()))
+	except ValueError:
+		time_live = seconds_to_duration(30*60*60 - (finish_time - time()))
+		send_message(f"We passed 30 hours! Congratulations Kaywee! She's been live for {time_live} :D")
+		log(f"Sent time left to {user} - we passed 30 hours and Kaywee has been live for {time_live}")
+
+
+	if "hour" in time_left and "hours" not in time_left: # at least one hour but not multiple hours.. say "is" instead of "are"
+		send_message(f"Kaywee has been live for {time_live}, meaning there is only {time_left} left until we reach 30 hours!")
+	else:
+		send_message(f"Kaywee has been live for {time_live}, meaning there are only {time_left} left until we reach 30 hours!")
+
+
+	log(f"Sent time left of {time_left} to {user}")"""
