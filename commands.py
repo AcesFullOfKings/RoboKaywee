@@ -13,7 +13,7 @@ from threading       import Thread
 from credentials     import kaywee_channel_id, robokaywee_client_id, kaywee_channel_id, exchange_API_key, weather_API_key
 from googletrans     import Translator
 from multiprocessing import Process
-from james           import seconds_to_duration, timeuntil
+from james           import seconds_to_duration, timeuntil, bad_words
 from contextlib      import suppress
 #from james import translate as j_translate
 
@@ -1793,7 +1793,7 @@ def message(message_dict):
 			log(f"Didn't save user message for {user}: duplicate user ({target})")
 			return False
 		else:
-			if any(x in user_message for x in ["g165lZckwyo", "extended", "warranty", "vehicle", "courtesy", "trying to reach you", "notice in the mail", "car's", "eligibility", "gotten a response", "close out your file"]):
+			if any(x in user_message for x in bad_words):
 				send_message("That mesasge is invalid.")
 				return False
 
