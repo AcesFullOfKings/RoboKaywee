@@ -438,7 +438,11 @@ def followgoal(message_dict):
 			send_message(f"The follower goal of {goal:,} has been met! We now have {followers:,} followers! kaywee1AYAYA")
 			log(f"Sent followergoal has been met to {user} ({followers:,}/{goal:,})")
 			while goal <= followers:
-				goal += 500
+				if goal < 10000:
+					goal += 500
+				else:
+					goal += 1000
+					
 			set_data("followgoal", goal)
 			log(f"Increased followgoal to {goal:,}")
 
@@ -1775,7 +1779,7 @@ def message(message_dict):
 
 	except Exception as ex:
 		send_message("Invalid syntax. Your message won't be sent.")
-		log(f"Didn't save user message for {user}: invalid syntax.")
+		log(f"Didn't save user message for {user}: invalid syntax. (message was: {message})")
 		return False
 
 	if target == user:
@@ -1784,7 +1788,7 @@ def message(message_dict):
 		return False
 	elif target in ["robokaywee", "streamelements"]:
 		send_message("Don't be silly, bots can't read. (At least, that's what we want you to think..!)")
-		log(f"Didn't save user message for {user}: tried to message a bot")
+		log(f"Didn't save user message for {user}: tried to message a bot ({target})")
 		return False
 
 	if target in usernames:
@@ -1795,6 +1799,7 @@ def message(message_dict):
 		else:
 			if any(x in user_message for x in bad_words):
 				send_message("That mesasge is invalid.")
+				log("Didn't save invalid message from {user} - message was: {message}")
 				return False
 
 			else:
@@ -2207,28 +2212,6 @@ def wikipedia(message_dict):
 
 	log(f"Sent wikipedia summary of {topic} to {user}")
 
-def _get_medals():
-	global olympic_medals
-	global last_medals_check
-	if olympic_medals == dict() or time()-last_medals_check >= 30*60:
-		table_re = re.compile("<table.*</table>")
-		row_re   = re.compile("<tr.*</tr>")
-		span_re  = re.compile("<span[^>]*>([^<]*)</span")
-
-		page = requests.get("https://www.bbc.co.uk/sport/olympics/57836709").text
-		matches = re.findall(table_re, page)
-
-		for m in matches:
-			if "China" in m and "Japan" in m: #simple sanity check to ensure it's the right table. There's only one but still
-				rows = re.findall(row_re, m)
-				for row in rows: 
-					cols = re.findall(span_re, row) # list of strings
-					while len(cols) >= 6:
-						if cols[0] != "Rank":
-							olympic_medals[cols[1]] = {"golds":cols[2].lower(),"silvers":cols[3],"bronzes":cols[4],"total":cols[5], "rank":cols[0]}
-						cols = cols[6:]
-		last_medals_check = time()
-
 def _make_ordinal(n):
     '''
     Convert an integer into its ordinal representation::
@@ -2243,156 +2226,3 @@ def _make_ordinal(n):
     if 11 <= (n % 100) <= 13:
         suffix = 'th'
     return str(n) + suffix
-
-@is_command("Get the current number of Olympic Medals by a given country in the 2021 Olympics. e.g. `!medals Russia`")
-def medals(message_dict):
-	user = message_dict["display-name"].lower()
-	message = message_dict["message"]
-
-	try:
-		country = " ".join(message.split(" ")[1:])
-	except:
-		send_message("You have to provide a country, e.g. !medals China")
-		return False
-
-	_get_medals()
-	country = country.title()
-	if country in ["Roc", "Russia"]:
-		country = "Russian Olympic Committee"
-	elif country in ["Uk", "United Kingdom", "Britain"]:
-		country = "Great Britain"
-	elif country in ["Usa", "America", "Murica"]:
-		country = "United States"
-	elif country == "Korea":
-		country = "South Korea"
-	elif country == "Taipei":
-		country = "Chinese Taipei"
-	elif country in ["Holland", "The Netherlands"]:
-		country = "Netherlands"
-
-	global olympic_medals
-	country_results = olympic_medals.get(country, None)
-
-	if country_results is not None:
-		golds   = int(country_results.get("golds", 0))
-		silvers = int(country_results.get("silvers", 0))
-		bronzes = int(country_results.get("bronzes", 0))
-		total   = int(country_results.get("total", 0))
-		rank    = _make_ordinal(int(country_results.get("rank", 0)))
-
-		g_pl = "" if golds == 1 else "s"
-		s_pl = "" if silvers == 1 else "s"
-		b_pl = "" if bronzes == 1 else "s"
-		t_pl = "" if total == 1 else "s"
-
-		send_message(f"{country} is ranked {rank} with {golds} Gold{g_pl}, {silvers} Silver{s_pl}, and {bronzes} Bronze{b_pl}, totalling {total} medal{t_pl}. Source: https://www.bbc.co.uk/sport/olympics/57836709")		
-		log(f"Sent medals to {user} - {country} has {golds}G, {silvers}S, {bronzes}B, {total}T")
-	else:
-		send_message(f"Couldn't find {country} on the leaderboard (maybe they have no medals yet? FeelsBadMan ). Source: https://www.bbc.co.uk/sport/olympics/57836709")
-		log(f"Couldn't find medals for country {country} in response to {user}")
-
-@is_command("Get the current Olypics 2021 leader.")
-def olympics(message_dict):
-	user = message_dict["display-name"].lower()
-	message = message_dict["message"]
-
-	country = ""
-	try:
-		country = " ".join(message.split(" ")[1:])
-		if country != "":
-			return medals(message_dict) # don't run the rest of the code; redirect to medals instead
-	except:
-		pass # no country provided - continue running this function
-
-	_get_medals()
-	countries = sorted(olympic_medals.keys(), key=lambda country: int(olympic_medals[country]["golds"])+0.001*float(olympic_medals[country]["silvers"])+0.00001*float(olympic_medals[country]["bronzes"]), reverse=True)
-	
-	leader  = countries[0]
-	golds   = olympic_medals[leader].get("golds", 0)
-	silvers = olympic_medals[leader].get("silvers", 0)
-	bronzes = olympic_medals[leader].get("bronzes", 0)
-	total   = olympic_medals[leader].get("total", 0)
-
-	g_pl = "" if golds == 1 else "s"
-	s_pl = "" if silvers == 1 else "s"
-	b_pl = "" if bronzes == 1 else "s"
-	t_pl = "" if total == 1 else "s"
-
-	send_message(f"The current Olympics leader is {leader} with {golds} Gold{g_pl}, {silvers} Silver{s_pl}, and {bronzes} Bronze{b_pl}, totalling {total} medal{t_pl}. Source: https://www.bbc.co.uk/sport/olympics/57836709")
-	log(f"Sent olympic leader of {leader} to {user}")
-"""
-@is_command("Starts a chant in chat.")
-def chant(message_dict):
-	# doesn't work, twitch rejects the command. Sadge
-	user = message_dict["display-name"].lower()
-	message = message_dict["message"]
-
-	chat_chant = " ".join(message.split(" ")[1:])
-
-	if len(chat_chant) > 120:
-		send_message("That's too long - character limit is 120.")
-		return False
-	else:
-		send_message(f"/chant {chat_chant}")
-		log(f"Started chant for {user} saying: {chat_chant}")
-"""
-
-# this is flasgod's comment, here forever as a sign of his contribution to the project
-
-@is_command("Restarts the bot.")
-def restart(message_dict):
-	return False
-
-"""
-	rk_path = os.path.join(os.getcwd(), "RoboKaywee.py")
-	print(rk_path)
-	#os.execvp("python", ("RoboKaywee.py",)) # will exit current process and run RoboKaywee.py in a new process
-	os.execl("RoboKaywee.py", "This is the first arg")
-
-
-
-
-
-
-
-    #After like 15 mins of work I couldn't get this to work so for now it is undefined
-    return False
-    DETACHED_PROCESS = 0x00000008
-    process = subprocess.Popen([sys.executable, "RoboKaywee.py"],creationflags=DETACHED_PROCESS)# .pid
-    print(process)
-    sleep(3) # give it time to fail if it's going to not start
-    #if not process.is_alive:
-    #    send_message("The restart failed.")
-    #    return False
-    #else:
-    send_message("RoboKaywee has restarted.")
-    exit()
-
-
-def _start_bot():
-	process = subprocess.Popen([sys.executable, "RoboKaywee.py"])
-"""
-
-
-#@is_command("Shows how long is left on the 30-hour stream")
-"""def hours(message_dict):
-	user = message_dict["display-name"].lower()
-
-	finish_time = 1632000681
-
-	try:
-		time_left = seconds_to_duration(finish_time - time())
-		time_live = seconds_to_duration(30*60*60 - (finish_time - time()))
-	except ValueError:
-		time_live = seconds_to_duration(30*60*60 - (finish_time - time()))
-		send_message(f"We passed 30 hours! Congratulations Kaywee! She's been live for {time_live} :D")
-		log(f"Sent time left to {user} - we passed 30 hours and Kaywee has been live for {time_live}")
-
-
-	if "hour" in time_left and "hours" not in time_left: # at least one hour but not multiple hours.. say "is" instead of "are"
-		send_message(f"Kaywee has been live for {time_live}, meaning there is only {time_left} left until we reach 30 hours!")
-	else:
-		send_message(f"Kaywee has been live for {time_live}, meaning there are only {time_left} left until we reach 30 hours!")
-
-
-	log(f"Sent time left of {time_left} to {user}")"""

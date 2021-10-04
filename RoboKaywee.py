@@ -10,7 +10,7 @@ from os          import getcwd
 from time        import time, sleep, localtime
 from enum        import IntEnum
 from math        import ceil
-from james       import timeuntil #, is_haiku # takes 0.4s to import!
+from james       import timeuntil # takes 0.4s to import!
 from string      import ascii_lowercase
 from shutil      import copy2 as copy_with_metadata # who the fuck calls something "copy2"? Get your shit together Python Foundation, damn. BuT iTs ThE sEcOnD vErSiOn oF CoPy, gtfo
 from chatbot     import ChatBot # see https://github.com/theonefoster/pyTwitchChatBot
@@ -429,7 +429,7 @@ def it_is_wednesday_my_dudes():
 		if date.today().weekday() == 2 and datetime.now().hour >= 6: # if it's wednesday and it's not earlier than 6am
 			send_message("On Wednesdays we wear pink. If you want to sit with us type /color HotPink to update your username colour.")
 			log("Sent Pink reminder.")
-			set_data("last_pink_reminder", time())
+			set_data("last_pink_reminder", int(time()))
 		sleep(reminder_period)
 
 def it_is_thursday_my_dudes():
@@ -958,16 +958,12 @@ def respond_message(message_dict):
 	elif message_lower == "boom boom boom boom":
 		send_message("I want you in my room")
 		log(f"Sent I want you in my room to {user}")
-	elif "birthday" in message_lower:
-		send_message("FeelsBirthdayMan")
-		log(f"Sent FeelsBirthdayMan to {user}")
 	elif re.fullmatch(sheesh_re, message_lower):
 		send_message("SHEEEEEEEEESH")
 		log(f"Sent SHEEEEEEEEESH to {user}")
 	elif any(len(word) > 3 and word.startswith("xqc") for word in msg_words):
 		send_message("KEKW Using KEKW xQc KEKW emotes KEKW unironically KEKW")
 		log(f"Sent KEKW to {user}'s xQc emote")
-
 
 class permissions(IntEnum):
     Disabled    = 20
@@ -1123,7 +1119,7 @@ if __name__ == "__main__":
 												else:
 													command_obj["uses"] = 1
 
-												command_obj["last_used"] = time()
+												command_obj["last_used"] = round(time(), 1) # doesn't need more than 0.1s precision and decimal places take up bytes!
 												write_command_data(force_update_reddit=False)
 										else:
 											log(f"WARNING: tried to call non-command function: {command}")
@@ -1293,7 +1289,7 @@ if __name__ == "__main__":
 									f.write(f"USERNOTICE: {raider} is raiding with {viewer_count} viewers!\n")
 								send_message(f"Wow! {raider} is raiding us with {viewer_count} new friends! Thank you! {get_emote('kaywee1AYAYA')}")
 								log(f"{raider} is raiding with {viewer_count} viewers.")
-								raid_data = {"raider": raider, "viewers": viewer_count, "time": time()}
+								raid_data = {"raider": raider, "viewers": viewer_count, "time": int(time())}
 								raid_data = str(raid_data).replace(", ", ",") # set_data() replaces ", " with ",\n", but I don't want that to apply to this dict, so removing the space stops it being picked up by that .replace()
 								set_data("last_raid", raid_data)
 
@@ -1399,10 +1395,14 @@ if __name__ == "__main__":
 						f.write("Robokaywee - unknown message type: " + str(message_dict) + "\n\n")
 			dropoff = 1
 		except Exception as ex:
-			if "An existing connection was forcibly closed" in str(ex):
-				dropoff *= 1.5 # exponential dropoff, decay factor 1.5
+			if any(x in str(ex) for x in ["An existing connection was forcibly closed", "An established connection was aborted"]):
 				log(f"Connection was closed - will try again in {int(dropoff)}s..")
-				sleep(dropoff)
-				create_bot() # re-create bot object (to reconnect to twitch)
+				try:
+					create_bot() # re-create bot object (to reconnect to twitch)
+				except Exception as ex:
+					pass # this will cause the loop to continue, and if the bot object fails to recreate the dropoff will increase in the next catch
 			else:
 				log("Exception in main loop: " + str(ex)) # generic catch-all (literally) to make sure bot doesn't crash
+
+			dropoff *= 1.5 # exponential dropoff, decay factor 1.5
+			sleep(dropoff)
