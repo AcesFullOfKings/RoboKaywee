@@ -1,3 +1,6 @@
+# pyright: reportUndefinedVariable=false
+# the above disables pylance checking for undefined variables in VS Code.. there are many variables used here which are defined in RoboKaywee.py
+ 
 import random
 import requests
 import re
@@ -8,6 +11,7 @@ import wikipedia as wikip
 
 from time            import sleep, time
 from datetime        import date, datetime
+from RoboKaywee import send_message
 from fortunes        import fortunes
 from threading       import Thread
 from credentials     import kaywee_channel_id, robokaywee_client_id, kaywee_channel_id, exchange_API_key, weather_API_key
@@ -701,7 +705,7 @@ def toenglish(message_dict):
 	if phrase[0] == "@" and len(phrase.split(" ")) == 1: # parameter is really a username
 		try:
 			target = phrase[1:].lower()
-			phrase = last_message[target]
+			phrase = last_message[target]["message"]
 			english = target + ": "
 		except KeyError:
 			return False
@@ -736,7 +740,7 @@ def tospanish(message_dict):
 	if phrase[0] == "@" and len(phrase.split(" ")) == 1: # parameter is really a username
 		try:
 			target = phrase[1:].lower()
-			phrase = last_message[target]
+			phrase = last_message[target]["message"]
 			spanish = target + ": "
 		except KeyError:
 			return False
@@ -780,7 +784,7 @@ def translate(message_dict):
 	if phrase[0] == "@" and len(phrase.split(" ")) == 1: # parameter is really a username
 		try:
 			target = phrase[1:].lower()
-			phrase = last_message[target]
+			phrase = last_message[target]["message"]
 			output = target + ": "
 		except KeyError:
 			return False
@@ -1260,10 +1264,13 @@ def spaces(message_dict):
 	phrase = "".join(message.split(" ")[1:]) # chop off the !command
 	target = ""
 
-	if phrase[0] == "@" and len(phrase.split(" ")) == 1: # parameter is really a username
-		phrase = phrase[1:].lower()
-		target = phrase
-		phrase = last_message.get(phrase, phrase)
+	try:
+		if phrase[0] == "@" and len(phrase.split(" ")) == 1: # parameter is really a username
+			phrase = phrase[1:].lower()
+			target = phrase
+			phrase = last_message[target]["message"]
+	except:
+		return
 
 	spaces = " ".join(phrase)
 	send_message(spaces)
@@ -1283,7 +1290,7 @@ def spongebob(message_dict):
 	if phrase[0] == "@" and len(phrase.split(" ")) == 1: # parameter is really a username
 		phrase = phrase[1:].lower()
 		target = phrase
-		phrase = last_message.get(phrase, phrase)
+		phrase = last_message[target]["message"]
 
 	if len(phrase)%2 == 1: # length is odd
 		phrase += " " # make its length even, for the zip() below
@@ -2211,6 +2218,22 @@ def wikipedia(message_dict):
 		return False
 
 	log(f"Sent wikipedia summary of {topic} to {user}")
+
+@is_command("Delete a user's last message.")
+def delete(message_dict):
+	user = message_dict["display-name"].lower()
+	message = message_dict["message"]
+	target = message.split(" ")[1]
+
+	if target[0] == "@":
+		target = target[1:]
+
+	target = target.lower()
+
+	if target in usernames:
+		send_message(f"/delete {last_message[target]['ID']}")
+	else:
+		send_message("That user isn't correct.")
 
 def _make_ordinal(n):
     '''

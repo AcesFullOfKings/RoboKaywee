@@ -54,6 +54,64 @@ def log(s):
 	with open("log.txt", "a", encoding="utf-8") as f:
 		f.write(log_time + " - " + s + "\n")
 
+def get_data(name, default=None):
+	try:
+		if config_lock.acquire(timeout=3):
+			with open("config.txt", "r") as f:
+				file = f.read()
+				data = dict(eval(file))
+				return data.get(name, default)
+		else:
+			log("WARNING: config_lock timed out in get_data() !!")
+			return default
+	except FileNotFoundError as ex:
+		log(f"Failed to get data called {name} - File Not Found.")
+	except ValueError as ex:
+		log(f"Failed to get data called {name} - Value Error (corrupt file??)")
+	except:
+		log(f"Unknown error when reading data in get_data (trying to get {name})")
+	finally:
+		with suppress(RuntimeError):
+			config_lock.release()
+
+def set_data(name, value):
+	try:
+		if config_lock.acquire(timeout=3):
+			with open("config.txt", "r") as f:
+				file = f.read()
+				data = dict(eval(file))
+				data[name] = value
+		else:
+			log("WARNING: config_lock timed out (while reading) in set_data() !!")
+			return
+	except FileNotFoundError as ex:
+		log(f"Failed to set data of {name} to {value} - File Not Found.")
+		return
+	except ValueError as ex:
+		log(f"Failed to set data of {name} to {value} - Value Error (corrupt file?)")
+		return
+	except:
+		log(f"Unknown error when reading data in set_data: trying to set {name} to {value}.")
+	finally:
+		with suppress(RuntimeError):
+			config_lock.release()
+
+	try:
+		if config_lock.acquire(timeout=3):
+			with open("config.txt", "w") as f:
+				f.write(str(data)) #.replace(", ", "},\n")
+			
+			with suppress(RuntimeError):
+				config_lock.release()
+		else:
+			log("WARNING: config_lock timed out (while writing) in set_data() !!")
+			return
+	except:
+		log(f"Unknown error in set_data when setting data {name} to {value}.")
+	finally:
+		with suppress(RuntimeError):
+			config_lock.release()
+
 command_lock   = Lock()
 config_lock    = Lock()
 subs_lock      = Lock()
@@ -65,6 +123,14 @@ channel_offline     = Event()
 live_status_checked = Event()
 live_status_checked.clear()
 
+try:
+	online_time = get_data("online_time")
+	if online_time is not None:
+		channel_live.set()
+except Exception as ex:
+	log("Exception reading online_time: " + str(ex))
+	online_time = None
+
 bots = {"robokaywee", "streamelements", "nightbot"}
 
 bot = None
@@ -75,10 +141,10 @@ twitch_emotes = [] # populated by get_twitch_emotes() below
 # some regexes for detecting certain message patterns
 ayy_re     = re.compile("a+y+") # one or more "a" followed by one or more "y", e.g. aayyyyy
 hello_re   = re.compile("h+i+|h+e+y+|h+e+l+o+|h+o+l+a+|h+i+y+a+") # various ways of saying hello
-patrick_re = re.compile("is this [^ ]*\?*$") # "is this " followed by a word, followed by zero or more question marks. e.g. "is this kaywee??"
-sheesh_re  = re.compile("s+h+e+s+h+") # sheesh
+patrick_re = re.compile("is this [^ ?]+\?*$") # "is this " followed by a word, followed by zero or more question marks. e.g. "is this kaywee??"
+sheesh_re  = re.compile("s+h+e{2,}s+h+") # sheesh
 
-# when only mods send messages into chat for at least X messages, the bot will announce the modwall.
+# when only mods send messages into chat for at least `key` messages, the bot will announce the modwall.
 # the Name is the type of modwall which gets announced into chat
 # the emotes are what get appended to the announcement
 # the excitement is the number of exclamation marks to use
@@ -96,7 +162,7 @@ modwalls = {
 	2000:{"name": "EXAMODWALL",              "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut", "excitement": 5, "break_emotes": ":( FeelsBadMan NotLikeThis PepeHands Sadge"},
 	3000:{"name": "ZETTAMODWALL",            "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut", "excitement": 6, "break_emotes": ":( FeelsBadMan NotLikeThis PepeHands Sadge"},
 	4000:{"name": "YOTTAMODWALL",            "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut", "excitement": 7, "break_emotes": ":( FeelsBadMan NotLikeThis PepeHands Sadge"},
-	# also I know that the SI prefixes don't match the numbers but whatever, I needed increasing prefixes
+	# I know that the SI prefixes don't match the numbers, but whatever, I needed increasing prefixes
 }
 
 get_modwall = lambda x: modwalls[sorted(list(key for key in modwalls.keys() if key <= x))[-1]]
@@ -125,131 +191,99 @@ with open("followers.txt", "r", encoding="utf-8") as f:
 with open("titles.txt", "r", encoding="utf-8") as f:
 	titles = f.read().split("\n")
 
-def channel_events():
-	""" 
-	Checks the channel every period. If channel goes live or goes offline, global Thread events are triggered.
-	Dont you dare judge my code quality in this function Flasgod. I know it's a mess but we do what we gotta do to survive.
-	"""
-
+def channel_went_offline():
 	global channel_live
 	global channel_offline
-	global live_status_checked
+	global online_time
 	global shutdown_on_offline
+	global live_status_checked
+
+	# live_stats_checked is not set the first time this runs, i.e. when the bot is starting. 
+	# don't send the message to chat if the channel is offline when the bot starts
+	if live_status_checked.is_set():
+		uptime = int(time() - online_time)
+
+		hours = int((uptime % 86400) // 3600)
+		mins  = int((uptime % 3600) // 60)
+		# seconds = int (uptime % 60) # removed - uptime isn't precise enough to justify sending the seconds
+
+		uptime_string = f"{channel_name} went offline. Uptime was approximately {hours} hours and {mins} mins."
+		log(uptime_string)
+		send_message(uptime_string)
+
+	online_time = None
+	set_data("online_time", None)
+
+	# these should be the last thing the function does, as other threads may depend on these events
+	channel_live.clear()
+	channel_offline.set()
+
+	# ...unless we shut down in which case it doesn't matter
+	if shutdown_on_offline:
+		log("Shutting down the PC..")
+		sleep(1)
+		subprocess.run("Shutdown /s /f")
+
+def channel_came_online():
+	global channel_live
+	global channel_offline
+	global online_time
 	global bUrself_sent
 	global ali_sent
 
-	def check_live_status_first():
-		nonlocal online_time 
-		try:
-			# if this call succeeds, streamer is Live. Exceptions imply streamer is offline (as no stream title exists)
-			title = requests.get(url, headers=authorisation_header).json()["data"][0]["title"]
+	log(f"{channel_name} came online.")
+	online_time = int(time()) # set first time seen online
+	set_data("online_time", online_time)
 
-		# streamer is offline:
-		except (IndexError, KeyError): 
-			if online_time is not None: # streamer went offline while bot was offline
-				uptime = int(time() - online_time)
+	bUrself_sent = False
+	set_data("bUrself_sent", False)
+	ali_sent = False
+	set_data("ali_sent", False)
+	set_data("wordoftheday_sent", False)
+	set_data("unpink_sent", False)
+	set_data("worldday_sent", False)
 
-				hours = int((uptime % 86400) // 3600)
-				mins  = int((uptime % 3600) // 60)
-				# seconds = int (uptime % 60) # uptime isn't precise enough to justify sending the seconds
+	# these should be the last thing the function does, as other threads may depend on these events
+	channel_offline.clear()
+	channel_live.set()
 
-				log(f"{channel_name} went offline. Uptime was {hours} hours and {mins} mins.")
-
-				online_time = None
-				set_data("online_time", None)
-
-			channel_offline.set()
-
-		# streamer is online:
-		else:
-			if online_time is None: # streamer came online while bot was offline
-				log(f"{channel_name} is online.")
-				online_time = time() # set first time seen online
-				set_data("online_time", online_time)
-				bUrself_sent = False
-				set_data("bUrself_sent", False)
-				ali_sent = False
-				set_data("ali_sent", False)
-				set_data("wordoftheday_sent", False)
-				set_data("unpink_sent", False)
-				set_data("worldday_sent", False)
-				
-			channel_live.set()
-
-			add_seen_title(title) # save unique stream title
-
-	def check_live_status_subsequent():
-		nonlocal online_time
-		global shutdown_on_offline
-		try:
-			# if this call succeeds, streamer is Live. Exceptions imply streamer is offline (as no stream title exists)
-			title = requests.get(url, headers=authorisation_header).json()["data"][0]["title"]
-
-		# streamer is offline:
-		except (IndexError, KeyError): 
-			if channel_live.is_set(): # streamer went offline in last period
-				uptime = int(time() - online_time)
-
-				hours = int((uptime % 86400) // 3600)
-				mins  = int((uptime % 3600) // 60)
-				# seconds = int (uptime % 60)
-
-				uptime_string = f"{channel_name} went offline. Uptime was approximately {hours} hours and {mins} mins."
-
-				log(uptime_string)
-				send_message(uptime_string)
-
-				online_time = None
-				set_data("online_time", None)
-
-				channel_live.clear()
-				channel_offline.set()
-
-				if shutdown_on_offline:
-					log("Shutting down the PC..")
-					sleep(1)
-					subprocess.run("Shutdown /s /f")
-
-		# streamer is online:
-		else:
-			if not channel_live.is_set(): # streamer CAME online in last period
-				log(f"{channel_name} came online.")
-				online_time = time() # set first time seen online
-				set_data("online_time", online_time)
-				
-				channel_offline.clear()
-				channel_live.set()
-
-				bUrself_sent = False
-				set_data("bUrself_sent", False)
-				ali_sent = False
-				set_data("ali_sent", False)
-				set_data("wordoftheday_sent", False)
-				set_data("unpink_sent", False)
-				set_data("worldday_sent", False)
-
-			add_seen_title(title) # save unique stream title
-	try:
-		online_time = get_data("online_time")
-	except Exception as ex:
-		log("Exception reading online_time: " + str(ex))
-		online_time = None
+def check_live_status():
+	global channel_live
+	global authorisation_header
 	
+	url = "https://api.twitch.tv/helix/streams?user_id=" + kaywee_channel_id
+	
+	try:
+		# if this call succeeds, streamer is Live. Exceptions imply streamer is offline (as no stream title exists)
+		title = requests.get(url, headers=authorisation_header).json()["data"][0]["title"]
+
+	# streamer is offline:
+	except (IndexError, KeyError):
+		if channel_live.is_set():
+			channel_went_offline()
+
+	# streamer is online:
+	else:
+		if not channel_live.is_set():
+			channel_came_online()
+
+		add_seen_title(title) # save unique stream title
+
+def channel_events():
+	"""Checks live status regularly. If channel goes live or goes offline, global Thread events are triggered."""
+
 	period = 120
 
-	url = "https://api.twitch.tv/helix/streams?user_id=" + kaywee_channel_id
-	global authorisation_header
-
-	check_live_status_first()
+	check_live_status()
 	live_status_checked.set() # signal to other threads that first run is complete
 
 	while True:
+		sleep(period)
+		
 		try:
-			check_live_status_subsequent()
+			check_live_status()
 		except Exception as ex:
 			log("Exception while checking Live Status: " + str(ex))
-
-		sleep(period)
 		
 def play_patiently():
 	url = "https://api.twitch.tv/helix/streams?user_id=" + kaywee_channel_id
@@ -405,7 +439,7 @@ def set_random_colour():
 				set_data("current_colour", new_colour)
 				log(f"Colour was updated to {new_colour} in response to Timed Event")
 
-		sleep(60*60)
+		sleep(4*60*60) # 4 hours
 
 def it_is_wednesday_my_dudes():
 	reminder_period = 60*60
@@ -430,10 +464,12 @@ def it_is_wednesday_my_dudes():
 			send_message("On Wednesdays we wear pink. If you want to sit with us type /color HotPink to update your username colour.")
 			log("Sent Pink reminder.")
 			set_data("last_pink_reminder", int(time()))
+		else:
+			return # this thread will be recreated next wednesday by channel_live_messages
 		sleep(reminder_period)
 
 def it_is_thursday_my_dudes():
-	if not get_data("unpink_sent"):
+	if not get_data("unpink_sent", False):
 		sleep(20*60) # wait 20 mins into the stream
 		send_message("On Thursdays we wear whatever colour we want. Set your username colour by using /color and sit with us.")
 		log("Sent UnPink reminder.")
@@ -441,14 +477,14 @@ def it_is_thursday_my_dudes():
 
 def it_is_worldday_my_dudes():
 	#this assumes the bot restarts..
-	if not get_data("worldday_sent"):
+	if not get_data("worldday_sent", False):
 		print("Waiting 10m for worldday..")
 		sleep(10*60) # wait 10 mins into stream
 		commands_file.worldday({"display-name":"Timed Event"}) # have to include a message dict param
 		set_data("worldday_sent", True)
 
 def wordoftheday_timer():
-	if not get_data("wordoftheday_sent"):
+	if not get_data("wordoftheday_sent", False):
 		sleep(30*60) # wait 30 mins into stream
 		commands_file.wordoftheday({"display-name":"Timed Event"}) # have to include a message dict param
 		set_data("wordoftheday_sent", True)
@@ -462,31 +498,36 @@ def ow2_msgs():
 def channel_live_messages():
 	global channel_live
 	global live_status_checked
-
+	
+	live_status_checked.wait() # wait for check_live_status to run once
+	
 	while True:
-		live_status_checked.wait() # wait for check_live_status to run once
-
-		if not channel_live.is_set():  # if channels isn't already live when bot starts
+		if not channel_live.is_set():  # if channel isn't already live when bot starts
 			channel_live.wait()        # wait for channel to go live
-			send_message("!resetrecord", suppress_colour=True)
+			send_message("!resetrecord") #, suppress_colour=True)
 
-		Thread(target=it_is_worldday_my_dudes).start()
-		Thread(target=wordoftheday_timer).start()
-
-		# these will start right away if channel is already live
-		# or if channel is offline, they will wait for channel to go live then start
 		weekday_num = date.today().weekday()
 		if weekday_num == 3:
-			Thread(target=it_is_thursday_my_dudes).start()
+			daily_message_func = it_is_thursday_my_dudes
 		elif weekday_num == 2:
-			Thread(target=it_is_wednesday_my_dudes).start()
+			daily_message_func = it_is_wednesday_my_dudes
+		else:
+			daily_message_func = None # will cause a targetless thread to be created which will immediately terminate
+
+		# these will do nothing if the messages have already sent this stream
+		Thread(target=it_is_worldday_my_dudes, name="Worldday Thread"    ).start() # waits 10m, sends message once, then exits
+		Thread(target=daily_message_func,      name="DailyMessage Thread").start() # waits 20m, sends message once, then exits
+		Thread(target=wordoftheday_timer,      name="WordOfTheDay Thread").start() # waits 30m, sends message once, then exits
 
 		channel_offline.wait() # wait for channel to go offline before running again
 
-def nochat_raid():
-	sleep(10)
-	send_message(f"@{raider} thank you so much for raiding! Kaywee isn't looking at chat right now (!nochat) but she'll see the raid after the current game.")
-	log(f"Sent nochat to {raider} for raiding")
+def nochat_raid(raider):
+	try:
+		sleep(10)
+		send_message(f"@{raider} thank you so much for raiding! Kaywee isn't looking at chat right now (!nochat) but she'll see the raid after the current game.")
+		log(f"Sent nochat to {raider} for raiding")
+	except Exception as ex:
+		log("Exception in nochat_raid: " + str(ex))
 
 def update_subs():
 	while True:
@@ -526,64 +567,6 @@ def update_followers():
 					followers = {} # should get updated on next loop
 
 		sleep(10*60)
-
-def get_data(name, default=None):
-	try:
-		if config_lock.acquire(timeout=3):
-			with open("config.txt", "r") as f:
-				file = f.read()
-				data = dict(eval(file))
-				return data.get(name, default)
-		else:
-			log("WARNING: config_lock timed out in get_data() !!")
-			return default
-	except FileNotFoundError as ex:
-		log(f"Failed to get data called {name} - File Not Found.")
-	except ValueError as ex:
-		log(f"Failed to get data called {name} - Value Error (corrupt file??)")
-	except:
-		log(f"Unknown error when reading data in get_data (trying to get {name})")
-	finally:
-		with suppress(RuntimeError):
-			config_lock.release()
-
-def set_data(name, value):
-	try:
-		if config_lock.acquire(timeout=3):
-			with open("config.txt", "r") as f:
-				file = f.read()
-				data = dict(eval(file))
-				data[name] = value
-		else:
-			log("WARNING: config_lock timed out (while reading) in set_data() !!")
-			return
-	except FileNotFoundError as ex:
-		log(f"Failed to set data of {name} to {value} - File Not Found.")
-		return
-	except ValueError as ex:
-		log(f"Failed to set data of {name} to {value} - Value Error (corrupt file?)")
-		return
-	except:
-		log(f"Unknown error when reading data in set_data: trying to set {name} to {value}.")
-	finally:
-		with suppress(RuntimeError):
-			config_lock.release()
-
-	try:
-		if config_lock.acquire(timeout=3):
-			with open("config.txt", "w") as f:
-				f.write(str(data)) #.replace(", ", "},\n")
-			
-			with suppress(RuntimeError):
-				config_lock.release()
-		else:
-			log("WARNING: config_lock timed out (while writing) in set_data() !!")
-			return
-	except:
-		log(f"Unknown error in set_data when setting data {name} to {value}.")
-	finally:
-		with suppress(RuntimeError):
-			config_lock.release()
 
 def automatic_backup():
 	"""
@@ -628,10 +611,10 @@ def update_app_access_token(force_refresh=False):
 			response = requests.get(url, headers=authorisation_header).json()
 			expires_in = response["expires_in"]
 		except AssertionError:
-			log("No Access Token was found in config.txt. Fetching a new one..")
+			log("No App Access Token was found in config.txt. Fetching a new one..")
 			expires_in = 0
 		except Exception as ex:
-			log("Exception when checking App Access Token: " + str(ex))
+			log("Exception when checking App Access Token: " + str(ex) + " -- Fetching a new token..")
 			expires_in = 0
 
 		if expires_in < 48*60*60 or force_refresh: # if token expires in the next 48h
@@ -643,15 +626,15 @@ def update_app_access_token(force_refresh=False):
 
 		sleep(23*60*60) # wait 23 hours
 
-def send_message(message, add_to_chatlog=True, suppress_colour=True):
+def send_message(message, add_to_chatlog=True): # , suppress_colour=True):
 	"""
 	Will also be accessible from the commands file.
 	"""
 
-	if message[0] in "/." or suppress_colour:
-		bot.send_message(message)
-	else:
-		bot.send_message("slash me " + message)
+	#if message[0] in "/." or suppress_colour:
+	bot.send_message(message)
+	#else:
+	#	bot.send_message("/me " + message) # very sad that twitch got rid of this. Stupid twitch.
 
 	if add_to_chatlog:
 		with open("chatlog.txt", "a", encoding="utf-8") as f:
@@ -791,16 +774,15 @@ def _send_discord_message(message):
 			subprocess.run("python discord.py " + message, capture_output=True) # capture_output=True means the output doesn't go to console.. Otherwise when it exit()s it prints the exception stack lol
 		else: # NOT WINDOWS (rpi)
 			subprocess.run("python3.9 Discord.py " + message, capture_output=True)
-	except:
-		pass
+	except Exception as ex:
+		log("Exception sending discord message: " + str(ex))
+		return
 
 def get_twitch_emotes():
 	global twitch_emotes
 	result = requests.get("https://api.streamelements.com/kappa/v2/chatstats/kaywee/stats").json()
 	twitchEmotes = result.get("twitchEmotes", [])
 	twitch_emotes = [item["emote"] for item in twitchEmotes]
-
-Thread(target=get_twitch_emotes).start()
 
 def get_emote(emote):
 	global subscribers
@@ -853,6 +835,13 @@ def get_oauth_token(force_new_token=False):
 			log(f"Exception when fetching oauth token - {str(ex)} - trying again with force_new_token..")
 			return get_oauth_token(force_new_token=True)
 
+def dont_stop_comin():
+	while True:
+		channel_live.wait() # if channel goes offline, wait for it to come back online
+		sleep(random.randint(45*60, 100*60)) # random wait between 45 and 100 mins
+		send_message("and they don't stop comin'")
+		log("and they don't stop comin'")
+
 def respond_message(message_dict):
 	# For random non-command responses/rules
 	# This is run on a second thread
@@ -891,7 +880,7 @@ def respond_message(message_dict):
 	msg_lower_no_punc = "".join(c for c in message_lower if c in ascii_lowercase+" ")
 	
 	if message[0] == "^":
-		send_message("^", suppress_colour=True)
+		send_message("^") #, suppress_colour=True)
 		log(f"Sent ^ to {user}")
 
 	elif ayy_re.fullmatch(message_lower):
@@ -959,7 +948,7 @@ def respond_message(message_dict):
 		send_message("I want you in my room")
 		log(f"Sent I want you in my room to {user}")
 	elif re.fullmatch(sheesh_re, message_lower):
-		send_message("SHEEEEEEEEESH")
+		send_message(message.upper())
 		log(f"Sent SHEEEEEEEEESH to {user}")
 	elif any(len(word) > 3 and word.startswith("xqc") for word in msg_words):
 		send_message("KEKW Using KEKW xQc KEKW emotes KEKW unironically KEKW")
@@ -1009,6 +998,7 @@ if __name__ == "__main__":
 
 	authorisation_header = {"Client-ID": robokaywee_client_id, "Authorization":"Bearer " + get_data("app_access_token")}
 
+	Thread(target=get_twitch_emotes,       name="Get Twitch emotes").start()
 	Thread(target=channel_events,          name="Channel Events").start()
 	Thread(target=update_app_access_token, name="Access Token Updater").start()
 	Thread(target=update_subs,             name="Subscriber Updater").start()	
@@ -1018,6 +1008,7 @@ if __name__ == "__main__":
 	Thread(target=automatic_backup,        name="Automatic Backup").start()
 	Thread(target=play_patiently,          name="Play Patiently").start()
 	Thread(target=ban_lurker_bots,         name="Ban Lurker Bots").start()
+	Thread(target=dont_stop_comin,         name="Don't Stop Coming").start()
 	#Thread(target=ow2_msgs,                name="OW2 messages").start()
 	
 	user_cooldowns  = {}
@@ -1076,7 +1067,8 @@ if __name__ == "__main__":
 						else:
 							message = "!hello" # react as if they used the command
 
-					last_message[user] = message
+					print(message_dict)
+					last_message[user] = {"message":message, "ID": message_dict["id"]} # maybe the ID too? From ["target-msg-id"]. Or just the whole dict.
 					user_permission = permissions.Pleb # unless assigned otherwise below:
 						
 					if user == "theonefoster":
@@ -1294,7 +1286,7 @@ if __name__ == "__main__":
 								set_data("last_raid", raid_data)
 
 								if commands_file.nochat_on:
-									Thread(target=nochat_raid).start() 
+									Thread(target=nochat_raid, params=(raider)).start() 
 									# sends a message in chat after a short delay
 
 						elif message_dict["msg-id"] == "submysterygift":
@@ -1324,7 +1316,28 @@ if __name__ == "__main__":
 							pass # for when gifted subs produce extra rewards (emotes) for other chat members
 
 						elif message_dict["msg-id"] == "communitypayforward":
-							pass # e.g. <user> is paying forward their gifted sub!
+							gifter = message_dict["msg-param-prior-gifter-display-name"]
+							recipient = message_dict["msg-param-recipient-display-name"]
+							# e.g. <user> is paying forward their gifted sub to the community!
+
+						elif message_dict["msg-id"] == "standardpayforward":
+							gifter = message_dict["msg-param-prior-gifter-display-name"]
+							recipient = message_dict["msg-param-recipient-display-name"]
+							# e.g. <user> is paying forward their gifted sub to <recipient>!
+
+						elif message_dict["msg-id"] == "bitsbadgetier":
+							badge_user      = message_dict["display-name"]
+							badge_threshold = message_dict["msg-param-threshold"]
+							send_message(f"@{badge_user} just earned a new bits badge tier for sending over {badge_threshold} bits to Kaywee! Thank you!")
+							log(f"Congratulated {badge_user} who now has a {badge_threshold}-bits badge.")
+
+						elif message_dict["msg-id"] == "primepaidupgrade":
+							upgrade_user = message_dict["display-name"]
+							# user is upgrading from a prime sub to a regular sub
+
+						elif message_dict["msg-id"] == "unraid":
+							# e.g. "The raid has been cancelled."
+							pass
 						else:
 							with open("verbose log.txt", "a", encoding="utf-8") as f:
 								f.write("(unknown msg-id?) - " + str(message_dict) + "\n\n")
