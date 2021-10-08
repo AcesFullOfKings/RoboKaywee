@@ -1160,7 +1160,7 @@ def echo(message_dict):
 		message = message_dict["message"]
 
 		phrase = " ".join(message.split(" ")[1:])
-		send_message(phrase, add_to_chatlog=True, suppress_colour=True)
+		send_message(phrase, add_to_chatlog=True) #, suppress_colour=True)
 		log(f"Echoed \"{phrase}\" for {user}.")
 	else:
 		return False
@@ -1429,9 +1429,9 @@ def wordoftheday(message_dict):
 
 @is_command("Display Kaywee's real biological age")
 def age(message_dict):
-	ages = list(range(19,24)) + list(range(36,43))
-	true_age = random.choice(ages)
-	send_message(f"Kaywee is {true_age} years old.")
+	ages = list(range(17,27)) + list(range(34,44)) # 17-26 and 34-43 inclusive
+	true_real_actual_age = random.choice(ages)
+	send_message(f"Kaywee is {true_real_actual_age} years old.")
 
 @is_command("Show how long you've been following")
 def followtime(message_dict):
@@ -1582,9 +1582,9 @@ def bttv(message_dict):
 					last_500 = emote
 
 	send_message("The BTTV emotes in this channel are: ")
-	send_message(first_500, suppress_colour=True)
+	send_message(first_500) #, suppress_colour=True)
 	if last_500:
-		send_message(last_500, suppress_colour=True)
+		send_message(last_500) #, suppress_colour=True)
 	log(f"Sent BTTV emotes to {user}")
 
 @is_command("Show the current FFZ emotes.")
@@ -1609,9 +1609,9 @@ def ffz(message_dict):
 				last_500 = emote
 
 	send_message("The FFZ emotes in this channel are: ")
-	send_message(first_500, suppress_colour=True)
+	send_message(first_500)# , suppress_colour=True)
 	if last_500:
-		send_message(last_500, suppress_colour=True)
+		send_message(last_500) #, suppress_colour=True)
 	log(f"Sent BTTV emotes to {user}")
 
 def _get_all_emotes():
@@ -2107,12 +2107,12 @@ def _predict(title, outcome1, outcome2, window=180):
 	token = get_oauth_token()
 	authorisation_header = {"Client-ID": robokaywee_client_id, "Authorization":"Bearer " + token, 'Content-Type': 'application/json'}
 
-	title = title[:45] # only allows 45 chars on title
-	outcome1 = outcome1[:25]
-	outcome2 = outcome2[:25] # only allows 25 chars on outcomes
+	#title = title[:45] # only allows 45 chars on title
+	#outcome1 = outcome1[:25]
+	#outcome2 = outcome2[:25] # only allows 25 chars on outcomes
 
-	if not (1 <= window <= 1800):
-		window = 180
+	#if not (1 <= window <= 1800):
+	#	window = 180
 
 	prediction_dict = "{\"broadcaster_id\": \"" + kaywee_channel_id + "\", \"title\": \"" + title + "\", \"outcomes\": [{\"title\": \"" + outcome1 + "\"},{\"title\": \"" + outcome2 + "\"}],\"prediction_window\": " + str(window) + "}"
 

@@ -1027,7 +1027,7 @@ if __name__ == "__main__":
 		user_messages = dict()
 	
 	# let commands file access key objects:
-	# (these can be modified from commands_file and read from here, or vice versa)
+	# (these can be read and written to from both here and commands_file)
 	commands_file.bot                = bot
 	commands_file.log                = log
 	commands_file.get_data           = get_data
@@ -1043,11 +1043,11 @@ if __name__ == "__main__":
 	commands_file.get_oauth_token    = get_oauth_token
 	commands_file.write_command_data = write_command_data
 
-	print("Setup complete. Now listening in chat.")
+	print(f"Setup complete. Listening in {channel_name}'s chat.")
 
 	while True:
 		try:
-			#messages = [{"message_type":"privmsg", "display-name":"theonefoster", "message":"!translate en de this is a test!", "badges":["moderator"]}]
+			#messages = [{"message_type":"privmsg", "display-name":"theonefoster", "message":"!translate en de this is a test!", "badges":["moderator"], "id":"testmessageid"}]
 			messages = bot.get_messages()
 			for message_dict in messages:
 				if message_dict["message_type"] == "privmsg": # chat message
@@ -1067,7 +1067,6 @@ if __name__ == "__main__":
 						else:
 							message = "!hello" # react as if they used the command
 
-					print(message_dict)
 					last_message[user] = {"message":message, "ID": message_dict["id"]} # maybe the ID too? From ["target-msg-id"]. Or just the whole dict.
 					user_permission = permissions.Pleb # unless assigned otherwise below:
 						
