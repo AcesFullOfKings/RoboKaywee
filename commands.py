@@ -527,7 +527,6 @@ def _get_currencies(base="USD", convert_to="GBP"):
 	result = requests.get(f"http://api.exchangeratesapi.io/v1/latest?access_key={exchange_API_key}").json()
 	rates = result["rates"]
 	if base in rates and convert_to in rates:
-
 		return rates[convert_to] / rates[base]
 	else:
 		raise ValueError("Currency not found.")

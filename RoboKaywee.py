@@ -26,7 +26,6 @@ from API_functions import get_app_access_token, get_name_from_user_ID, get_follo
 TODO:
 should be able to give any command multiple names via aliases
 when host_on notice is received, channel_live should be set to false
-rework how live detection works
 """
 
 try: # try to name the window
@@ -839,8 +838,9 @@ def dont_stop_comin():
 	while True:
 		channel_live.wait() # if channel goes offline, wait for it to come back online
 		sleep(random.randint(45*60, 100*60)) # random wait between 45 and 100 mins
-		send_message("and they don't stop comin'")
-		log("and they don't stop comin'")
+		if channel_live.is_set(): #channel is still online after sleeping 
+			send_message("and they don't stop comin'")
+			log("and they don't stop comin'")
 
 def respond_message(message_dict):
 	# For random non-command responses/rules
@@ -899,9 +899,9 @@ def respond_message(message_dict):
 		send_message("!romper")
 		log(f"Sent romper to {user}")
 
-	#elif user == "theonefoster" and message_lower == "*sd":
-	#	shutdown_on_offline = True
-	#	log("Will now shutdown when Kaywee goes offline.")
+	elif user == "theonefoster" and message_lower == "*sd":
+		shutdown_on_offline = True
+		log("Will now shutdown when Kaywee goes offline.")
 
 	elif user == "nightroad2593" and message_lower[:6] == "in ow2":
 		log(f"Saved new ow2 prediction: {message_lower}")
@@ -1026,8 +1026,8 @@ if __name__ == "__main__":
 	if user_messages is None:
 		user_messages = dict()
 	
-	# let commands file access key objects:
-	# (these can be read and written to from both here and commands_file)
+	# let commands file access key objects
+	# these can be read and written to from both here and commands_file
 	commands_file.bot                = bot
 	commands_file.log                = log
 	commands_file.get_data           = get_data
@@ -1134,7 +1134,7 @@ if __name__ == "__main__":
 										else:
 											command_obj["uses"] = 1
 
-										command_obj["last_used"] = time()
+										command_obj["last_used"] = round(time(), 1)
 										write_command_data(force_update_reddit=False)
 									else:
 										log(f"WARNING: Stored text command with no response: {command}")
