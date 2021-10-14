@@ -10,15 +10,15 @@ import sys
 import wikipedia as wikip
 
 from time            import sleep, time
-from datetime        import date, datetime
-from RoboKaywee import send_message
+from james           import seconds_to_duration, timeuntil, bad_words
+from datetime        import date, datetime, timedelta
 from fortunes        import fortunes
+from contextlib      import suppress
+from RoboKaywee      import send_message
 from threading       import Thread
 from credentials     import kaywee_channel_id, robokaywee_client_id, kaywee_channel_id, exchange_API_key, weather_API_key
 from googletrans     import Translator
 from multiprocessing import Process
-from james           import seconds_to_duration, timeuntil, bad_words
-from contextlib      import suppress
 #from james import translate as j_translate
 
 from PyDictionary import PyDictionary
@@ -49,8 +49,6 @@ nottoxic_votes = 0
 voters = set()
 translator = Translator(service_urls=['translate.googleapis.com','translate.google.com','translate.google.co.kr'])
 all_emotes = [] # populated below
-olympic_medals = dict() # for olympics commands
-last_medals_check = 0 # for olympics commands
 
 @is_command("Allows mods to add and edit existing commands. Syntax: !rcommand [add/edit/delete/options] <command name> <add/edit: <command text> // options: <[cooldown/usercooldown/permission]>>")
 def rcommand(message_dict):
@@ -424,13 +422,11 @@ def fortune(message_dict):
 @is_command("Shows the current followgoal.")
 def followgoal(message_dict):
 	user = message_dict["display-name"].lower()
-
 	goal = get_data("followgoal")
-		
 	url = "https://api.twitch.tv/helix/users/follows?to_id=" + kaywee_channel_id
 	bearer_token = get_data("app_access_token")
-
 	authorisation_header = {"Client-ID": robokaywee_client_id, "Authorization":"Bearer " + bearer_token}
+
 	try:
 		data = requests.get(url, headers=authorisation_header).json()
 		followers = data["total"]
@@ -2248,3 +2244,23 @@ def _make_ordinal(n):
     if 11 <= (n % 100) <= 13:
         suffix = 'th'
     return str(n) + suffix
+
+@is_command("Link to the most recently-created clip.")
+def lastclip(message_dict):
+	user = message_dict["display-name"].lower()
+	two_weeks = timedelta(days=14)
+	iso_time_start = (datetime.now() - two_weeks).strftime('%Y-%m-%dT%H:%M:%SZ')
+	iso_time_end = datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ')
+
+	bearer_token = get_data("app_access_token")
+	authorisation_header = {"Client-ID": robokaywee_client_id, "Authorization":"Bearer " + bearer_token}
+
+	url = f"https://api.twitch.tv/helix/clips?broadcaster_id={kaywee_channel_id}&started_at={iso_time_start}&ended_at={iso_time_end}&first=50"
+	results = requests.get(url, headers=authorisation_header).json()["data"]
+	results.sort(key=lambda x: x["created_at"])
+
+	clip_link = results[-1]["url"]
+	clip_id   = results[-1]["id"]
+
+	send_message(clip_link)
+	log(f"Sent lastclip to {user} (clip ID is {clip_id})")

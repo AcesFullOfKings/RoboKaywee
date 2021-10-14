@@ -1,7 +1,8 @@
-#import sqlite3 # one day maybe I'll use an actual database LOL
+#import sqlite3 # LOL JK, but maybe one day I'll use an actual database 
 import os
 import re
 import praw # takes 0.33s to import!
+import prawcore.exceptions
 import random
 import requests
 import subprocess
@@ -11,7 +12,7 @@ from time        import time, sleep, localtime
 from enum        import IntEnum
 from math        import ceil
 from james       import timeuntil # takes 0.4s to import!
-from string      import ascii_lowercase
+from string      import ascii_lowercase, printable
 from shutil      import copy2 as copy_with_metadata # who the fuck calls something "copy2"? Get your shit together Python Foundation, damn. BuT iTs ThE sEcOnD vErSiOn oF CoPy, gtfo
 from chatbot     import ChatBot # see https://github.com/theonefoster/pyTwitchChatBot
 from datetime    import date, datetime
@@ -320,50 +321,58 @@ def update_commands_wiki(force_update_reddit=False):
 		#permissions_dict = {0:"Pleb", 2:"Follower", 4:"Subscriber", 6:"VIP", 8:"Mod", 9:"Owner", 10:"Broadcaster", 20:"Disabled"}
 		permissions_dict = {p.value : p.name for p in permissions}
 
-		r = praw.Reddit("RoboKaywee")
-		subreddit = r.subreddit("RoboKaywee")
+		try:
+			r = praw.Reddit("RoboKaywee")
+			subreddit = r.subreddit("RoboKaywee")
 
-		if command_lock.acquire(timeout=10):
-			with open("commands.txt", "r", encoding="utf-8") as f:
-				commands = dict(eval(f.read()))
+			if command_lock.acquire(timeout=10):
+				with open("commands.txt", "r", encoding="utf-8") as f:
+					commands = dict(eval(f.read()))
 
+				with suppress(RuntimeError):
+					command_lock.release()
+
+				table = ("" + # "**Note: most commands are sent with /me so will display in the bot's colour.**\n\n\n" + 
+						"**Command**|**Level**|**Response/Description**|**Uses**\n---|---|---|---\n")
+
+				for command in sorted(commands):
+					if "permission" in commands[command]:
+						try:
+							level = permissions_dict[commands[command]["permission"]]
+						except KeyError:
+							level = "Pleb"
+					else:
+						level = "Pleb"
+
+					if "uses" in commands[command]:
+						uses = commands[command]["uses"]
+					else:
+						uses = "-"
+
+					if commands[command]["coded"]:
+						if "description" in commands[command]:
+							description = commands[command]['description'].replace("|", "/") # pipes break the formatting on the reddit wiki
+							table += f"{command}|{level}|Coded: {description}|{uses}\n"
+						else:
+							table += f"{command}|{level}|Coded command with no description.|{uses}\n"
+					else:
+						if "response" in commands[command]:
+							response = commands[command]['response'].replace("|", "/") # pipes break the formatting on the reddit wiki
+							table += f"{command}|{level}|Response: {response}|{uses}\n"
+						else:
+							table += f"{command}|{level}|Text command with no response.|{uses}\n"
+
+				subreddit.wiki["commands"].edit(table)
+				last_wiki_update = time()
+			else:
+				log("Warning: Command Lock timed out on update_commands_wiki() !!")
+		except prawcore.exceptions.ResponseException:
+			log(f"Response exception received when writing to reddit wiki - is reddit down?")
+		except Exception as ex:
+			log(f"Exception when writing to reddit wiki: {str(ex)}")
+		finally:
 			with suppress(RuntimeError):
 				command_lock.release()
-
-			table = ("" + # "**Note: most commands are sent with /me so will display in the bot's colour.**\n\n\n" + 
-					"**Command**|**Level**|**Response/Description**|**Uses**\n---|---|---|---\n")
-
-			for command in sorted(commands):
-				if "permission" in commands[command]:
-					try:
-						level = permissions_dict[commands[command]["permission"]]
-					except KeyError:
-						level = "Pleb"
-				else:
-					level = "Pleb"
-
-				if "uses" in commands[command]:
-					uses = commands[command]["uses"]
-				else:
-					uses = "-"
-
-				if commands[command]["coded"]:
-					if "description" in commands[command]:
-						description = commands[command]['description'].replace("|", "/") # pipes break the formatting on the reddit wiki
-						table += f"{command}|{level}|Coded: {description}|{uses}\n"
-					else:
-						table += f"{command}|{level}|Coded command with no description.|{uses}\n"
-				else:
-					if "response" in commands[command]:
-						response = commands[command]['response'].replace("|", "/") # pipes break the formatting on the reddit wiki
-						table += f"{command}|{level}|Response: {response}|{uses}\n"
-					else:
-						table += f"{command}|{level}|Text command with no response.|{uses}\n"
-
-			subreddit.wiki["commands"].edit(table)
-			last_wiki_update = time()
-		else:
-			log("Warning: Command Lock timed out on update_commands_wiki() !!")
 
 def write_command_data(force_update_reddit=False):
 	global commands_dict
@@ -855,7 +864,7 @@ def respond_message(message_dict):
 	permission = message_dict["user_permission"]
 
 	message_lower = message.lower()
-
+	msg_lower_no_punc = "".join(c for c in message_lower if c in ascii_lowercase+" ")
 	msg_words = [word for word in message_lower.split(" ") if word not in twitch_emotes] # remove emotes
 
 	if "@robokaywee" in message_lower and user not in bots:
@@ -876,8 +885,6 @@ def respond_message(message_dict):
 	#		log(f"Banned {user} for linking to bigfollows")
 
 	# EASTER EGGS:
-
-	msg_lower_no_punc = "".join(c for c in message_lower if c in ascii_lowercase+" ")
 	
 	if message[0] == "^":
 		send_message("^") #, suppress_colour=True)
@@ -916,8 +923,8 @@ def respond_message(message_dict):
 	elif msg_lower_no_punc == "alexa stop":
 		send_message("Now stopping.")
 		log(f"Stopping Alexa for {user}")
-	elif len(message_lower.split()) == 2 and message_lower.split()[0] in ["im", "i'm", "i’m"]:
-		send_message(f"Hi {message.split()[1]}, I'm dad!")
+	elif len(msg_words) == 2 and msg_words[0].lower() in ["im", "i'm", "i’m"] and all(x in printable[:36] for x in msg_words[1]): #printable[:36] is 0-9 and lowercase a-z
+		send_message(f"Hi {msg_words[1]}, I'm dad!")
 		log(f"Sent Dad to {user}")
 	elif not bUrself_sent and user == "billneethesciencebee":
 		send_message("bUrself")
