@@ -1171,7 +1171,7 @@ def worldday(message_dict):
 	links_re = re.compile("<a.*?\/a>") # looks for <a> tags that also have a close tag
 	links = [link for link in re.findall(links_re, page) if "www.daysoftheyear.com" in link and "class=\"js-link-target\"" in link] #"link" is the entire <a></a> tag
 
-	day_re = re.compile("<.*?>([^<]*)<")# text between the tags
+	day_re = re.compile("<span class=\"long\">([^<]*)<")# text between the tags
 	world_day = re.search(day_re, links[0]).group(1).replace("&#8217;", "'").replace("&nbsp;", " ") # first group of 0th match (0th group is the whole match, 1st group is between ())
 
 	send_message(f"Happy {world_day}! (Source: https://www.daysoftheyear.com)" )

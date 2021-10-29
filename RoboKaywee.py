@@ -41,7 +41,7 @@ def log(s):
 	Takes a string, s, and logs it to a log file on disk with a timestamp. Also prints the string to console.
 	"""
 	current_time = localtime()
-	year   = str(current_time.tm_year)
+	# year   = str(current_time.tm_year)
 	month  = str(current_time.tm_mon ).zfill(2)
 	day    = str(current_time.tm_mday).zfill(2)
 	hour   = str(current_time.tm_hour).zfill(2)
@@ -486,7 +486,6 @@ def it_is_thursday_my_dudes():
 def it_is_worldday_my_dudes():
 	#this assumes the bot restarts..
 	if not get_data("worldday_sent", False):
-		print("Waiting 10m for worldday..")
 		sleep(10*60) # wait 10 mins into stream
 		commands_file.worldday({"display-name":"Timed Event"}) # have to include a message dict param
 		set_data("worldday_sent", True)
@@ -525,7 +524,7 @@ def channel_live_messages():
 		# these will do nothing if the messages have already sent this stream
 		Thread(target=it_is_worldday_my_dudes, name="Worldday Thread"    ).start() # waits 10m, sends message once, then exits
 		Thread(target=daily_message_func,      name="DailyMessage Thread").start() # waits 20m, sends message once, then exits
-		Thread(target=wordoftheday_timer,      name="WordOfTheDay Thread").start() # waits 30m, sends message once, then exits
+		#Thread(target=wordoftheday_timer,      name="WordOfTheDay Thread").start() # waits 30m, sends message once, then exits
 
 		channel_offline.wait() # wait for channel to go offline before running again
 
@@ -729,14 +728,14 @@ def ban_lurker_bots():
 			known_bots = dict([(bot[0], bot[1]) for bot in known_bots]) 
 			assert len(known_bots) > 0 # bit of a sanity check
 		except Exception as ex:
-			print("Exception while fetching lurker bots list: " + str(ex) + " - using cached bots list")
+			log("Exception while fetching lurker bots list: " + str(ex) + " - using cached bots list")
 			try:
 				with open("known_bots.txt", "r", encoding="utf-8") as f:
 					known_bots = dict(eval(f.read()))
 
 				assert len(known_bots) > 0 # bit of a sanity check
 			except Exception as ex:
-				print("Failed to read cached bots list. Sleeping - trying again later.")
+				log("Failed to read cached bots list. Sleeping - trying again later.")
 				sleep(check_period)
 				continue # restarts at the while True above
 
@@ -748,7 +747,7 @@ def ban_lurker_bots():
 			try:
 				viewers = requests.get(viewers_url).json()["chatters"]["viewers"] # doesn't list broadcaster, vips, mods, staff, admins, or global mods. Which is good here.
 			except Exception as ex:
-				print("Exception while checking for lurker bots: " + str(ex))
+				log("Exception while checking for lurker bots: " + str(ex))
 				sleep(check_period)
 			else:
 				for viewer in viewers:
@@ -878,11 +877,12 @@ def respond_message(message_dict):
 			send_message(f"@{user} {commands_dict['nochat']['response']}")
 			log(f"Sent nochat to {user} in response to @kaywee during nochat mode.")
 
-	#elif permission < permissions.Subscriber:
-	#	msg_without_spaces = message_lower.replace(" ", "")
-	#	if any(x in msg_without_spaces for x in ["bigfollows.com", "bigfollows*com", "bigfollowsdotcom"]):
-	#		send_message(f"/ban {user}")
-	#		log(f"Banned {user} for linking to bigfollows")
+	elif permission < permissions.Subscriber:
+		msg_without_spaces = message_lower.replace(" ", "")
+		if any(x in msg_without_spaces for x in ["bigfollows.com", "bigfollows*com", "bigfollowsdotcom"]):
+			send_message(f"/ban {user}")
+			log(f"Banned {user} for linking to bigfollows")
+			send_discord_message(f"The following bigfollows spammer has been banned on Twitch: {viewer}")
 
 	# EASTER EGGS:
 	
@@ -996,8 +996,6 @@ del update_command_data
 if __name__ == "__main__":
 	log("Starting bot..")
 
-	write_command_data(force_update_reddit=True)
-
 	success = False
 	dropoff = 0.5
 
@@ -1054,7 +1052,7 @@ if __name__ == "__main__":
 
 	while True:
 		try:
-			#messages = [{"message_type":"privmsg", "display-name":"theonefoster", "message":"!translate en de this is a test!", "badges":["moderator"], "id":"testmessageid"}]
+			#messages = [{"message_type":"privmsg", "display-name":"theonefoster", "message":"!translate en de this is a test!", "badges":["moderator"], "id":"testmessageid"}] # for testing, uncomment and change message
 			messages = bot.get_messages()
 			for message_dict in messages:
 				if message_dict["message_type"] == "privmsg": # chat message
@@ -1120,9 +1118,9 @@ if __name__ == "__main__":
 												command_obj["last_used"] = round(time(), 1) # doesn't need more than 0.1s precision and decimal places take up bytes!
 												write_command_data(force_update_reddit=False)
 										else:
-											log(f"WARNING: tried to call non-command function: {command}")
+											log(f"**WARNING**: tried to call non-command function: {command}")
 									else:
-										log(f"WARNING: Stored coded command with no function: {command}")
+										log(f"**WARNING**: Stored coded command with no function: {command}")
 								else:
 									if "response" in command_obj and command_obj["response"]:
 										words = message.split(" ")
@@ -1144,7 +1142,7 @@ if __name__ == "__main__":
 										command_obj["last_used"] = round(time(), 1)
 										write_command_data(force_update_reddit=False)
 									else:
-										log(f"WARNING: Stored text command with no response: {command}")
+										log(f"**WARNING**: Stored text command with no response: {command}")
 					else:
 						Thread(target=respond_message, args=(message_dict,)).start()
 
@@ -1218,7 +1216,7 @@ if __name__ == "__main__":
 						if "message" in message_dict:
 							if id != "color_changed": # gets spammy with daily colour changes and rainbows etc
 								if id == "host_on":
-									pass # trigger end of stream events?
+									channel_went_offline() # trigger end of stream events
 									
 								message = message_dict["message"]
 								log(f"NOTICE: {id}: {message}")
@@ -1272,14 +1270,14 @@ if __name__ == "__main__":
 								log(f"Sent nochat to {user} for resubscribing")
 
 						elif message_dict["msg-id"] == "anonsubgift": # ANONYMOUS GIFTED SUBSCRIPTION
-							# comes through as a gifted sub from AnAnonymousGifter ? So might not need this
+							# this has never come through. I just get msg-id="sub" with gifter of AnAnonymousGifter. So why tf does this message type exist?
 							recipient = message_dict["msg-param-recipient-display-name"].lower()
 							with open("chatlog.txt", "a", encoding="utf-8") as f:
-								f.write(f"USERNOTICE: Anon has gifted a subscription to {recipient}!\n")
+								f.write(f"USERNOTICE: AnAnonymousGifter has gifted a subscription to {recipient}!\n")
 							subscribers[recipient] = {"gifter_name":"AnAnonymousGifter", "is_gift":True, "subscribe_time":int(time())}
 							commit_subscribers()
 
-						elif message_dict["msg-id"] == "raid": # RAID
+						elif message_dict["msg-id"] == "raid": # incoming raid
 							raider = message_dict["msg-param-displayName"]
 							viewer_count = message_dict["msg-param-viewerCount"]
 							if int(viewer_count) >= 2:
@@ -1300,9 +1298,9 @@ if __name__ == "__main__":
 							gifts = message_dict["msg-param-mass-gift-count"]
 
 							if gifts != "1":
-								log(f"{gifter} has gifted {gifts} subscriptions to the community.")
+								log(f"{gifter} has gifted {gifts} subscriptions to the community!")
 							else:
-								log(f"{gifter} has gifted a subscription to the community.")
+								log(f"{gifter} has gifted a subscription to the community!")
 
 						elif message_dict["msg-id"] == "giftpaidupgrade":
 							subscriber = message_dict["msg-param-sender-login"] 
@@ -1315,21 +1313,21 @@ if __name__ == "__main__":
 							commit_subscribers()
 
 							if commands_file.nochat_on:
-								send_message(f"@{user} thank you so much for continuing your gifted sub! Kaywee isn't looking at chat right now (!nochat) but she'll see your sub after the current game.")
+								send_message(f"@{user} thank you for continuing your gifted sub! Kaywee isn't looking at chat right now (!nochat) but she'll see your sub after the current game.")
 								log(f"Sent nochat to {user} for subscribing")
 								
 						elif message_dict["msg-id"] == "rewardgift":
 							pass # for when gifted subs produce extra rewards (emotes) for other chat members
 
 						elif message_dict["msg-id"] == "communitypayforward":
+							# e.g. <user> is paying forward their gifted sub to the community!
 							gifter = message_dict["msg-param-prior-gifter-display-name"]
 							recipient = message_dict["msg-param-recipient-display-name"]
-							# e.g. <user> is paying forward their gifted sub to the community!
 
 						elif message_dict["msg-id"] == "standardpayforward":
+							# e.g. <user> is paying forward their gifted sub to <recipient>!
 							gifter = message_dict["msg-param-prior-gifter-display-name"]
 							recipient = message_dict["msg-param-recipient-display-name"]
-							# e.g. <user> is paying forward their gifted sub to <recipient>!
 
 						elif message_dict["msg-id"] == "bitsbadgetier":
 							badge_user      = message_dict["display-name"]
