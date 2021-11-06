@@ -1171,7 +1171,7 @@ def worldday(message_dict):
 	links_re = re.compile("<a.*?\/a>") # looks for <a> tags that also have a close tag
 	links = [link for link in re.findall(links_re, page) if "www.daysoftheyear.com" in link and "class=\"js-link-target\"" in link] #"link" is the entire <a></a> tag
 
-	day_re = re.compile("<span class=\"long\">([^<]*)<")# text between the tags
+	day_re = re.compile("<span class=\"short\">([^<]*)<")# text between the tags
 	world_day = re.search(day_re, links[0]).group(1).replace("&#8217;", "'").replace("&nbsp;", " ") # first group of 0th match (0th group is the whole match, 1st group is between ())
 
 	send_message(f"Happy {world_day}! (Source: https://www.daysoftheyear.com)" )
@@ -1261,8 +1261,7 @@ def spaces(message_dict):
 
 	try:
 		if phrase[0] == "@" and len(phrase.split(" ")) == 1: # parameter is really a username
-			phrase = phrase[1:].lower()
-			target = phrase
+			target = phrase[1:].lower()
 			phrase = last_message[target]["message"]
 	except:
 		return
@@ -1283,8 +1282,7 @@ def spongebob(message_dict):
 	target = ""
 
 	if phrase[0] == "@" and len(phrase.split(" ")) == 1: # parameter is really a username
-		phrase = phrase[1:].lower()
-		target = phrase
+		target = phrase[1:].lower()
 		phrase = last_message[target]["message"]
 
 	if len(phrase)%2 == 1: # length is odd
@@ -1752,11 +1750,11 @@ def islive(message_dict):
 
 	try:
 		title = requests.get(url, headers=authorisation_header).json()["data"][0]["title"]
-		send_message(f"{channel} is currently Live! www.twitch.tv/{channel}")
+		send_message(f"{channel} is currently live! www.twitch.tv/{channel}")
 		log(f"Sent islive to {user}: {channel} is live.")
 		return True
 	except:
-		send_message(f"{channel} is not currently Live.")
+		send_message(f"{channel} is not currently live.")
 		log(f"Sent islive to {user}: {channel} is not live.")
 		return True
 
@@ -2208,7 +2206,7 @@ def wikipedia(message_dict):
 		page = re.sub(r" ?\([^()]+\)", "", page) # remove second-level brackets
 		send_message(page)
 	except Exception as ex:
-		print(str(ex))
+		log("Exception in Wikipedia: " + str(ex))
 		send_message("That page wasn't found. Did you spell it correctly?")
 		return False
 
@@ -2264,3 +2262,63 @@ def lastclip(message_dict):
 
 	send_message(clip_link)
 	log(f"Sent lastclip to {user} (clip ID is {clip_id})")
+
+@is_command("Shows the Rank and Score of a user on the Bits Leaderboard.")
+def bits(message_dict):
+	user = message_dict["display-name"]
+
+	try:
+		target = message_dict["message"].split(" ")[1].lower().replace("@", "")
+	except (KeyError, IndexError):
+		target = user
+
+	url = "https://api.twitch.tv/helix/bits/leaderboard?count=100"
+
+	token = get_oauth_token()
+	authorisation_header = {"Client-ID": robokaywee_client_id, "Authorization":"Bearer " + token}
+
+	result = requests.get(url, headers=authorisation_header).json()
+
+	leaderboard = result["data"]
+	leaderboard = {x["user_login"]:{"name":x["user_name"], "bits":x["score"], "rank":x["rank"]} for x in leaderboard}
+	
+	if target in leaderboard:
+		rank = leaderboard[target]["rank"]
+		bits_donated = leaderboard[target]["bits"]
+
+		send_message(f"{leaderboard[target]['name']} has donated a total of {bits_donated:,} bits, and is rank {rank} on the leaderboard!")
+		log(f"Sent bits rank to {user}: {target} is rank {rank} with {bits_donated:,} bits.")
+	else:
+		send_message(f"The user {target} isn't on the leaderboard. The leaderboard only shows the top 100 donors.")
+		log(f"Sent bits rank to {user}: {target} isn't on the leaderboard.")
+
+@is_command("Shows the top 5 bits donors")
+def topbits(message_dict):
+	Thread(target=_bitsthread, name="Bits Leaderboard", args=(message_dict,)).start()
+
+def _bitsthread(message_dict):
+	user = message_dict["display-name"]
+	url = "https://api.twitch.tv/helix/bits/leaderboard?count=100"
+
+	token = get_oauth_token()
+	authorisation_header = {"Client-ID": robokaywee_client_id, "Authorization":"Bearer " + token}
+
+	result = requests.get(url, headers=authorisation_header).json()
+
+	leaderboard = result["data"] # is a list
+	# leaderboard = {x["user_login"]:{"name":x["user_name"], "bits":x["score"], "rank":x["rank"]} for x in leaderboard}
+
+	leaderboard.sort(key= lambda x:int(x["rank"]))
+	top_5 = leaderboard[:5]
+
+	user_bits_template = "{rank}. {user} ({bits}), "
+
+	msg = "The top five bits donors are: "
+
+	for donor in top_5:
+		msg += user_bits_template.format(user=donor["user_name"], bits=f"{int(donor['score']):,}", rank=donor["rank"])
+
+	msg=msg[:-2] # trim trailing comma and space
+
+	send_message(msg)
+	log(f"Sent top five donors to {user}. {msg}")

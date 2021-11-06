@@ -807,26 +807,28 @@ def get_oauth_token(force_new_token=False):
 	kaywee_oauth_expiry = get_data("kaywee_oauth_expiry")
 
 	if force_new_token or kaywee_oauth_expiry < time():
-		kaywee_oauth_refresh_token = get_data("kaywee_oauth_refresh_token")
-		url = "https://id.twitch.tv/oauth2/token"
-		refresh_params = {
-					"grant_type"    : "refresh_token",
-					"refresh_token" : kaywee_oauth_refresh_token,
-					"client_id"     : robokaywee_client_id,
-					"client_secret" : robokaywee_secret
-					}
-		result = requests.post(url, params=refresh_params).json()
+		try:
+			kaywee_oauth_refresh_token = get_data("kaywee_oauth_refresh_token")
+			url = "https://id.twitch.tv/oauth2/token"
+			refresh_params = {
+						"grant_type"    : "refresh_token",
+						"refresh_token" : kaywee_oauth_refresh_token,
+						"client_id"     : robokaywee_client_id,
+						"client_secret" : robokaywee_secret
+						}
+			result = requests.post(url, params=refresh_params).json()
 
-		kaywee_oauth_token = result["access_token"]
-		new_expiry = result["expires_in"]
-		new_refresh_token = result["refresh_token"]
+			kaywee_oauth_token = result["access_token"]
+			new_expiry = result["expires_in"]
+			new_refresh_token = result["refresh_token"]
 
-		set_data("kaywee_oauth_expiry", int(time() + new_expiry))
-		set_data("kaywee_oauth_refresh_token", new_refresh_token)
-		set_data("kaywee_oauth_token", kaywee_oauth_token)
+			set_data("kaywee_oauth_expiry", int(time() + new_expiry))
+			set_data("kaywee_oauth_refresh_token", new_refresh_token)
+			set_data("kaywee_oauth_token", kaywee_oauth_token)
 
-		return kaywee_oauth_token
-
+			return kaywee_oauth_token
+		except KeyError as ex:
+			log(f"No Token received when fetching new oauth token from twitch - {str(ex)}")
 	else:
 		kaywee_oauth_token = get_data("kaywee_oauth_token")
 
@@ -839,7 +841,7 @@ def get_oauth_token(force_new_token=False):
 			return kaywee_oauth_token
 
 		except Exception as ex:
-			log(f"Exception when fetching oauth token - {str(ex)} - trying again with force_new_token..")
+			log(f"Exception when validating oauth token - {str(ex)} - trying again with force_new_token..")
 			return get_oauth_token(force_new_token=True)
 
 def dont_stop_comin():
@@ -882,34 +884,28 @@ def respond_message(message_dict):
 		if any(x in msg_without_spaces for x in ["bigfollows.com", "bigfollows*com", "bigfollowsdotcom"]):
 			send_message(f"/ban {user}")
 			log(f"Banned {user} for linking to bigfollows")
-			send_discord_message(f"The following bigfollows spammer has been banned on Twitch: {viewer}")
+			send_discord_message(f"The following bigfollows spammer has been banned on Twitch: {user}")
 
 	# EASTER EGGS:
 	
 	if message[0] == "^":
 		send_message("^") #, suppress_colour=True)
 		log(f"Sent ^ to {user}")
-
 	elif ayy_re.fullmatch(message_lower):
 		send_message("lmao")
 		log(f"Sent lmao to {user}")
-
 	elif message_lower in ["hewwo", "hewwo?", "hewwo??"]:
 		send_message(f"HEWWO! UwU {get_emote('kaywee1AYAYA')}")
 		log(f"Sent hewwo to {user}")
-
 	elif message_lower == "hello there":
 		send_message("General Keboni")
 		log(f"Sent Kenobi to {user}")
-
 	elif "romper" in message_lower:
 		send_message("!romper")
 		log(f"Sent romper to {user}")
-
 	elif user == "theonefoster" and message_lower == "*sd":
 		shutdown_on_offline = True
 		log("Will now shutdown when Kaywee goes offline.")
-
 	elif user == "nightroad2593" and message_lower[:6] == "in ow2":
 		log(f"Saved new ow2 prediction: {message_lower}")
 		with open("ow2.txt", "a") as f:
@@ -1055,6 +1051,8 @@ if __name__ == "__main__":
 			#messages = [{"message_type":"privmsg", "display-name":"theonefoster", "message":"!translate en de this is a test!", "badges":["moderator"], "id":"testmessageid"}] # for testing, uncomment and change message
 			messages = bot.get_messages()
 			for message_dict in messages:
+				if message_dict["message_type"] != "privmsg" and message_dict["message_type"] != "userstate":
+					print(message_dict)
 				if message_dict["message_type"] == "privmsg": # chat message
 					user	= message_dict["display-name"].lower()
 					message = message_dict["message"]
@@ -1342,6 +1340,16 @@ if __name__ == "__main__":
 						elif message_dict["msg-id"] == "unraid":
 							# e.g. "The raid has been cancelled."
 							pass
+						elif message_dict["msg-id"] == "ritual":
+							# 04/11/21 - this didn't come through in chat for a new user who redeemed Highlight My Message. Old set method detected the new user but new ritual method didn't.
+
+							# update: doesn't work. msg doesn't come through at all.
+							if message_dict["msg-param-ritual-name"] == "new_chatter":
+								new_chatter = message_dict["display-name"]
+								log(f"{new_chatter} is a new chatter!")
+							else:
+								with open("verbose log.txt", "a", encoding="utf-8") as f:
+									f.write("unknown ritual - " + str(message_dict) + "\n\n")
 						else:
 							with open("verbose log.txt", "a", encoding="utf-8") as f:
 								f.write("(unknown msg-id?) - " + str(message_dict) + "\n\n")
@@ -1397,6 +1405,9 @@ if __name__ == "__main__":
 					elif "subs-only" in message_dict:
 						enabled_str = "enabled" if int(message_dict.get("subs-only", 0)) else "disabled"
 						send_message(f"Subs-only mode is now {enabled_str}")
+
+						with open("verbose log.txt", "a", encoding="utf-8") as f:
+							f.write("Robokaywee - unknown roomstate: " + str(message_dict) + "\n\n")
 
 				elif message_dict["message_type"] == "clearmsg":
 					# single message was deleted
