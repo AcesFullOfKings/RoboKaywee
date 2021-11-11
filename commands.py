@@ -715,7 +715,7 @@ def toenglish(message_dict):
 			log(f"Translated \"{phrase}\" into English for {user}: it says \"{english}\"")
 			return True
 		except Exception as ex:
-			log(f"Exception in toenglish: " + str(ex))
+			#log(f"Exception in toenglish: " + str(ex))
 			errors += 1
 			sleep(1)
 
@@ -753,7 +753,7 @@ def tospanish(message_dict):
 			return True
 
 		except Exception as ex:
-			log(f"Exception in tospanish: " + str(ex))
+			#log(f"Exception in tospanish: " + str(ex))
 			errors += 1
 			sleep(1)
 
@@ -794,7 +794,7 @@ def translate(message_dict):
 			log(f"Translated \"{phrase}\" into {dest} for {user}: it says \"{output}\"")
 			return True
 		except Exception as ex:
-			log(f"Exception in translate: " + str(ex))
+			#log(f"Exception in translate: " + str(ex))
 			errors += 1
 			sleep(1)
 	send_message("Translation failed. FeelsBadMan")
@@ -2322,3 +2322,22 @@ def _bitsthread(message_dict):
 
 	send_message(msg)
 	log(f"Sent top five donors to {user}. {msg}")
+
+@is_command("Show which commands have never been used.")
+def unused(message_dict):
+	user = message_dict["display-name"]
+
+	with open("commands.txt", "r", encoding="utf-8") as f:
+		command_dict = eval(f.read())
+
+	not_used = [c for c in command_dict if command_dict[c]["uses"]==0]
+	not_used.sort()
+
+	if len(not_used)==0:
+		send_message("There are currently no commands that have never been used! Use !commands for the full list.")
+		log(f"Sent unused commands to {user}: no unused commands.")
+
+	else:
+		unused_list = ", ".join(not_used)
+		send_message("The following RoboKaywee commands have never (!) been used: " + unused_list)
+		log(f"Sent unused commands to {user}: " + unused_list)

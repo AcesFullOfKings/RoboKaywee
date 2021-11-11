@@ -834,8 +834,8 @@ def get_oauth_token(force_new_token=False):
 
 		try:
 			result = requests.get("https://id.twitch.tv/oauth2/validate", headers={"Authorization": "OAuth " + kaywee_oauth_token}).json()
-			new_expiry = result["expires_in"]
-			assert new_expiry > 0 and new_expiry - time() > 0
+			new_expiry = result["expires_in"] # number of seconds from now. (not a timestamp!)
+			assert new_expiry > 0
 
 			set_data("kaywee_oauth_expiry", int(time() + new_expiry))
 			return kaywee_oauth_token
@@ -1052,7 +1052,8 @@ if __name__ == "__main__":
 			messages = bot.get_messages()
 			for message_dict in messages:
 				if message_dict["message_type"] != "privmsg" and message_dict["message_type"] != "userstate":
-					print(message_dict)
+					with open("weird_messages.txt", "a", encoding="utf-8") as f:
+						f.write(str(message_dict) + "\n\n")
 				if message_dict["message_type"] == "privmsg": # chat message
 					user	= message_dict["display-name"].lower()
 					message = message_dict["message"]
