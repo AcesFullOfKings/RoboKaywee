@@ -7,8 +7,6 @@ import random
 import requests
 import subprocess
 
-import math as maths # correct the typo in the standard library. fucking americans
-
 from os          import getcwd
 from time        import time, sleep, localtime
 from enum        import IntEnum
