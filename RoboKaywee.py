@@ -7,6 +7,8 @@ import random
 import requests
 import subprocess
 
+import math as maths # fucking americans
+
 from os          import getcwd
 from time        import time, sleep, localtime
 from enum        import IntEnum
@@ -522,9 +524,9 @@ def channel_live_messages():
 			daily_message_func = None # will cause a targetless thread to be created which will immediately terminate
 
 		# these will do nothing if the messages have already sent this stream
-		Thread(target=it_is_worldday_my_dudes, name="Worldday Thread"    ).start() # waits 10m, sends message once, then exits
-		Thread(target=daily_message_func,      name="DailyMessage Thread").start() # waits 20m, sends message once, then exits
-		#Thread(target=wordoftheday_timer,      name="WordOfTheDay Thread").start() # waits 30m, sends message once, then exits
+		# Thread(target=it_is_worldday_my_dudes, name="Worldday Thread"    ).start() # waits 10m, sends message once, then exits
+		Thread(target=daily_message_func,      name="DailyMessage Thread").start()   # waits 20m, sends message once, then exits
+		#Thread(target=wordoftheday_timer,      name="WordOfTheDay Thread").start()  # waits 30m, sends message once, then exits
 
 		channel_offline.wait() # wait for channel to go offline before running again
 
@@ -1222,9 +1224,9 @@ if __name__ == "__main__":
 								with open("chatlog.txt", "a", encoding="utf-8") as f:
 									f.write(f"NOTICE: (msg_id {id}): {message}\n")
 						else:
-							log(f"NOTICE with msg_id but no message: {str(message_dict)}")
+							log(f"NOTICE with msg_id but no message: {str(message_dict)}") # shouldn't happen
 					else:
-						log(f"NOTICE with no msg_id: {str(message_dict)}")
+						log(f"NOTICE with no msg_id: {str(message_dict)}") # shouldn't happen
 
 				elif message_dict["message_type"] == "usernotice":
 					if "msg-id" in message_dict:
