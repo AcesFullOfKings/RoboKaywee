@@ -241,9 +241,6 @@ def channel_came_online():
 	set_data("bUrself_sent", False)
 	ali_sent = False
 	set_data("ali_sent", False)
-	set_data("wordoftheday_sent", False)
-	set_data("unpink_sent", False)
-	set_data("worldday_sent", False)
 
 	# these should be the last thing the function does, as other threads may depend on these events
 	channel_offline.clear()
@@ -465,9 +462,6 @@ def it_is_wednesday_my_dudes():
 
 	sleep(wait_time)
 
-	url = "https://api.twitch.tv/helix/streams?user_id=" + kaywee_channel_id
-	global authorisation_header 
-
 	while True:
 		channel_live.wait() # if channel goes offline, wait for it to come back online
 		if date.today().weekday() == 2 and datetime.now().hour >= 6: # if it's wednesday and it's not earlier than 6am
@@ -479,29 +473,22 @@ def it_is_wednesday_my_dudes():
 		sleep(reminder_period)
 
 def it_is_thursday_my_dudes():
-	if not get_data("unpink_sent", False):
-		sleep(20*60) # wait 20 mins into the stream
-		send_message("On Thursdays we wear whatever colour we want. Set your username colour by using /color and sit with us.")
-		log("Sent UnPink reminder.")
-		set_data("unpink_sent", True)
+	sleep(20*60) # wait 20 mins into the stream
+	send_message("On Thursdays we wear whatever colour we want. Set your username colour by using /color and sit with us.")
+	log("Sent UnPink reminder.")
 
 def it_is_worldday_my_dudes():
-	#this assumes the bot restarts..
-	if not get_data("worldday_sent", False):
-		sleep(10*60) # wait 10 mins into stream
-		commands_file.worldday({"display-name":"Timed Event"}) # have to include a message dict param
-		set_data("worldday_sent", True)
+	sleep(10*60) # wait 10 mins into stream
+	commands_file.worldday({"display-name":"Timed Event"}) # need to include a message dict param
 
 def wordoftheday_timer():
-	if not get_data("wordoftheday_sent", False):
-		sleep(30*60) # wait 30 mins into stream
-		commands_file.wordoftheday({"display-name":"Timed Event"}) # have to include a message dict param
-		set_data("wordoftheday_sent", True)
+	sleep(30*60) # wait 30 mins into stream
+	commands_file.wordoftheday({"display-name":"Timed Event"}) # have to include a message dict param
 
 def ow2_msgs():
 	while True:
-		sleep(random.randint(15*60, 45*60)) # random wait between 15 and 45 mins
 		channel_live.wait()
+		sleep(random.randint(15*60, 45*60)) # random wait between 15 and 45 mins
 		commands_file.ow2({"display-name": "Timed Event"})
 
 def channel_live_messages():
@@ -523,7 +510,6 @@ def channel_live_messages():
 		else:
 			daily_message_func = None # will cause a targetless thread to be created which will immediately terminate
 
-		# these will do nothing if the messages have already sent this stream
 		# Thread(target=it_is_worldday_my_dudes, name="Worldday Thread"    ).start() # waits 10m, sends message once, then exits
 		Thread(target=daily_message_func,      name="DailyMessage Thread").start()   # waits 20m, sends message once, then exits
 		#Thread(target=wordoftheday_timer,      name="WordOfTheDay Thread").start()  # waits 30m, sends message once, then exits
@@ -551,6 +537,8 @@ def update_followers():
 	global authorisation_header
 
 	while True:
+		channel_live.wait() # only bother polling while channel is live 
+
 		url = "https://api.twitch.tv/helix/users/follows?to_id=" + kaywee_channel_id
 
 		# first check total follow count from twitch:
@@ -583,7 +571,7 @@ def automatic_backup():
 	"""
 	
 	backup_period  = 86400 * 7 # backup once per 7 days
-	check_interval = 60*60     # check once per hour
+	check_interval = 120*60    # check  once per 2 hours
 
 	while True:
 		if get_data("last_backup", 0) < time() - backup_period:
@@ -900,7 +888,7 @@ def respond_message(message_dict):
 		send_message(f"HEWWO! UwU {get_emote('kaywee1AYAYA')}")
 		log(f"Sent hewwo to {user}")
 	elif message_lower == "hello there":
-		send_message("General Keboni")
+		send_message("General Kenobi")
 		log(f"Sent Kenobi to {user}")
 	elif "romper" in message_lower:
 		send_message("!romper")
@@ -1291,8 +1279,15 @@ if __name__ == "__main__":
 								set_data("last_raid", raid_data)
 
 								if commands_file.nochat_on:
-									Thread(target=nochat_raid, params=(raider)).start() 
+									Thread(target=nochat_raid, params=(raider)).start()
 									# sends a message in chat after a short delay
+
+								if raider.lower() == "toniki":
+									def how_to_translate_thread():
+										sleep(20)
+										send_message(commands_dict["howtotranslate"]["response"])
+
+									Thread(target=how_to_translate_thread).start()
 
 						elif message_dict["msg-id"] == "submysterygift":
 							gifter = message_dict["login"] # comes as lowercase

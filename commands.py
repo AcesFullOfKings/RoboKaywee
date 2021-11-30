@@ -156,7 +156,8 @@ def rcommand(message_dict):
 							send_message("You don't have permission to do that.")
 							return False
 				else:
-					send_message("Invalid Permission: Use 0=All, 4=Subscriber, 6=VIP, 8=Moderator, 9=Owner, 10=Broadcaster, 20=Disabled")
+					valid_permissions = ", ".join([str(enum.value) + "=" + enum.name for enum in permissions])
+					send_message("Invalid Permission: Use " + valid_permissions)
 					return False
 			else:
 				send_message(f"No command exists with name {command_name}.")
@@ -1361,8 +1362,8 @@ def _get_place_from_name(place):
 	if place not in places:
 		log(f"Looking up new place name {place}")
 
-		geocode_url = "https://geocode.xyz/{place}?json=1"
-		geo_response = requests.get(geocode_url.format(place=place)).json()
+		geocode_url = f"https://geocode.xyz/{place}?json=1"
+		geo_response = requests.get(geocode_url).json()
 
 		if not ("latt" in geo_response and "longt" in geo_response):
 			return (None, None)
@@ -1475,7 +1476,7 @@ def urban(message_dict):
 
 	try:
 		num = int(term.split(" ")[-1]) - 1
-		assert 0 < num < 100
+		assert 0 < num < 20
 	except:
 		num = 0
 	else:
