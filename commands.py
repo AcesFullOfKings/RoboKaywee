@@ -348,7 +348,7 @@ def _start_toxic_poll():
 			send_message("!toxic")
 			log(f"Poll result: TOXIC. Toxic: {toxic_votes} votes ({toxic_percent}%) - Nice: {nottoxic_votes} votes ({nottoxic_percent}%)")
 		else:
-			send_message(message + "Poll was a draw! Chat can't make up its mind! kaywee1Wut ")
+			send_message(message + f"Poll was a draw! Chat can't make up its mind! {get_emote('kaywee1Wut')}")
 			log(f"Poll result: undecided. Toxic: {toxic_votes} votes ({toxic_percent}%) - Nice: {nottoxic_votes} votes ({nottoxic_percent}%)")
 
 		voters = set()
@@ -368,7 +368,7 @@ def hello(message_dict):
 	user = message_dict["display-name"].lower()
 	message = message_dict["message"]
 
-	send_message(f"Hello, {user}! kaywee1AYAYA")
+	send_message(f"Hello, {user}! {get_emote('kaywee1AYAYA')}")
 	log(f"Sent Hello to {user}")
 
 @is_command("Roll one or more dice. Syntax: !dice [<number>[d<sides>]] e.g. `!dice 4` or `!dice 3d12`")
@@ -433,10 +433,10 @@ def followgoal(message_dict):
 		followers = data["total"]
 		followers_left = goal - followers
 		if followers_left > 0:
-			send_message(f"Kaywee has {followers:,} followers, meaning there are only {followers_left:,} more followers until we hit our goal of {goal:,}! kaywee1AYAYA")
+			send_message(f"Kaywee has {followers:,} followers, meaning there are only {followers_left:,} more followers until we hit our goal of {goal:,}! {get_emote('kaywee1AYAYA')}")
 			log(f"Sent followergoal of {followers_left} to {user} (currently {followers:,}/{goal:,})")
 		else:
-			send_message(f"The follower goal of {goal:,} has been met! We now have {followers:,} followers! kaywee1AYAYA")
+			send_message(f"The follower goal of {goal:,} has been met! We now have {followers:,} followers! {get_emote('kaywee1AYAYA')}")
 			log(f"Sent followergoal has been met to {user} ({followers:,}/{goal:,})")
 			while goal <= followers:
 				if goal < 10000:
@@ -448,7 +448,7 @@ def followgoal(message_dict):
 			log(f"Increased followgoal to {goal:,}")
 
 			followers_left = goal - followers
-			send_message(f"Our new follow goal is {goal:,}! kaywee1AYAYA")
+			send_message(f"Our new follow goal is {goal:,}! {get_emote('kaywee1AYAYA')}")
 	except (ValueError, KeyError) as ex:
 		log("Error in followgoal command: " + ex)
 
@@ -636,10 +636,10 @@ def whogifted(message_dict):
 			except KeyError:
 				send_message(f"Error - this is a gifted sub but there is no record of the gifter. WeirdChamp")
 				return False
-			send_message(f"@{target}'s current subscription was gifted to them by @{gifter}! Thank you! kaywee1AYAYA ")
+			send_message(f"@{target}'s current subscription was gifted to them by @{gifter}! Thank you! {get_emote('kaywee1AYAYA')} ")
 			log(f"Sent whogifted (target={target}, gifter={gifter}) in response to {user}.")
 		else:
-			send_message(f"@{target} subscribed on their own this time. Thank you! kaywee1AYAYA ")
+			send_message(f"@{target} subscribed on their own this time. Thank you! {get_emote('kaywee1AYAYA')} ")
 			log(f"Sent whogifted ({target} subbed on their own) in response to {user}.")
 	else:
 		send_message(f"@{target} is not a subscriber. FeelsBadMan")
@@ -673,9 +673,9 @@ def howmanygifts(message_dict):
 		log(f"Sent {target} has no gifted subs, in response to {user}.")
 	else:
 		recipients = recipients[:-2]
-		message = f"{target} has gifted {count} of the current subscriptions to: {recipients}. Thanks for the support <3 kaywee1AYAYA"
+		message = f"{target} has gifted {count} of the current subscriptions to: {recipients}. Thanks for the support <3 {get_emote('kaywee1AYAYA')}"
 		if len(message) > 500: # twitch max length
-			message = f"{target} has gifted {count} of the current subscriptions! Thanks for the support <3 kaywee1AYAYA"
+			message = f"{target} has gifted {count} of the current subscriptions! Thanks for the support <3 {get_emote('kaywee1AYAYA')}"
 		send_message(message)
 		log(f"Sent {target} has {count} gifted subs, in response to {user}.")
 
@@ -865,13 +865,13 @@ def setcolour(message_dict):
 			sleep(0.9)
 			set_data("current_colour", new_colour)
 			if user != "Timed Event":
-				send_message(f"The Robocolour was randomly updated to {new_colour}! kaywee1AYAYA")
+				send_message(f"The Robocolour was randomly updated to {new_colour}! {get_emote('kaywee1AYAYA')}")
 			log(f"Colour was randomly updated to {new_colour} in response to {user}")
 		else:
 			send_message("/color " + colour, False)
 			sleep(0.9)
 			set_data("current_colour", colour)
-			send_message(f"The Robocolour was updated to {colour}! kaywee1AYAYA")
+			send_message(f"The Robocolour was updated to {colour}! {get_emote('kaywee1AYAYA')}")
 			log(f"Colour was updated to {colour} in response to {user}")
 	else:
 		send_message(f"@{user} That colour isn't right. Valid colours are: random, default, blue, blueviolet, cadetblue, chocolate, coral, dodgerblue, firebrick, goldenrod, green, hotpink, orangered, red, seagreen, springgreen, yellowgreen")
@@ -1933,7 +1933,8 @@ def excuse(message_dict):
 
 		responses = ["Ahh that explains a lot.",
 					 "Oh. Does her duo know this?",
-					 "Oh, I was wondering what was going on."]
+					 "Oh, I was wondering what was going on.",
+					 "Yeah, that makes sense."]
 
 		send_message(random.choice(responses))
 		log(f"Added excuse from {user}: {excuse}")
@@ -2342,3 +2343,19 @@ def unused(message_dict):
 		unused_list = ", ".join(not_used)
 		send_message("The following RoboKaywee commands have never (!) been used: " + unused_list)
 		log(f"Sent unused commands to {user}: " + unused_list)
+
+#@is_command("Lets the Owner run commands")
+#def run(message_dict):
+#	user = message_dict["display-name"]
+#	message = message_dict["message"]
+#
+#	print("here")
+#
+#	if user != "theonefoster":
+#		return # bit of extra security on top of the Permission as it's an insecure command!
+#
+#	command = " ".join(message.split(" ")[1:])
+#
+#####	"""result = eval(command)""" this line is like, super-mega-triple commented out
+#
+#	send_message("Result: " + str(result))

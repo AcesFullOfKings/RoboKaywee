@@ -193,6 +193,24 @@ with open("followers.txt", "r", encoding="utf-8") as f:
 with open("titles.txt", "r", encoding="utf-8") as f:
 	titles = f.read().split("\n")
 
+def streamer_is_live():
+	global authorisation_header, kaywee_channel_id
+
+	url = "https://api.twitch.tv/helix/streams?user_id=" + kaywee_channel_id
+
+	try:
+		# if this call succeeds, streamer is Live. Exceptions imply streamer is offline (as no stream title exists)
+		title = requests.get(url, headers=authorisation_header).json()["data"][0]["title"]
+		return True
+
+	# streamer is offline:
+	except (IndexError, KeyError):
+		return False
+
+	except Exception as ex:
+		log("Exception when checking if streamer is Live: " + str(ex))
+		return False # assume offline if live status is unknown to avoid spamming chat
+
 def channel_went_offline():
 	global channel_live
 	global channel_offline
@@ -248,25 +266,16 @@ def channel_came_online():
 
 def check_live_status():
 	global channel_live
-	global authorisation_header
 	
-	url = "https://api.twitch.tv/helix/streams?user_id=" + kaywee_channel_id
-	
-	try:
-		# if this call succeeds, streamer is Live. Exceptions imply streamer is offline (as no stream title exists)
-		title = requests.get(url, headers=authorisation_header).json()["data"][0]["title"]
-
-	# streamer is offline:
-	except (IndexError, KeyError):
+	if not streamer_is_live():
 		if channel_live.is_set():
 			channel_went_offline()
-
-	# streamer is online:
 	else:
+		# streamer is online:
 		if not channel_live.is_set():
 			channel_came_online()
 
-		add_seen_title(title) # save unique stream title
+		#add_seen_title(title) # save unique stream title
 
 def channel_events():
 	"""Checks live status regularly. If channel goes live or goes offline, global Thread events are triggered."""
@@ -285,11 +294,7 @@ def channel_events():
 			log("Exception while checking Live Status: " + str(ex))
 		
 def play_patiently():
-	url = "https://api.twitch.tv/helix/streams?user_id=" + kaywee_channel_id
-	global authorisation_header
-
 	reminder_period = 60*60
-
 	last_patient_reminder = get_data("last_patient_reminder", 0)
 
 	time_since = time() - last_patient_reminder
@@ -301,13 +306,12 @@ def play_patiently():
 	sleep(wait_time)
 
 	while True:
-		try:
-			title = requests.get(url, headers=authorisation_header).json()["data"][0]["title"] # makes sure streamer is live
+		if streamer_is_live():
 			send_message("@Kaywee - Reminder: play patiently!")
 			log("Sent patient reminder.")
 			set_data("last_patient_reminder", int(time()))
-		except:
-			pass
+		else:
+			channel_live.wait() # channel is offline.. wait to come back online
 
 		sleep(reminder_period) # wait an hour before retrying
 
@@ -500,7 +504,7 @@ def channel_live_messages():
 	while True:
 		if not channel_live.is_set():  # if channel isn't already live when bot starts
 			channel_live.wait()        # wait for channel to go live
-			send_message("!resetrecord") #, suppress_colour=True)
+			send_message("!resetrecord")
 
 		weekday_num = date.today().weekday()
 		if weekday_num == 3:
@@ -510,8 +514,8 @@ def channel_live_messages():
 		else:
 			daily_message_func = None # will cause a targetless thread to be created which will immediately terminate
 
-		# Thread(target=it_is_worldday_my_dudes, name="Worldday Thread"    ).start() # waits 10m, sends message once, then exits
-		Thread(target=daily_message_func,      name="DailyMessage Thread").start()   # waits 20m, sends message once, then exits
+		#Thread(target=it_is_worldday_my_dudes, name="Worldday Thread"    ).start() # waits 10m, sends message once, then exits
+		Thread(target=daily_message_func,       name="DailyMessage Thread").start()   # waits 20m, sends message once, then exits
 		#Thread(target=wordoftheday_timer,      name="WordOfTheDay Thread").start()  # waits 30m, sends message once, then exits
 
 		channel_offline.wait() # wait for channel to go offline before running again
@@ -537,6 +541,7 @@ def update_followers():
 	global authorisation_header
 
 	while True:
+		sleep(10*60)
 		channel_live.wait() # only bother polling while channel is live 
 
 		url = "https://api.twitch.tv/helix/users/follows?to_id=" + kaywee_channel_id
@@ -547,6 +552,7 @@ def update_followers():
 			follower_count = data["total"]
 		except Exception as ex:
 			log("Exception while requesting followers: " + str(ex))
+			continue
 
 		# only update followers if total follow count has changed: 
 		# (this might mean e.g. one unfollowed and one followed so the count stayed the same but the list changed.. but oh well)
@@ -562,8 +568,6 @@ def update_followers():
 				except Exception as ex:
 					log("Exception writing followers: " + str(ex))
 					followers = {} # should get updated on next loop
-
-		sleep(10*60)
 
 def automatic_backup():
 	"""
@@ -858,7 +862,7 @@ def respond_message(message_dict):
 	msg_lower_no_punc = "".join(c for c in message_lower if c in ascii_lowercase+" ")
 	msg_words = [word for word in message_lower.split(" ") if word not in twitch_emotes] # remove emotes
 
-	if "@robokaywee" in message_lower and user not in bots:
+	if "@robokaywee" in message_lower and user not in bots and permission < permissions.Mod:
 		send_message(f"@{user} I'm a bot, so I can't reply. Try talking to one of the helpful human mods instead.")
 		log(f"Sent \"I'm a bot\" to {user}")
 
@@ -871,7 +875,7 @@ def respond_message(message_dict):
 
 	elif permission < permissions.Subscriber:
 		msg_without_spaces = message_lower.replace(" ", "")
-		if any(x in msg_without_spaces for x in ["bigfollows.com", "bigfollows*com", "bigfollowsdotcom"]):
+		if any(x in msg_without_spaces for x in ["bigfollows.com", "bigfollows*com", "bigfollowsdotcom", "wannabecomefamous?buyfollowersandviewers", "clck.ru"]):
 			send_message(f"/ban {user}")
 			log(f"Banned {user} for linking to bigfollows")
 			send_discord_message(f"The following bigfollows spammer has been banned on Twitch: {user}")
@@ -1024,6 +1028,7 @@ if __name__ == "__main__":
 	commands_file.get_data           = get_data
 	commands_file.set_data           = set_data
 	commands_file.nochat_on          = False
+	commands_file.get_emote          = get_emote
 	commands_file.usernames          = usernames
 	commands_file.subscribers        = subscribers
 	commands_file.permissions        = permissions
@@ -1229,7 +1234,7 @@ if __name__ == "__main__":
 
 							if recipient == "robokaywee":
 								sleep(1)
-								send_message(f"OMG {gifter}!! Thank you so much for my gifted sub, you're the best!! <3 <3 {get_emote('kaywee1AYAYA')}")
+								send_message(f"OMG {gifter}!! Thank you so much for my gifted sub, you're the best!! <3 <3 kaywee1AYAYA") # don't get_emote as we know the bot is subbed
 							elif commands_file.nochat_on:
 								send_message(f"@{gifter} thank you so much for gifting a subscription to {recipient}! Kaywee isn't looking at chat right now (!nochat) but she'll see your gift after the current game.")
 								log(f"Sent nochat to {gifter} for gifting a sub")
