@@ -28,7 +28,6 @@ from API_functions import get_app_access_token, get_name_from_user_ID, get_follo
 """
 TODO:
 should be able to give any command multiple names via aliases
-when host_on notice is received, channel_live should be set to false
 """
 
 try: # try to name the window
@@ -157,7 +156,7 @@ modwalls = {
 	30:  {"name": "Supermodwall",            "emotes": "SeemsGood kaywee1Wut",                                                   "excitement": 1, "break_emotes": ":( FeelsBadMan"},
 	60:  {"name": "MEGA MODWALL",            "emotes": "TwitchLit kaywee1AYAYA kaywee1Wut",                                      "excitement": 2, "break_emotes": ":( FeelsBadMan NotLikeThis"},
 	120: {"name": "H Y P E R MODWALL",       "emotes": "kaywee1AYAYA PogChamp Kreygasm CurseLit",                                "excitement": 2, "break_emotes": ":( FeelsBadMan NotLikeThis PepeHands"},
-	250: {"name": "U L T R A M O D W A L L", "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut", "excitement": 3, "break_emotes": ":( FeelsBadMan NotLikeThis PepeHands"},
+	250: {"name": "U L T R A M O D W A L L", "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut", "excitement": 3, "break_emotes": ":( FeelsBadMan NotLikeThis PepeHands Sadge"},
 	500: {"name": "G I G A M O D W A L L",   "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut", "excitement": 3, "break_emotes": ":( FeelsBadMan NotLikeThis PepeHands Sadge"},
 	# I guarantee none of these will ever be reached naturally, but..
 	1000:{"name": "PETAMODWALL",             "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut", "excitement": 4, "break_emotes": ":( FeelsBadMan NotLikeThis PepeHands Sadge"},
@@ -218,31 +217,32 @@ def channel_went_offline():
 	global shutdown_on_offline
 	global live_status_checked
 
-	# live_stats_checked is not set the first time this runs, i.e. when the bot is starting. 
-	# don't send the message to chat if the channel is offline when the bot starts
-	if live_status_checked.is_set():
-		uptime = int(time() - online_time)
+	if online_time is not None: # don't try to go offline when already offline
+		# live_stats_checked is not set the first time this runs, i.e. when the bot is starting. 
+		# don't send the message to chat if the channel is offline when the bot starts
+		if live_status_checked.is_set():
+			uptime = int(time() - online_time)
 
-		hours = int((uptime % 86400) // 3600)
-		mins  = int((uptime % 3600) // 60)
-		# seconds = int (uptime % 60) # removed - uptime isn't precise enough to justify sending the seconds
+			hours = int((uptime % 86400) // 3600)
+			mins  = int((uptime % 3600) // 60)
+			# seconds = int (uptime % 60) # removed - uptime isn't precise enough to justify sending the seconds
 
-		uptime_string = f"{channel_name} went offline. Uptime was approximately {hours} hours and {mins} mins."
-		log(uptime_string)
-		send_message(uptime_string)
+			uptime_string = f"{channel_name} went offline. Uptime was approximately {hours} hours and {mins} mins."
+			log(uptime_string)
+			send_message(uptime_string)
 
-	online_time = None
-	set_data("online_time", None)
+		online_time = None
+		set_data("online_time", None)
 
-	# these should be the last thing the function does, as other threads may depend on these events
-	channel_live.clear()
-	channel_offline.set()
+		# these should be the last thing the function does, as other threads may depend on these events
+		channel_live.clear()
+		channel_offline.set()
 
-	# ...unless we shut down in which case it doesn't matter
-	if shutdown_on_offline:
-		log("Shutting down the PC..")
-		sleep(1)
-		subprocess.run("Shutdown /s /f")
+		# ...unless we shut down in which case it doesn't matter
+		if shutdown_on_offline:
+			log("Shutting down the PC..")
+			sleep(1)
+			subprocess.run("Shutdown /s /f")
 
 def channel_came_online():
 	global channel_live
@@ -259,6 +259,8 @@ def channel_came_online():
 	set_data("bUrself_sent", False)
 	ali_sent = False
 	set_data("ali_sent", False)
+
+	Thread(target=promote_socials, name="Socials").start()
 
 	# these should be the last thing the function does, as other threads may depend on these events
 	channel_offline.clear()
@@ -325,8 +327,8 @@ def update_commands_wiki(force_update_reddit=False):
 		permissions_dict = {p.value : p.name for p in permissions}
 
 		try:
-			r = praw.Reddit("RoboKaywee")
-			subreddit = r.subreddit("RoboKaywee")
+			r = praw.Reddit("RoboKaywee") # log in to reddit API with RoboKaywee credentials
+			subreddit = r.subreddit("RoboKaywee") # get /r/RoboKaywee subreddit object
 
 			if command_lock.acquire(timeout=10):
 				with open("commands.txt", "r", encoding="utf-8") as f:
@@ -365,7 +367,7 @@ def update_commands_wiki(force_update_reddit=False):
 						else:
 							table += f"{command}|{level}|Text command with no response.|{uses}\n"
 
-				subreddit.wiki["commands"].edit(table)
+				subreddit.wiki["commands"].edit(table) # send commands table to reddit
 				last_wiki_update = time()
 			else:
 				log("Warning: Command Lock timed out on update_commands_wiki() !!")
@@ -495,6 +497,10 @@ def ow2_msgs():
 		sleep(random.randint(15*60, 45*60)) # random wait between 15 and 45 mins
 		commands_file.ow2({"display-name": "Timed Event"})
 
+def promote_socials(delay=60*180):
+	sleep(delay)
+	send_message("Kaywee is on Twitter/Insta! 🐦 http://kaywee.live/twitter // 📷 http://kaywee.live/ig")
+
 def channel_live_messages():
 	global channel_live
 	global live_status_checked
@@ -505,6 +511,8 @@ def channel_live_messages():
 		if not channel_live.is_set():  # if channel isn't already live when bot starts
 			channel_live.wait()        # wait for channel to go live
 			send_message("!resetrecord")
+			sleep(5)
+			send_message("@kaywee - don't forget to enable/disable TreatStream (!treat)")
 
 		weekday_num = date.today().weekday()
 		if weekday_num == 3:
@@ -712,6 +720,7 @@ def ban_lurker_bots():
 	recently_banned = get_data("recently_banned", [])
 
 	while True:
+		channel_live.wait() # if channel goes offline, wait for it to come back online before continuing. We'll still check a few times below after the channel goes offline
 		try:
 			known_bots = requests.get(bots_url).json()["bots"]
 
@@ -742,7 +751,6 @@ def ban_lurker_bots():
 				viewers = requests.get(viewers_url).json()["chatters"]["viewers"] # doesn't list broadcaster, vips, mods, staff, admins, or global mods. Which is good here.
 			except Exception as ex:
 				log("Exception while checking for lurker bots: " + str(ex))
-				sleep(check_period)
 			else:
 				for viewer in viewers:
 					# allow anyone who's ever chatted (usernames list)
@@ -761,7 +769,7 @@ def ban_lurker_bots():
 						sleep(3) # just helps space the messages out a bit
 
 				set_data("last_lurker_check", int(time()))
-				sleep(check_period)
+			sleep(check_period)
 
 def send_discord_message(message):
 	# don't wanna block up the main thread while the discord bot starts up and sends the message
@@ -823,6 +831,7 @@ def get_oauth_token(force_new_token=False):
 			return kaywee_oauth_token
 		except KeyError as ex:
 			log(f"No Token received when fetching new oauth token from twitch - {str(ex)}")
+			raise # re-raise the same exception so the calling function doesn't continue
 	else:
 		kaywee_oauth_token = get_data("kaywee_oauth_token")
 
@@ -842,7 +851,7 @@ def dont_stop_comin():
 	while True:
 		channel_live.wait() # if channel goes offline, wait for it to come back online
 		sleep(random.randint(45*60, 100*60)) # random wait between 45 and 100 mins
-		if channel_live.is_set(): #channel is still online after sleeping 
+		if channel_live.is_set(): # channel is still online after sleeping
 			send_message("and they don't stop comin'")
 			log("and they don't stop comin'")
 
@@ -875,7 +884,7 @@ def respond_message(message_dict):
 
 	elif permission < permissions.Subscriber:
 		msg_without_spaces = message_lower.replace(" ", "")
-		if any(x in msg_without_spaces for x in ["bigfollows.com", "bigfollows*com", "bigfollowsdotcom", "wannabecomefamous?buyfollowersandviewers", "clck.ru"]):
+		if any(x in msg_without_spaces for x in ["bigfollows.com", "bigfollows*com", "bigfollowsdotcom", "wannabecomefamous?", "buyfollowersandviewers", "clck.ru"]):
 			send_message(f"/ban {user}")
 			log(f"Banned {user} for linking to bigfollows")
 			send_discord_message(f"The following bigfollows spammer has been banned on Twitch: {user}")
@@ -894,19 +903,20 @@ def respond_message(message_dict):
 	elif message_lower == "hello there":
 		send_message("General Kenobi")
 		log(f"Sent Kenobi to {user}")
-	elif "romper" in message_lower:
-		send_message("!romper")
-		log(f"Sent romper to {user}")
-	elif user == "theonefoster" and message_lower == "*sd":
-		shutdown_on_offline = True
-		log("Will now shutdown when Kaywee goes offline.")
+	#elif "romper" in message_lower:
+	#	send_message("!romper")
+	#	log(f"Sent romper to {user}")
+	#elif user == "theonefoster" and message_lower == "*sd":
+	#	global shutdown_on_offline
+	#	shutdown_on_offline = True
+	#	log("Will now shutdown when Kaywee goes offline.")
 	elif user == "nightroad2593" and message_lower[:6] == "in ow2":
 		log(f"Saved new ow2 prediction: {message_lower}")
 		with open("ow2.txt", "a") as f:
 			f.write(message + "\n")
-	elif user in ["gothmom_", "ncal_babygirl24"] and "lucio" in message_lower:
-		send_message("IS UR MAN HERE??")
-		log(f"Sent \"Is your man here?\" to {user}")
+	#elif user in ["gothmom_", "ncal_babygirl24"] and "lucio" in message_lower:
+	#	send_message("IS UR MAN HERE??")
+	#	log(f"Sent \"Is your man here?\" to {user}")
 	elif msg_lower_no_punc == "alexa play despacito":
 		send_message("Now playing Despacito by Luis Fonsi.")
 		log(f"Now playing Despacito for {user}")
@@ -929,27 +939,21 @@ def respond_message(message_dict):
 	elif re.fullmatch(patrick_re, message_lower):
 		send_message("No, this is Patrick.")
 		log(f"Sent patrick to {user}")
-	elif msg_lower_no_punc == "youre walking in the woods":
-		send_message("There's no-one around and your phone is dead.")
-		log(f"Sent Shia (part 1) to {user}")
-	elif msg_lower_no_punc == "out of the corner of your eye you spot him":
-		send_message("Shia Lebeuf!")
-		log(f"Sent Shia (part 2) to {user}")
 	elif msg_lower_no_punc in ["modcheck", "mod check"]:
 		send_message(":eyes:")
 		log(f"Sent ModCheck to {user}")
 	elif message == "Jebaited":
 		send_message("Jebaited https://www.youtube.com/watch?v=d1YBv2mWll0 Jebaited")
 		log(f"Sent Jebaited song to {user}")
-	elif message_lower == "boom boom boom boom":
-		send_message("I want you in my room")
-		log(f"Sent I want you in my room to {user}")
 	elif re.fullmatch(sheesh_re, message_lower):
 		send_message(message.upper())
 		log(f"Sent SHEEEEEEEEESH to {user}")
 	elif any(len(word) > 3 and word.startswith("xqc") for word in msg_words):
 		send_message("KEKW Using KEKW xQc KEKW emotes KEKW unironically KEKW")
 		log(f"Sent KEKW to {user}'s xQc emote")
+	elif "onlyfans" in message_lower:
+		send_message("Onlyfans? Kaywee's is at http://kaywee.live/onlyfans")
+		log(f"Sent Kaywee's onlyfans to {user}")
 
 class permissions(IntEnum):
     Disabled    = 20
@@ -1003,7 +1007,7 @@ if __name__ == "__main__":
 	Thread(target=automatic_backup,        name="Automatic Backup").start()
 	Thread(target=play_patiently,          name="Play Patiently").start()
 	Thread(target=ban_lurker_bots,         name="Ban Lurker Bots").start()
-	Thread(target=dont_stop_comin,         name="Don't Stop Coming").start()
+	#Thread(target=dont_stop_comin,         name="Don't Stop Coming").start()
 	#Thread(target=ow2_msgs,                name="OW2 messages").start()
 	
 	user_cooldowns  = {}
@@ -1059,7 +1063,7 @@ if __name__ == "__main__":
 
 					if user not in usernames:
 						Thread(target=add_new_username,args=(user,)).start() # probably saves like.. idk 50ms? over just calling it.. trims reaction time though
-					elif hello_re.fullmatch(message_lower): # this way Hello isn't sent to new users - they get the greeting instead, not as well.
+					elif hello_re.fullmatch(message_lower): # Hello isn't sent to new users - they get the greeting instead, not as well.
 						if user == "littlehummingbird":
 							send_message("HELLO MADDIE THIS IS TOTALLY NOT A SASSY MESSAGE BUT HI") # little easter egg for maddie :)
 							log("Said Hello to Maddie, but in a totally not-sassy way")
@@ -1236,7 +1240,7 @@ if __name__ == "__main__":
 								sleep(1)
 								send_message(f"OMG {gifter}!! Thank you so much for my gifted sub, you're the best!! <3 <3 kaywee1AYAYA") # don't get_emote as we know the bot is subbed
 							elif commands_file.nochat_on:
-								send_message(f"@{gifter} thank you so much for gifting a subscription to {recipient}! Kaywee isn't looking at chat right now (!nochat) but she'll see your gift after the current game.")
+								send_message(f"@{gifter} thank you so much for gifting a subscription to {recipient}! Kaywee isn't looking at chat right now (!nochat) but she should see your gift after her current game.")
 								log(f"Sent nochat to {gifter} for gifting a sub")
 
 						elif message_dict["msg-id"] == "sub": # USER SUBSCRIPTION
@@ -1294,6 +1298,8 @@ if __name__ == "__main__":
 
 									Thread(target=how_to_translate_thread).start()
 
+								Thread(target=promote_socials, name="Socials (Raid)", args=(300,)).start() #after 300 seconds (5 mins), promote socials
+
 						elif message_dict["msg-id"] == "submysterygift":
 							gifter = message_dict["login"] # comes as lowercase
 							gifts = message_dict["msg-param-mass-gift-count"]
@@ -1333,7 +1339,7 @@ if __name__ == "__main__":
 						elif message_dict["msg-id"] == "bitsbadgetier":
 							badge_user      = message_dict["display-name"]
 							badge_threshold = message_dict["msg-param-threshold"]
-							send_message(f"@{badge_user} just earned a new bits badge tier for sending over {badge_threshold} bits to Kaywee! Thank you!")
+							send_message(f"@{badge_user} just earned a new bits badge tier for sending over {badge_threshold} total bits to Kaywee! Thank you!")
 							log(f"Congratulated {badge_user} who now has a {badge_threshold}-bits badge.")
 
 						elif message_dict["msg-id"] == "primepaidupgrade":
@@ -1346,7 +1352,7 @@ if __name__ == "__main__":
 						elif message_dict["msg-id"] == "ritual":
 							# 04/11/21 - this didn't come through in chat for a new user who redeemed Highlight My Message. Old set method detected the new user but new ritual method didn't.
 
-							# update: doesn't work. msg doesn't come through at all.
+							# update: doesn't work. ritual msg doesn't come through at all.
 							if message_dict["msg-param-ritual-name"] == "new_chatter":
 								new_chatter = message_dict["display-name"]
 								log(f"{new_chatter} is a new chatter!")
@@ -1422,8 +1428,17 @@ if __name__ == "__main__":
 					user_id = message_dict.get("target-user-id", None) # this is the User ID, not the username. It's a str-formatted number.
 					# username = get_name_from_user_ID(user_id)
 				else:
+					current_time = localtime()
+					# year   = str(current_time.tm_year)
+					month  = str(current_time.tm_mon ).zfill(2)
+					day    = str(current_time.tm_mday).zfill(2)
+					hour   = str(current_time.tm_hour).zfill(2)
+					minute = str(current_time.tm_min ).zfill(2)
+					second = str(current_time.tm_sec ).zfill(2)
+					
+					log_time = f"{day}/{month} {hour}:{minute}:{second}"
 					with open("verbose log.txt", "a", encoding="utf-8") as f:
-						f.write("Robokaywee - unknown message type: " + str(message_dict) + "\n\n")
+						f.write(log_time + " - Robokaywee - unknown message type: " + str(message_dict) + "\n\n")
 			dropoff = 1
 		except Exception as ex:
 			if any(x in str(ex) for x in ["An existing connection was forcibly closed", "An established connection was aborted"]):
@@ -1435,5 +1450,5 @@ if __name__ == "__main__":
 			else:
 				log("Exception in main loop: " + str(ex)) # generic catch-all (literally) to make sure bot doesn't crash
 
-			dropoff *= 1.5 # exponential dropoff, decay factor 1.5
+			dropoff = min (dropoff * 1.5, 600) # exponential dropoff, decay factor 1.5, but don't wait longer than 10 mins
 			sleep(dropoff)

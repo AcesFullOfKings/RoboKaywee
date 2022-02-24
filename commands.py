@@ -433,11 +433,12 @@ def followgoal(message_dict):
 		followers = data["total"]
 		followers_left = goal - followers
 		if followers_left > 0:
-			send_message(f"Kaywee has {followers:,} followers, meaning there are only {followers_left:,} more followers until we hit our goal of {goal:,}! {get_emote('kaywee1AYAYA')}")
-			log(f"Sent followergoal of {followers_left} to {user} (currently {followers:,}/{goal:,})")
+			plural = "s" if followers_left >1 else ""
+			send_message(f"Kaywee has {followers:,} followers, meaning there are only {followers_left:,} more follower{plural} until we hit our goal of {goal:,}! {get_emote('kaywee1AYAYA')}")
+			log(f"Sent followgoal of {followers_left} to {user} (currently {followers:,}/{goal:,})")
 		else:
 			send_message(f"The follower goal of {goal:,} has been met! We now have {followers:,} followers! {get_emote('kaywee1AYAYA')}")
-			log(f"Sent followergoal has been met to {user} ({followers:,}/{goal:,})")
+			log(f"Sent followgoal has been met to {user} ({followers:,}/{goal:,})")
 			while goal <= followers:
 				if goal < 10000:
 					goal += 500
@@ -459,7 +460,7 @@ def _tofreedom(unit, quantity):
 
 	if unit == "c":
 		far = round((quantity * (9/5)) + 32, 1) # F = (C × 9/5) + 32
-		return ("f", far)
+		return ("F", far)
 	elif unit == "cm":
 		inches = round(quantity / 2.54, 2)
 		return ("in", inches)
@@ -492,7 +493,7 @@ def _unfreedom(unit, quantity):
 
 	if unit == "f":
 		cel = round((quantity-32) * (5/9), 1) # C = (F − 32) × 5/9
-		return ("c", cel)
+		return ("C", cel)
 	elif unit == "in":
 		cm = round(quantity * 2.54, 2)
 		return ("cm", cm)
@@ -1816,7 +1817,7 @@ def message(message_dict):
 				log(f"Saved a user message from {user} to {target}.")
 				return True
 	else:
-		send_message("That user has never been seen in chat. Messages can only be sent to known users.")
+		send_message("That user has never been seen in chat. Messages can only be sent to known chatters.")
 		log(f"Didn't save user message for {user}: unknown user ({target})")
 		return False
 
@@ -1888,7 +1889,13 @@ def isitdown(message_dict):
 		return False
 
 	url = f"https://downdetector.com/status/{name.replace(' ', '-')}"
-	user_agent = {'User-agent': 'Mozilla/5.0'}
+	user_agent = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:96.0) Gecko/20100101 Firefox/96.0',
+				  'Accept':    'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+				  'Accept-Language': 'en-GB,en;q=0.5',
+				  'Connection':  'keep-alive',
+				  'DNT': "1", 
+				  'Cache-Control': 'no-cache'
+				}
 	page = requests.get(url, headers=user_agent)
 
 	if "User reports indicate possible problems" in page.text:
