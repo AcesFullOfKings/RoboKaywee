@@ -144,6 +144,7 @@ ayy_re     = re.compile("a+y+") # one or more "a" followed by one or more "y", e
 hello_re   = re.compile("h+i+|h+e+y+|h+e+l+o+|h+o+l+a+|h+i+y+a+") # various ways of saying hello
 patrick_re = re.compile("is this [^ ?]+\?*$") # "is this " followed by a word, followed by zero or more question marks. e.g. "is this kaywee??"
 sheesh_re  = re.compile("s+h+e{2,}s+h+") # sheesh
+aaa_re     = re.compile("a{4,}") # aaaa
 
 # when only mods send messages into chat for at least `key` messages, the bot will announce the modwall.
 # the Name is the type of modwall which gets announced into chat
@@ -779,10 +780,7 @@ def _send_discord_message(message):
 	# this takes a few seconds and probably shouldn't be used too much LOL
 	try:
 		# fuck discord.py and it's async bs for making me do this
-		if os.name == "nt": # WINDOWS:
-			subprocess.run("python discord.py " + message, capture_output=True) # capture_output=True means the output doesn't go to console.. Otherwise when it exit()s it prints the exception stack lol
-		else: # NOT WINDOWS (rpi)
-			subprocess.run("python3.9 Discord.py " + message, capture_output=True)
+		subprocess.run("python discord.py " + message, capture_output=True) # capture_output=True means the output doesn't go to console.. Otherwise when it exit()s it prints the exception stack lol
 	except Exception as ex:
 		log("Exception sending discord message: " + str(ex))
 		return
@@ -884,9 +882,9 @@ def respond_message(message_dict):
 
 	elif permission < permissions.Subscriber:
 		msg_without_spaces = message_lower.replace(" ", "")
-		if any(x in msg_without_spaces for x in ["bigfollows.com", "bigfollows*com", "bigfollowsdotcom", "wannabecomefamous?", "buyfollowersandviewers", "clck.ru"]):
+		if any(x in msg_without_spaces for x in ["bigfollows.com", "bigfollows*com", "bigfollowsdotcom", "wannabecomefamous?", "buyfollowersandviewers", "clck.ru", "mountviewers", "t.ly/cgtm"]):
 			send_message(f"/ban {user}")
-			log(f"Banned {user} for linking to bigfollows")
+			log(f"Banned {user} for linking to spam")
 			send_discord_message(f"The following bigfollows spammer has been banned on Twitch: {user}")
 
 	# EASTER EGGS:
@@ -906,10 +904,10 @@ def respond_message(message_dict):
 	#elif "romper" in message_lower:
 	#	send_message("!romper")
 	#	log(f"Sent romper to {user}")
-	#elif user == "theonefoster" and message_lower == "*sd":
-	#	global shutdown_on_offline
-	#	shutdown_on_offline = True
-	#	log("Will now shutdown when Kaywee goes offline.")
+	elif user == "theonefoster" and message_lower == "*sd":
+		global shutdown_on_offline
+		shutdown_on_offline = True
+		log("Will now shutdown when Kaywee goes offline.")
 	elif user == "nightroad2593" and message_lower[:6] == "in ow2":
 		log(f"Saved new ow2 prediction: {message_lower}")
 		with open("ow2.txt", "a") as f:
@@ -947,7 +945,9 @@ def respond_message(message_dict):
 		log(f"Sent Jebaited song to {user}")
 	elif re.fullmatch(sheesh_re, message_lower):
 		send_message(message.upper())
-		log(f"Sent SHEEEEEEEEESH to {user}")
+	elif re.fullmatch(aaa_re, message_lower):
+		send_message(message + "!!")
+		log(f"Sent aaaaaa to {user}")
 	elif any(len(word) > 3 and word.startswith("xqc") for word in msg_words):
 		send_message("KEKW Using KEKW xQc KEKW emotes KEKW unironically KEKW")
 		log(f"Sent KEKW to {user}'s xQc emote")
@@ -1021,9 +1021,6 @@ if __name__ == "__main__":
 	bUrself_sent    = get_data("bUrself_sent", False)
 	ali_sent        = get_data("ali_sent", False)
 	user_messages   = get_data("user_messages", {})
-
-	if user_messages is None:
-		user_messages = dict()
 	
 	# let commands file access key objects
 	# these can be read and written to from both here and commands_file
@@ -1219,7 +1216,7 @@ if __name__ == "__main__":
 								message = message_dict["message"]
 								log(f"NOTICE: {id}: {message}")
 								with open("chatlog.txt", "a", encoding="utf-8") as f:
-									f.write(f"NOTICE: (msg_id {id}): {message}\n")
+									f.write(f"NOTICE: ({id}): {message}\n")
 						else:
 							log(f"NOTICE with msg_id but no message: {str(message_dict)}") # shouldn't happen
 					else:
@@ -1422,10 +1419,12 @@ if __name__ == "__main__":
 					# single message was deleted
 					# e.g {'message_type': 'clearmsg', 'login': 'nacho_888', 'room-id': '', 'target-msg-id': '4e2100ba-f5fe-4338-85a1-cccc191375c7', 'tmi-sent-ts': '1613065616305'}
 					target = message_dict["login"] # the user whose message was deleted ?
+					print(message_dict)
 
 				elif message_dict["message_type"] == "clearchat":
 					# cleared all messages from user
 					user_id = message_dict.get("target-user-id", None) # this is the User ID, not the username. It's a str-formatted number.
+					print(message_dict)
 					# username = get_name_from_user_ID(user_id)
 				else:
 					current_time = localtime()
@@ -1450,5 +1449,5 @@ if __name__ == "__main__":
 			else:
 				log("Exception in main loop: " + str(ex)) # generic catch-all (literally) to make sure bot doesn't crash
 
-			dropoff = min (dropoff * 1.5, 600) # exponential dropoff, decay factor 1.5, but don't wait longer than 10 mins
+			dropoff = min(dropoff * 1.5, 600) # exponential dropoff, decay factor 1.5, but don't wait longer than 10 mins
 			sleep(dropoff)

@@ -808,11 +808,11 @@ def lastraid(message_dict):
 
 	raid_data = eval(get_data("last_raid"))
 
-	name    = raid_data["raider"]
-	viewers = int(raid_data["viewers"])
-	time    = raid_data["time"]
+	name      = raid_data["raider"]
+	viewers   = int(raid_data["viewers"])
+	raid_time = raid_data["time"]
 
-	date_num = datetime.utcfromtimestamp(time).strftime('%d') # returns a string with date number, e.g. "19"
+	date_num = datetime.utcfromtimestamp(raid_time).strftime('%d') # returns a string with date number, e.g. "19"
 	if date_num in ["01", "21", "31"]:
 		suffix = "st"
 	elif date_num in ["02", "22"]:
@@ -823,12 +823,12 @@ def lastraid(message_dict):
 		suffix = "th"
 
 	date_num = str(date_num).lstrip("0")
-	time_str = datetime.utcfromtimestamp(time).strftime("%A " + date_num + suffix + " of %B at %H:%M UTC")
+	time_str = datetime.utcfromtimestamp(raid_time).strftime("%A " + date_num + suffix + " of %B at %H:%M UTC")
 
 	# viewers must be >=2 for it to have saved, so no need to check if viewers should be plural
 
 	send_message(f"The latest raid was by {name}, who raided with {viewers:,} viewers on {time_str}!")
-	log(f"Sent last raid to {user}: it was {name}, who raided with {viewers:,} viewers on {time_str}!")
+	log(f"Sent last raid to {user}: {name} raided with {viewers:,} viewers on {time_str}!")
 
 @is_command("Changes the colour of the bot's username. Syntax: !setcolour [<colour>|random] e.g.`!setcolour HotPink` OR `!setcolour random`")
 def setcolour(message_dict):
@@ -840,7 +840,7 @@ def setcolour(message_dict):
 	except(ValueError, IndexError):
 		colour = "default"
 
-	if colour.lower() in ["random", "default", "blue","blueviolet","cadetblue","chocolate","coral","dodgerblue","firebrick","goldenrod","green","hotpink","orangered","red","seagreen","springgreen","yellowgreen"]:
+	if colour.lower() in ["random","default","blue","blueviolet","cadetblue","chocolate","coral","dodgerblue","firebrick","goldenrod","green","hotpink","orangered","red","seagreen","springgreen","yellowgreen"]:
 		valid = True
 	else:
 		valid = False
@@ -1801,7 +1801,7 @@ def message(message_dict):
 		else:
 			if any(x in user_message for x in bad_words):
 				send_message("That mesasge is invalid.")
-				log("Didn't save invalid message from {user} - message was: {message}")
+				log(f"Didn't save invalid message from {user} - message was: {message}")
 				return False
 
 			else:
@@ -1941,9 +1941,10 @@ def excuse(message_dict):
 		responses = ["Ahh that explains a lot.",
 					 "Oh. Does her duo know this?",
 					 "Oh, I was wondering what was going on.",
-					 "Yeah, that makes sense."]
+					 "Yeah, that makes sense.",
+					 "I knew something was up."]
 
-		send_message(random.choice(responses))
+		send_message(random.choice(responses) + " Added the excuse.")
 		log(f"Added excuse from {user}: {excuse}")
 	else:
 		with open("excuses.txt", "r", encoding="utf-8") as f:
@@ -1985,18 +1986,6 @@ def _commit_thread(message):
 	else:
 		send_message(f"The commit failed with code {result}")
 		log(f"The commit failed with code {result}")
-
-@is_command("Appends a line of code to RoboKaywee's code")
-def append(message_dict):
-	message = message_dict["message"]
-	user = message_dict["display-name"].lower()
-
-	line = " ".join(message.split(" ")[1:])
-	with open("commands.py", "a") as f:
-		f.write("\n" + line)
-
-	log(f"Appended {line} for {user}")
-	send_message("Append was successful!")
 
 @is_command("Show the price of etherium")
 def eth(message_dict):
@@ -2211,8 +2200,8 @@ def wikipedia(message_dict):
 
 	try:
 		page = wikip.summary(topic, sentences=2)
-		page = re.sub(r" ?\([^()]+\)", "", page) # remove brackets
-		page = re.sub(r" ?\([^()]+\)", "", page) # remove second-level brackets
+		page = re.sub(r" ?\([^()]+\)", "", page) # remove (brackets)
+		page = re.sub(r" ?\([^()]+\)", "", page) # remove ((second-level)) brackets
 		send_message(page)
 	except Exception as ex:
 		log("Exception in Wikipedia: " + str(ex))
@@ -2239,7 +2228,7 @@ def delete(message_dict):
 
 def _make_ordinal(n):
     '''
-    Convert an integer into its ordinal representation::
+    Convert an integer into its ordinal representation:
 
         make_ordinal(0)   => '0th'
         make_ordinal(3)   => '3rd'
@@ -2247,9 +2236,12 @@ def _make_ordinal(n):
         make_ordinal(213) => '213th'
     '''
     n = int(n)
-    suffix = ['th', 'st', 'nd', 'rd', 'th'][min(n % 10, 4)]
-    if 11 <= (n % 100) <= 13:
+
+    if 11 <= (n % 100) <= 13: 
         suffix = 'th'
+    else:
+       	suffix = ['th', 'st', 'nd', 'rd', 'th'][min(n % 10, 4)]
+
     return str(n) + suffix
 
 @is_command("Link to the most recently-created clip.")
@@ -2266,11 +2258,15 @@ def lastclip(message_dict):
 	results = requests.get(url, headers=authorisation_header).json()["data"]
 	results.sort(key=lambda x: x["created_at"])
 
-	clip_link = results[-1]["url"]
-	clip_id   = results[-1]["id"]
+	if len(results) > 0:
+		clip_link = results[-1]["url"]
+		clip_id   = results[-1]["id"]
 
-	send_message(clip_link)
-	log(f"Sent lastclip to {user} (clip ID is {clip_id})")
+		send_message(clip_link)
+		log(f"Sent lastclip to {user} (clip ID is {clip_id})")
+	else:
+		send_message("No clips have been created in the last two weeks FeelsBadMan")
+		log(f"Sent lastclip to {user}: no clips found.")
 
 @is_command("Shows the Rank and Score of a user on the Bits Leaderboard.")
 def bits(message_dict):
@@ -2320,7 +2316,7 @@ def _bitsthread(message_dict):
 	leaderboard.sort(key= lambda x:int(x["rank"]))
 	top_5 = leaderboard[:5]
 
-	user_bits_template = "{rank}. {user} ({bits}), "
+	user_bits_template = "{rank}: {user} ({bits}), "
 
 	msg = "The top five bits donors are: "
 
