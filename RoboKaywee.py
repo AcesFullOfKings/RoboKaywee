@@ -1008,7 +1008,7 @@ if __name__ == "__main__":
 	Thread(target=play_patiently,          name="Play Patiently").start()
 	Thread(target=ban_lurker_bots,         name="Ban Lurker Bots").start()
 	#Thread(target=dont_stop_comin,         name="Don't Stop Coming").start()
-	#Thread(target=ow2_msgs,                name="OW2 messages").start()
+	Thread(target=ow2_msgs,                name="OW2 messages").start()
 	
 	user_cooldowns  = {}
 	modwall_mods    = set()

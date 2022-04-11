@@ -1837,6 +1837,7 @@ def _get_viewers_worker(message_dict):
 def _get_viewers(message_dict):
 	try:
 		name = " ".join(message_dict["message"].split(" ")[1:])
+		assert len(name) >= 1
 	except:
 		send_message("You must specify which game to search for.")
 		return False
@@ -1857,25 +1858,28 @@ def _get_viewers(message_dict):
 
 	cursor = ""
 	viewers_url = "https://api.twitch.tv/helix/streams?game_id={id}&first=100&after={cursor}"
-
-	page = requests.get(viewers_url.format(id=id, cursor=cursor), headers=authorisation_header).json()
-	cursor = page["pagination"]["cursor"]
-
-	while cursor != "":
-		for stream in page["data"]:
-			viewers += stream["viewer_count"]
-
-		page = requests.get(viewers_url.format(id=id, cursor=cursor), headers=authorisation_header).json()
-		try:
-			cursor = page["pagination"]["cursor"]
-		except Exception as ex:
-			break
-
 	n = "n" if name[0] in "aeiou" else ""
 
-	send_message(f"@{user} There are currently {viewers:,} people watching a{n} {name} stream.")
-	log(f"Sent viewers of {viewers:,} in category {name} to {user}.")
-	return
+	page = requests.get(viewers_url.format(id=id, cursor=cursor), headers=authorisation_header).json()
+	if len( page["pagination"]) > 0:
+		cursor = page["pagination"]["cursor"]
+
+		while cursor != "":
+			for stream in page["data"]:
+				viewers += stream["viewer_count"]
+
+			page = requests.get(viewers_url.format(id=id, cursor=cursor), headers=authorisation_header).json()
+			try:
+				cursor = page["pagination"]["cursor"]
+			except Exception as ex:
+				break
+
+		send_message(f"@{user} There are currently {viewers:,} people watching a{n} {name} stream.")
+		log(f"Sent viewers of {viewers:,} in category {name} to {user}.")
+		return
+	else:
+		send_message(f"@{user} There is currently nobody watching a{n} {name} stream! FeelsBadMan")
+		log(f"Sent viewers of 0 in category {name} to {user}.")
 
 @is_command("Check whether a website or service is down. Usage: `!isitdown apex legends` or `!isitdown twitch`")
 def isitdown(message_dict):
