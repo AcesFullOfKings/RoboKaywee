@@ -37,7 +37,7 @@ try: # try to name the window
 except: # might not work on linux / etc.. oh well
 	pass
 
-def log(s):
+def log(log_text):
 	"""
 	Takes a string, s, and logs it to a log file on disk with a timestamp. Also prints the string to console.
 	"""
@@ -51,9 +51,11 @@ def log(s):
 	
 	log_time = f"{day}/{month} {hour}:{minute}:{second}"
 
-	print(f"{hour}:{minute} - {s}")
+	log_text = log_text.replace("\n", "").replace("\r", "") # makes sure each log line is only one line
+
+	print(f"{hour}:{minute} - {log_text}")
 	with open("log.txt", "a", encoding="utf-8") as f:
-		f.write(log_time + " - " + s + "\n")
+		f.write(log_time + " - " + log_text + "\n")
 
 def get_data(name, default=None):
 	try:
@@ -156,14 +158,14 @@ modwalls = {
 	15:  {"name": "Modwall",                 "emotes": "kaywee1AYAYA",                                                           "excitement": 1, "break_emotes": ":("},
 	30:  {"name": "Supermodwall",            "emotes": "SeemsGood kaywee1Wut",                                                   "excitement": 1, "break_emotes": ":( FeelsBadMan"},
 	60:  {"name": "MEGA MODWALL",            "emotes": "TwitchLit kaywee1AYAYA kaywee1Wut",                                      "excitement": 2, "break_emotes": ":( FeelsBadMan NotLikeThis"},
-	120: {"name": "H Y P E R MODWALL",       "emotes": "kaywee1AYAYA PogChamp Kreygasm CurseLit",                                "excitement": 2, "break_emotes": ":( FeelsBadMan NotLikeThis PepeHands"},
-	250: {"name": "U L T R A M O D W A L L", "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut", "excitement": 3, "break_emotes": ":( FeelsBadMan NotLikeThis PepeHands Sadge"},
-	500: {"name": "G I G A M O D W A L L",   "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut", "excitement": 3, "break_emotes": ":( FeelsBadMan NotLikeThis PepeHands Sadge"},
+	120: {"name": "H Y P E R MODWALL",       "emotes": "kaywee1AYAYA PogChamp Kreygasm CurseLit",                                "excitement": 3, "break_emotes": ":( FeelsBadMan NotLikeThis PepeHands"},
+	250: {"name": "U L T R A M O D W A L L", "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut", "excitement": 4, "break_emotes": ":( FeelsBadMan NotLikeThis PepeHands Sadge"},
+	500: {"name": "G I G A M O D W A L L",   "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut", "excitement": 5, "break_emotes": ":( FeelsBadMan NotLikeThis PepeHands Sadge"},
 	# I guarantee none of these will ever be reached naturally, but..
-	1000:{"name": "PETAMODWALL",             "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut", "excitement": 4, "break_emotes": ":( FeelsBadMan NotLikeThis PepeHands Sadge"},
-	2000:{"name": "EXAMODWALL",              "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut", "excitement": 5, "break_emotes": ":( FeelsBadMan NotLikeThis PepeHands Sadge"},
-	3000:{"name": "ZETTAMODWALL",            "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut", "excitement": 6, "break_emotes": ":( FeelsBadMan NotLikeThis PepeHands Sadge"},
-	4000:{"name": "YOTTAMODWALL",            "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut", "excitement": 7, "break_emotes": ":( FeelsBadMan NotLikeThis PepeHands Sadge"},
+	1000:{"name": "PETAMODWALL",             "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut", "excitement": 6, "break_emotes": ":( FeelsBadMan NotLikeThis PepeHands Sadge"},
+	2000:{"name": "EXAMODWALL",              "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut", "excitement": 7, "break_emotes": ":( FeelsBadMan NotLikeThis PepeHands Sadge"},
+	3000:{"name": "ZETTAMODWALL",            "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut", "excitement": 8, "break_emotes": ":( FeelsBadMan NotLikeThis PepeHands Sadge"},
+	4000:{"name": "YOTTAMODWALL",            "emotes": "kaywee1AYAYA gachiHYPER PogChamp Kreygasm CurseLit FootGoal kaywee1Wut", "excitement": 9, "break_emotes": ":( FeelsBadMan NotLikeThis PepeHands Sadge"},
 	# I know that the SI prefixes don't match the numbers, but whatever, I needed increasing prefixes
 }
 
@@ -495,10 +497,11 @@ def wordoftheday_timer():
 def ow2_msgs():
 	while True:
 		channel_live.wait()
-		sleep(random.randint(15*60, 45*60)) # random wait between 15 and 45 mins
-		commands_file.ow2({"display-name": "Timed Event"})
+		sleep(random.randint(30*60, 90*60)) # random wait 
+		if channel_live.is_set():
+			commands_file.ow2({"display-name": "Timed Event"})
 
-def promote_socials(delay=60*180):
+def promote_socials(delay=60*120): # defaults to 2 hours
 	sleep(delay)
 	send_message("Kaywee is on Twitter/Insta! 🐦 http://kaywee.live/twitter // 📷 http://kaywee.live/ig")
 
@@ -510,6 +513,7 @@ def channel_live_messages():
 	
 	while True:
 		if not channel_live.is_set():  # if channel isn't already live when bot starts
+			# these will only be sent if the bot SEES the channel go live. 
 			channel_live.wait()        # wait for channel to go live
 			send_message("!resetrecord")
 			sleep(5)
@@ -524,8 +528,8 @@ def channel_live_messages():
 			daily_message_func = None # will cause a targetless thread to be created which will immediately terminate
 
 		#Thread(target=it_is_worldday_my_dudes, name="Worldday Thread"    ).start() # waits 10m, sends message once, then exits
-		Thread(target=daily_message_func,       name="DailyMessage Thread").start()   # waits 20m, sends message once, then exits
-		#Thread(target=wordoftheday_timer,      name="WordOfTheDay Thread").start()  # waits 30m, sends message once, then exits
+		Thread(target=daily_message_func,       name="DailyMessage Thread").start() # waits 20m, sends message once, then exits
+		#Thread(target=wordoftheday_timer,      name="WordOfTheDay Thread").start() # waits 30m, sends message once, then exits
 
 		channel_offline.wait() # wait for channel to go offline before running again
 
@@ -584,7 +588,7 @@ def automatic_backup():
 	"""
 	
 	backup_period  = 86400 * 7 # backup once per 7 days
-	check_interval = 120*60    # check  once per 2 hours
+	check_interval = 360*60    # check  once per 6 hours
 
 	while True:
 		if get_data("last_backup", 0) < time() - backup_period:
@@ -878,7 +882,7 @@ def respond_message(message_dict):
 
 		if "kaywee" in message_lower:
 			send_message(f"@{user} {commands_dict['nochat']['response']}")
-			log(f"Sent nochat to {user} in response to @kaywee during nochat mode.")
+			log(f"Sent nochat to {user} in response to @kaywee during nochat mode")
 
 	elif permission < permissions.Subscriber:
 		msg_without_spaces = message_lower.replace(" ", "")
@@ -904,14 +908,14 @@ def respond_message(message_dict):
 	#elif "romper" in message_lower:
 	#	send_message("!romper")
 	#	log(f"Sent romper to {user}")
-	elif user == "theonefoster" and message_lower == "*sd":
+	elif user == "theonefoster" and message_lower == "goodnight! :)":
 		global shutdown_on_offline
 		shutdown_on_offline = True
 		log("Will now shutdown when Kaywee goes offline.")
-	elif user == "nightroad2593" and message_lower[:6] == "in ow2":
-		log(f"Saved new ow2 prediction: {message_lower}")
-		with open("ow2.txt", "a") as f:
-			f.write(message + "\n")
+	#elif user == "nightroad2593" and message_lower[:6] == "in ow2":
+	#	log(f"Saved new ow2 prediction: {message_lower}")
+	#	with open("ow2.txt", "a") as f:
+	#		f.write(message + "\n")
 	#elif user in ["gothmom_", "ncal_babygirl24"] and "lucio" in message_lower:
 	#	send_message("IS UR MAN HERE??")
 	#	log(f"Sent \"Is your man here?\" to {user}")
@@ -1127,7 +1131,7 @@ if __name__ == "__main__":
 											msg_to_send = response
 
 										send_message(msg_to_send)
-										log(f"Sent {command} in response to {user}.")
+										log(f"Sent {command} in response to {user}")
 
 										if "uses" in command_obj:
 											command_obj["uses"] += 1
@@ -1166,8 +1170,9 @@ if __name__ == "__main__":
 							break_emotes = modwall_data["break_emotes"]
 							excitement = "!"*modwall_data["excitement"]
 							send_message(f"{current_modwall} has been broken by {user}{excitement} {break_emotes}")
+							log(f"{current_modwall} has been broken by {user}{excitement} {break_emotes}")
 
-						if modwall >= 5:
+						if modwall >= 3:
 							set_data("modwall", 0)
 
 						modwall = 0
@@ -1290,12 +1295,12 @@ if __name__ == "__main__":
 
 								if raider.lower() == "toniki":
 									def how_to_translate_thread():
-										sleep(20)
+										sleep(75)
 										send_message(commands_dict["howtotranslate"]["response"])
 
 									Thread(target=how_to_translate_thread).start()
 
-								Thread(target=promote_socials, name="Socials (Raid)", args=(300,)).start() #after 300 seconds (5 mins), promote socials
+								Thread(target=promote_socials, name="Socials (Raid)", args=(240,)).start() #after 300 seconds (5 mins), promote socials
 
 						elif message_dict["msg-id"] == "submysterygift":
 							gifter = message_dict["login"] # comes as lowercase
@@ -1418,13 +1423,12 @@ if __name__ == "__main__":
 				elif message_dict["message_type"] == "clearmsg":
 					# single message was deleted
 					# e.g {'message_type': 'clearmsg', 'login': 'nacho_888', 'room-id': '', 'target-msg-id': '4e2100ba-f5fe-4338-85a1-cccc191375c7', 'tmi-sent-ts': '1613065616305'}
-					target = message_dict["login"] # the user whose message was deleted ?
-					print(message_dict)
+					target = message_dict["login"] # the user whose message was deleted
 
 				elif message_dict["message_type"] == "clearchat":
 					# cleared all messages from user
+					# e.g. {'message_type': 'clearchat', 'room-id': '136108665', 'target-user-id': '728447152', 'tmi-sent-ts': '1650295175637'}
 					user_id = message_dict.get("target-user-id", None) # this is the User ID, not the username. It's a str-formatted number.
-					print(message_dict)
 					# username = get_name_from_user_ID(user_id)
 				else:
 					current_time = localtime()

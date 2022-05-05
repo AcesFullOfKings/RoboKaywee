@@ -709,6 +709,11 @@ def toenglish(message_dict):
 
 	errors = 0
 
+	if phrase == "no se":
+		send_message("What does no se mean? Idk.")
+		log("fTranslated No Se to english for {user}")
+		return True
+
 	while errors < 3: # <3
 		#phrase = phrase.replace(".", ",").replace("?", ",").replace("!", ",") # for some reason it only translates the first sentence
 		try:
@@ -1547,7 +1552,7 @@ def chats(message_dict):
 		send_message(f"User not found in top 100 chatters - use !chatstats for full info.")
 		return True
 
-	if user == "theonefoster":
+	if target == "theonefoster":
 		chats += 5048 + 9920 # from AcesFullOfKings and theonefoster_
 
 	send_message(f"{target} has sent {chats:,} messages in Kaywee's channel! Source: https://stats.streamelements.com/c/kaywee")
@@ -1780,7 +1785,7 @@ def message(message_dict):
 		target = target.lower()
 
 	except Exception as ex:
-		send_message("Invalid syntax. Your message won't be sent.")
+		send_message("Invalid syntax. It should be !message <recipient> <message>. Your message wasn't saved.")
 		log(f"Didn't save user message for {user}: invalid syntax. (message was: {message})")
 		return False
 
@@ -1830,7 +1835,7 @@ def _get_viewers_worker(message_dict):
 	viewer_thread = Thread(target=_get_viewers, args=(message_dict,), name="Get Viewers")
 	viewer_thread.start()
 
-	sleep(3.5)
+	sleep(4)
 	if viewer_thread.is_alive():
 		send_message(f"@{user} Just a sec - it might take some time to get the viewers...")
 
@@ -1858,7 +1863,7 @@ def _get_viewers(message_dict):
 
 	cursor = ""
 	viewers_url = "https://api.twitch.tv/helix/streams?game_id={id}&first=100&after={cursor}"
-	n = "n" if name[0] in "aeiou" else ""
+	n = "n" if name[0].lower() in "aeiou" else ""
 
 	page = requests.get(viewers_url.format(id=id, cursor=cursor), headers=authorisation_header).json()
 	if len( page["pagination"]) > 0:
@@ -2298,7 +2303,7 @@ def bits(message_dict):
 		send_message(f"{leaderboard[target]['name']} has donated a total of {bits_donated:,} bits, and is rank {rank} on the leaderboard!")
 		log(f"Sent bits rank to {user}: {target} is rank {rank} with {bits_donated:,} bits.")
 	else:
-		send_message(f"The user {target} isn't on the leaderboard. The leaderboard only shows the top 100 donors.")
+		send_message(f"{target} isn't on the leaderboard. The leaderboard only shows the top 100 bits donors.")
 		log(f"Sent bits rank to {user}: {target} isn't on the leaderboard.")
 
 @is_command("Shows the top 5 bits donors")
