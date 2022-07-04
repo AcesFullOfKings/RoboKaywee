@@ -28,3 +28,5 @@ class InfiniteThread():
 		t = threading.Thread(target=self.target_func, name=self.thread_name)
 		threading.excepthook=self.catch_exceptions
 		t.start()
+
+#git test
