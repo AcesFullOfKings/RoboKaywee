@@ -743,6 +743,7 @@ def ban_lurker_bots():
 					known_bots = dict(eval(f.read()))
 
 				assert len(known_bots) > 0 # bit of a sanity check
+				update_interval = 1
 			except Exception as ex:
 				log("Failed to read cached bots list. Sleeping - trying again later.")
 				sleep(check_period)
@@ -751,8 +752,12 @@ def ban_lurker_bots():
 		else:
 			with open("known_bots.txt", "w", encoding="utf-8") as f:
 				f.write(str(known_bots))
+			update_interval = 24
 
-		for _ in range(24): # only update the known_bots list every 24 checks (12 hours @ 30m/check). Reduces api calls and there's a lot of data (4MB?!)
+		# only update the known_bots list every 24 checks by default (12 hours @ 30m/check). 
+		# This reduces api calls - there's a lot of data (4MB?!)
+		# unless the list failed to fetch, in which case update_interval is 1 and we will re-attempt a fetch next check.
+		for _ in range(update_interval):
 			try:
 				viewers = requests.get(viewers_url).json()["chatters"]["viewers"] # doesn't list broadcaster, vips, mods, staff, admins, or global mods. Which is good here.
 			except Exception as ex:

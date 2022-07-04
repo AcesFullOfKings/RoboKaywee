@@ -1,6 +1,15 @@
 import threading
 from time import time, sleep
 
+def catch_exceptions(args):
+	# args[0] = exc_type (e.g. the class representing the exception, e.g. ValueError)
+	# args[1] = exc_value (e.g. the Exception object, e.g. a ValueError object )
+	# args[2] = exc_traceback - a traceback object
+	# args[3] = the Thread object which raised the exception
+	
+	# pass on the exception handling to the thread itself
+	args[3].InfiniteThread._catch_exceptions(args)
+
 class InfiniteThread():
 	def __init__(self, target=None, name=None, log_func=print, debug=False):
 		self.target_func = target
@@ -10,10 +19,12 @@ class InfiniteThread():
 		self.dropoff = 2
 		self.debug=debug
 
+		threading.excepthook=catch_exceptions
+
 		if self.debug:
 			self.log_func(f"{self.thread_name} debug - InfiniteThread created with name {self.thread_name} and target {self.target_func}")
 
-	def catch_exceptions(self, args):
+	def _catch_exceptions(self, args):
 		if self.last_error < time() - (self.dropoff*3): # reset dropoff after a while
 			if self.debug:
 				self.log_func(f"{self.thread_name} debug - Last exception was at {self.last_error} - resetting dropoff to 1")
@@ -30,10 +41,10 @@ class InfiniteThread():
 		sleep(timeout)
 
 		t = threading.Thread(target=self.target_func, name=self.thread_name)
-		threading.excepthook=self.catch_exceptions
+		t.InfiniteThread = self
 		t.start()
 
 	def start(self):
 		t = threading.Thread(target=self.target_func, name=self.thread_name)
-		threading.excepthook=self.catch_exceptions
+		t.InfiniteThread = self
 		t.start()
