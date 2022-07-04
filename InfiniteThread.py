@@ -43,9 +43,9 @@ class InfiniteThread():
 		self.recreate_thread()
 
 	def start(self):
-		recreate_thread()
+		self.recreate_thread()
 
-	def recreate_thread():
+	def recreate_thread(self):
 		t = threading.Thread(target=self.target_func, name=self.thread_name)
 		t.InfiniteThread = self # "if it's stupid but it works, it's not stupid"
 		t.start()
