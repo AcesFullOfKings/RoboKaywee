@@ -193,7 +193,7 @@ def rcommand(message_dict):
 				send_message("Deleted command " + command_name)
 				log(f"{user} deleted command {command_name}")
 			else:
-				send_message(f"You cannot delete the {command_name} command.")
+				send_message(f"You cannot delete coded commands.")
 		else:
 			send_message(f"No command exists with name {command_name}.")
 	#elif action == "alias": # ???
@@ -234,7 +234,7 @@ def triangle(message_dict):
 	except:
 		return False
 
-	valid_emote = emote in all_emotes or user == "theonefoster"
+	valid_emote = False #emote in all_emotes or user == "theonefoster"
 
 	if not valid_emote:
 		try:
@@ -2361,13 +2361,12 @@ def unused(message_dict):
 #	user = message_dict["display-name"]
 #	message = message_dict["message"]
 #
-#	print("here")
-#
 #	if user != "theonefoster":
-#		return # bit of extra security on top of the Permission as it's an insecure command!
+#		return # bit of extra security on top of the Permission as it's a dangerous command!
 #
 #	command = " ".join(message.split(" ")[1:])
 #
-#####	"""result = eval(command)""" this line is like, super-mega-triple commented out
+#	print(command)
+####"""result = exec(command) # this line is like, super-mega-triple commented out"""
 #
 #	send_message("Result: " + str(result))

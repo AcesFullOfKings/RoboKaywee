@@ -22,6 +22,8 @@ from threading   import Thread, Lock, Event
 from contextlib  import suppress
 from credentials import bot_name, password, channel_name, kaywee_channel_id, robokaywee_client_id, tof_channel_id, robokaywee_secret
 
+from InfiniteThread import InfiniteThread
+
 import commands as commands_file # takes 0.3s to import!
 from API_functions import get_app_access_token, get_name_from_user_ID, get_followers
 
@@ -292,7 +294,7 @@ def channel_events():
 
 	while True:
 		sleep(period)
-		
+
 		try:
 			check_live_status()
 		except Exception as ex:
@@ -318,7 +320,7 @@ def play_patiently():
 		else:
 			channel_live.wait() # channel is offline.. wait to come back online
 
-		sleep(reminder_period) # wait an hour before retrying
+		sleep(reminder_period) # wait before resending
 
 last_wiki_update = 0
 def update_commands_wiki(force_update_reddit=False):
@@ -340,8 +342,7 @@ def update_commands_wiki(force_update_reddit=False):
 				with suppress(RuntimeError):
 					command_lock.release()
 
-				table = ("" + # "**Note: most commands are sent with /me so will display in the bot's colour.**\n\n\n" + 
-						"**Command**|**Level**|**Response/Description**|**Uses**\n---|---|---|---\n")
+				table = "**Command**|**Level**|**Response/Description**|**Uses**\n---|---|---|---\n"
 
 				for command in sorted(commands):
 					if "permission" in commands[command]:
@@ -362,13 +363,13 @@ def update_commands_wiki(force_update_reddit=False):
 							description = commands[command]['description'].replace("|", "/") # pipes break the formatting on the reddit wiki
 							table += f"{command}|{level}|Coded: {description}|{uses}\n"
 						else:
-							table += f"{command}|{level}|Coded command with no description.|{uses}\n"
+							table += f"{command}|{level}|Coded: (no description)|{uses}\n"
 					else:
 						if "response" in commands[command]:
 							response = commands[command]['response'].replace("|", "/") # pipes break the formatting on the reddit wiki
 							table += f"{command}|{level}|Response: {response}|{uses}\n"
 						else:
-							table += f"{command}|{level}|Text command with no response.|{uses}\n"
+							table += f"{command}|{level}|(no response)|{uses}\n"
 
 				subreddit.wiki["commands"].edit(table) # send commands table to reddit
 				last_wiki_update = time()
@@ -503,7 +504,7 @@ def ow2_msgs():
 
 def promote_socials(delay=60*120): # defaults to 2 hours
 	sleep(delay)
-	send_message("Kaywee is on Twitter/Insta! 🐦 http://kaywee.live/twitter // 📷 http://kaywee.live/ig")
+	send_message("Kaywee is on Twitter/Insta/Discord! 🐦 http://kaywee.live/twitter // 📷 http://kaywee.live/ig // 💬 http://kaywee.live/discord")
 
 def channel_live_messages():
 	global channel_live
@@ -555,7 +556,7 @@ def update_followers():
 
 	while True:
 		sleep(10*60)
-		channel_live.wait() # only bother polling while channel is live 
+		channel_live.wait() # only bother polling while channel is live
 
 		url = "https://api.twitch.tv/helix/users/follows?to_id=" + kaywee_channel_id
 
@@ -849,14 +850,6 @@ def get_oauth_token(force_new_token=False):
 			log(f"Exception when validating oauth token - {str(ex)} - trying again with force_new_token..")
 			return get_oauth_token(force_new_token=True)
 
-def dont_stop_comin():
-	while True:
-		channel_live.wait() # if channel goes offline, wait for it to come back online
-		sleep(random.randint(45*60, 100*60)) # random wait between 45 and 100 mins
-		if channel_live.is_set(): # channel is still online after sleeping
-			send_message("and they don't stop comin'")
-			log("and they don't stop comin'")
-
 def respond_message(message_dict):
 	# For random non-command responses/rules
 	# This is run on a second thread
@@ -1001,18 +994,20 @@ if __name__ == "__main__":
 
 	authorisation_header = {"Client-ID": robokaywee_client_id, "Authorization":"Bearer " + get_data("app_access_token")}
 
-	Thread(target=get_twitch_emotes,       name="Get Twitch emotes").start()
-	Thread(target=channel_events,          name="Channel Events").start()
-	Thread(target=update_app_access_token, name="Access Token Updater").start()
-	Thread(target=update_subs,             name="Subscriber Updater").start()	
-	Thread(target=update_followers,        name="Followers Updater").start()
-	Thread(target=set_random_colour,       name="Colour Updater").start()
-	Thread(target=channel_live_messages,   name="Channel Live Messages").start()
-	Thread(target=automatic_backup,        name="Automatic Backup").start()
-	Thread(target=play_patiently,          name="Play Patiently").start()
-	Thread(target=ban_lurker_bots,         name="Ban Lurker Bots").start()
-	#Thread(target=dont_stop_comin,         name="Don't Stop Coming").start()
-	Thread(target=ow2_msgs,                name="OW2 messages").start()
+	#Threads:
+	Thread(target=get_twitch_emotes,       name="Get Twitch emotes").start() # runs once then exits
+
+	# InfiniteThreads:
+	InfiniteThread(target=ow2_msgs,                log_func=log, name="OW2 messages"         ).start()
+	InfiniteThread(target=update_subs,             log_func=log, name="Subscriber Updater"   ).start()
+	InfiniteThread(target=play_patiently,          log_func=log, name="Play Patiently"       ).start()
+	InfiniteThread(target=channel_events,          log_func=log, name="Channel Events"       ).start()
+	InfiniteThread(target=ban_lurker_bots,         log_func=log, name="Ban Lurker Bots"      ).start()
+	InfiniteThread(target=automatic_backup,        log_func=log, name="Automatic Backup"     ).start()
+	InfiniteThread(target=update_followers,        log_func=log, name="Followers Updater"    ).start()
+	InfiniteThread(target=set_random_colour,       log_func=log, name="Colour Updater"       ).start()
+	InfiniteThread(target=channel_live_messages,   log_func=log, name="Channel Live Messages").start()
+	InfiniteThread(target=update_app_access_token, log_func=log, name="Access Token Updater" ).start()
 	
 	user_cooldowns  = {}
 	modwall_mods    = set()
@@ -1211,7 +1206,7 @@ if __name__ == "__main__":
 						set_data("user_messages", user_messages)
 
 				elif message_dict["message_type"] == "notice":
-					if "msg_id" in message_dict: # yes.. it's msg_id here but msg-id everywhere else. Why? Who knows. Why be consistent?
+					if "msg_id" in message_dict: # yes.. twitch uses msg_id here but msg-id everywhere else. Why? Who knows. Why be consistent?
 						id = message_dict["msg_id"]
 						if "message" in message_dict:
 							if id != "color_changed": # gets spammy with daily colour changes and rainbows etc
@@ -1298,9 +1293,9 @@ if __name__ == "__main__":
 										sleep(75)
 										send_message(commands_dict["howtotranslate"]["response"])
 
-									Thread(target=how_to_translate_thread).start()
+									Thread(target=how_to_translate_thread, name="Post-raid How To Translate Thread").start() # if tnk raids, send howtotranslate
 
-								Thread(target=promote_socials, name="Socials (Raid)", args=(240,)).start() #after 300 seconds (5 mins), promote socials
+								Thread(target=promote_socials, name="Socials (Raid)", args=(240,)).start() #after 240 seconds (4 mins), promote socials
 
 						elif message_dict["msg-id"] == "submysterygift":
 							gifter = message_dict["login"] # comes as lowercase
