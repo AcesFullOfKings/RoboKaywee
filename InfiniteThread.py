@@ -40,11 +40,12 @@ class InfiniteThread():
 		self.log_func(f"Exception in {self.thread_name}: {args[0].__name__} - {str(args[1])} - sleeping for {round(timeout, 1)}s..")
 		sleep(timeout)
 
-		t = threading.Thread(target=self.target_func, name=self.thread_name)
-		t.InfiniteThread = self
-		t.start()
+		self.recreate_thread()
 
 	def start(self):
+		recreate_thread()
+
+	def recreate_thread():
 		t = threading.Thread(target=self.target_func, name=self.thread_name)
-		t.InfiniteThread = self
+		t.InfiniteThread = self # "if it's stupid but it works, it's not stupid"
 		t.start()
